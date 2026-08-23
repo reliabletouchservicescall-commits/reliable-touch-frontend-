@@ -1,0 +1,45 @@
+export const PATHS = {
+  ROOT: '/',
+  ROLE_SELECT: '/select-role',
+  LOGIN: '/login',
+  REGISTER: '/register',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password/:token',
+
+  ADMIN: {
+    ROOT: '/admin',
+    CONTACTS: '/admin/contacts',
+    CONTACT_IMPORT: '/admin/contacts/import',
+    DNC: '/admin/dnc',
+    CAMPAIGNS: '/admin/campaigns',
+    AREAS: '/admin/areas',
+    AGENCIES: '/admin/agencies',
+    ASSIGNMENT: '/admin/assignment',
+    LEADS: '/admin/leads',
+    LEAD_DETAIL: '/admin/leads/:id',
+    APPOINTMENTS: '/admin/appointments',
+    COMMISSIONS: '/admin/commissions',
+    LEASE_RENEWALS: '/admin/commissions/lease-renewals',
+    REPORTS: '/admin/reports',
+    AUDIT: '/admin/audit-trail',
+    USERS: '/admin/users',
+  },
+
+  COLD_CALLER: {
+    ROOT: '/cold-caller',
+    CONTACTS: '/cold-caller/contacts',
+    CALL: '/cold-caller/call/:contactId',
+    LEAD_NEW: '/cold-caller/leads/new/:contactId',
+    LEADS: '/cold-caller/leads',
+    FOLLOWUPS: '/cold-caller/followups',
+    LEADERBOARD: '/cold-caller/leaderboard',
+  },
+
+  AGENT: {
+    ROOT: '/agent',
+    LEADS: '/agent/leads',
+    APPOINTMENTS: '/agent/appointments',
+    VISIT: '/agent/visits/:leadId/update',
+    PERFORMANCE: '/agent/performance',
+  },
+}
