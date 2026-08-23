@@ -1,8 +1,5 @@
 import { io } from 'socket.io-client'
-
-// In dev the vite proxy forwards /socket.io to localhost:5000
-// In prod set VITE_SOCKET_URL to the backend base URL
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin
+import { SOCKET_URL } from './runtimeEnv'
 
 let socket = null
 
