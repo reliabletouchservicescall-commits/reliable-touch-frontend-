@@ -39,6 +39,8 @@ import LeaderboardPage from '../pages/cold-caller/LeaderboardPage'
 import AgencyDashboard from '../pages/agency/DashboardPage'
 import AgencyAppointmentsPage from '../pages/agency/AppointmentsPage'
 import AgencyLeaderboardPage from '../pages/agency/LeaderboardPage'
+import AgencyLeadsPage from '../pages/agency/LeadsPage'
+import AgencyNotificationsPage from '../pages/agency/NotificationsPage'
 
 // Admin (additional)
 import AdminCallLogsPage from '../pages/admin/CallLogsPage'
@@ -47,10 +49,10 @@ import PerformancePage from '../pages/admin/PerformancePage'
 import AgentsPerformancePage from '../pages/admin/AgentsPerformancePage'
 import ReportsPage from '../pages/admin/ReportsPage'
 import LoginActivityPage from '../pages/admin/LoginActivityPage'
+import AdminNotificationsPage from '../pages/admin/NotificationsPage'
 
 // Shared
 import UserChatPage from '../pages/shared/UserChatPage'
-import PendingPage from '../components/shared/PendingPage'
 import ProtectedRoute from './ProtectedRoute'
 
 function Stub({ label }) {
@@ -104,7 +106,7 @@ export default function AppRouter() {
           <Route path="performance" element={<PerformancePage />} />
           <Route path="agents-performance" element={<AgentsPerformancePage />} />
           <Route path="login-activity" element={<LoginActivityPage />} />
-          <Route path="notifications" element={<Stub label="Notifications" />} />
+          <Route path="notifications" element={<AdminNotificationsPage />} />
           <Route path="chat" element={<AdminChatPage />} />
         </Route>
 
@@ -141,8 +143,9 @@ export default function AppRouter() {
         >
           <Route index element={<AgencyDashboard />} />
           <Route path="appointments" element={<AgencyAppointmentsPage />} />
+          <Route path="leads" element={<AgencyLeadsPage />} />
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
-          <Route path="notifications" element={<PendingPage title="Notifications" description="Full notification history view is coming soon." />} />
+          <Route path="notifications" element={<AgencyNotificationsPage />} />
           <Route path="chat" element={<UserChatPage />} />
         </Route>
 

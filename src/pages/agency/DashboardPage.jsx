@@ -16,11 +16,14 @@ import {
   Medal,
   Home,
   TrendingUp,
+  DollarSign,
+  ClipboardList,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
+import { agentsApi } from '../../services/agentsApi'
 
 const APPT_META = {
   scheduled:  { label: 'Scheduled',  color: '#3B82F6' },
@@ -97,6 +100,12 @@ export default function AgencyDashboard() {
     staleTime: 60_000,
   })
 
+  const { data: agentDash } = useQuery({
+    queryKey: ['agent-dashboard'],
+    queryFn: () => agentsApi.myDashboard().then((r) => r.data.data),
+    staleTime: 60_000,
+  })
+
   useEffect(() => {
     async function load() {
       const [todayRes, upcomingRes, notiRes] = await Promise.allSettled([
@@ -158,6 +167,19 @@ export default function AgencyDashboard() {
           <StatCard icon={CheckCircle2}   label="Completed Today"      value={stats.completed} sub="Done for the day"           color="#10B981" loading={loading} />
           <StatCard icon={CalendarClock}  label="Scheduled"            value={stats.upcoming}  sub="All upcoming"               color="#F59E0B" loading={loading} />
           <StatCard icon={Bell}           label="Notifications"        value={stats.unread}    sub="Unread"                     color="#8B5CF6" loading={loading} />
+        </div>
+      </div>
+
+      {/* Pipeline stats from /agents/me/dashboard */}
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
+          My Pipeline
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={TrendingUp}    label="Total Leads"         value={agentDash?.totalLeads}         sub="Assigned to me"     color="#3B82F6" loading={!agentDash} />
+          <StatCard icon={ClipboardList} label="Active Leads"        value={agentDash?.activeLeads}        sub="Warm & hot"          color="#F95C4B" loading={!agentDash} />
+          <StatCard icon={Home}          label="Total Visits"        value={agentDash?.totalVisits}        sub="All property visits"  color="#10B981" loading={!agentDash} />
+          <StatCard icon={DollarSign}    label="Pending Commissions" value={agentDash?.pendingCommissions} sub="Awaiting payment"     color="#F59E0B" loading={!agentDash} />
         </div>
       </div>
 
@@ -341,6 +363,7 @@ export default function AgencyDashboard() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <QuickAction icon={CalendarCheck} label="All Appointments"  description="View your full appointment schedule" to="/agency/appointments"  color="#F95C4B" />
+          <QuickAction icon={TrendingUp}    label="My Leads"          description="Leads assigned to you"               to="/agency/leads"         color="#3B82F6" />
           <QuickAction icon={Trophy}        label="Leaderboard"       description="See your rank among agents"          to="/agency/leaderboard"   color="#F59E0B" />
           <QuickAction icon={Bell}          label="Notifications"     description="Team updates and alerts"              to="/agency/notifications" color="#8B5CF6" />
         </div>

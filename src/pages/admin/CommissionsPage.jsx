@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { format, isPast } from 'date-fns'
 import {
   DollarSign, Search, X, Eye, ChevronLeft, ChevronRight,
-  Loader2, Clock, CheckCircle2, AlertTriangle, FileText,
+  Loader2, Clock, CheckCircle2, AlertTriangle, FileText, CreditCard,
 } from 'lucide-react'
 import { commissionsApi } from '../../services/commissionsApi'
 
@@ -75,6 +75,7 @@ function CommissionDrawer({ commission, onClose }) {
   const qc = useQueryClient()
   const [status, setStatus] = useState(commission.status)
   const [saving, setSaving] = useState(false)
+  const [paying, setPaying] = useState(false)
 
   const visit = commission.agentVisitId
 
@@ -90,6 +91,20 @@ function CommissionDrawer({ commission, onClose }) {
       toast.error(err.response?.data?.message ?? 'Failed to update commission')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handlePaynow() {
+    setPaying(true)
+    try {
+      const res = await commissionsApi.initiatePaynow(commission._id)
+      qc.invalidateQueries({ queryKey: ['commissions'] })
+      toast.success(res.data?.message ?? 'Paynow payment initiated')
+      onClose()
+    } catch (err) {
+      toast.error(err.response?.data?.message ?? 'Failed to initiate payment')
+    } finally {
+      setPaying(false)
     }
   }
 
@@ -143,6 +158,23 @@ function CommissionDrawer({ commission, onClose }) {
               ))}
             </select>
           </div>
+
+          {/* Paynow */}
+          {commission.status !== 'paid' && (
+            <div className="pt-1">
+              <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">
+                Payment
+              </label>
+              <button
+                onClick={handlePaynow}
+                disabled={paying}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#10B981] hover:bg-[#059669] disabled:opacity-60 transition-all"
+              >
+                {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                {paying ? 'Processing…' : 'Initiate Paynow Payment'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

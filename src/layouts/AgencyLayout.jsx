@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Building2,
   Trophy,
+  TrendingUp,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuthStore } from '../store/authStore'
@@ -33,6 +34,7 @@ const NAV = [
     group: 'My Work',
     items: [
       { label: 'Appointments', icon: CalendarCheck, to: '/agency/appointments' },
+      { label: 'My Leads',     icon: TrendingUp,    to: '/agency/leads' },
     ],
   },
   {
