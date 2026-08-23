@@ -1,5 +1,6 @@
-import { Building2, Sun, Moon } from 'lucide-react'
+import { Sun, Moon } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import logo from '../../assets/logo-reliable-touch.png'
 
 export default function AppHeader() {
   const { theme, toggle } = useTheme()
@@ -7,9 +8,11 @@ export default function AppHeader() {
   return (
     <header className="relative z-10 flex items-center justify-between px-6 sm:px-10 py-5 bg-white/80 dark:bg-[#0B0B0B]/80 backdrop-blur-sm border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
       <div className="flex items-center gap-2.5">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#F95C4B]">
-          <Building2 className="w-5 h-5 text-white" strokeWidth={2} />
-        </div>
+        <img
+          src={logo}
+          alt="Reliable Touch"
+          className="w-8 h-8 rounded-lg object-contain"
+        />
         <span className="text-[#111111] dark:text-white font-semibold text-base tracking-tight">
           Reliable Touch
         </span>

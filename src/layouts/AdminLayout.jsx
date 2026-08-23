@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import logo from '../assets/logo-reliable-touch.png'
 import {
   Building2,
   LayoutDashboard,
@@ -145,13 +146,20 @@ function Sidebar({ collapsed, onClose, isMobile }) {
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-[#F95C4B]">
-          <Building2 className="w-5 h-5 text-white" strokeWidth={2} />
-        </div>
+        <img
+          src={logo}
+          alt="Reliable Touch"
+          className="flex-shrink-0 w-8 h-8 rounded-lg object-contain"
+        />
         {(!collapsed || isMobile) && (
-          <span className="font-bold text-[#111111] dark:text-white tracking-tight truncate">
-            Reliable Touch
-          </span>
+          <div className="min-w-0">
+            <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm">
+              Reliable Touch
+            </p>
+            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#F95C4B]">
+              Admin Portal
+            </p>
+          </div>
         )}
         {isMobile && (
           <button
