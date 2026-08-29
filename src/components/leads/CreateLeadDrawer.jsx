@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { FileText, Loader2, PhoneCall, User } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
-import { areasApi } from '../../services/areasApi'
 import SidePanel from '../common/SidePanel'
 import LeadFormFields from './LeadFormFields'
 import { LeadTemperaturePicker } from './leadShared'
@@ -25,8 +24,9 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
   const [status, setStatus] = useState(defaultStatus)
   const [form, setForm] = useState({
     landlordName: contact.name ?? '',
-    propertyAddress: '',
-    area: (contact.area && typeof contact.area === 'object') ? contact.area._id : (contact.area ?? ''),
+    listingType: '',
+    priceMin: '',
+    priceMax: '',
     phone: contact.phone ?? '',
     email: contact.email ?? '',
     comments: '',
@@ -37,12 +37,7 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
     appointmentTime: '',
   })
 
-  const { data: areasData } = useQuery({
-    queryKey: ['areas-select'],
-    queryFn: () => areasApi.list({ limit: 100 }).then((r) => r.data.data),
-    staleTime: 60_000,
-  })
-  const areas = areasData?.areas ?? areasData ?? []
+  const missingPropertyInfo = !contact.address || !(contact.area && typeof contact.area === 'object')
 
   const mut = useMutation({
     mutationFn: (payload) => leadsApi.create(payload),
@@ -63,14 +58,19 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
   function validate() {
     const errs = {}
     if (!form.landlordName.trim()) errs.landlordName = 'Landlord name is required'
-    if (!form.propertyAddress.trim()) errs.propertyAddress = 'Property address is required'
-    if (!form.area) errs.area = 'Area is required'
+    if (!form.listingType) errs.listingType = 'Select sale or rental'
+    if (form.priceMin === '') errs.priceMin = 'Enter a minimum price'
+    if (form.priceMax === '') errs.priceMax = 'Enter a maximum price'
+    if (form.priceMin !== '' && form.priceMax !== '' && Number(form.priceMax) < Number(form.priceMin)) {
+      errs.priceMax = 'Max price must be at least the min price'
+    }
     if (!form.phone.trim()) errs.phone = 'Phone is required'
     return errs
   }
 
   function handleSubmit(e) {
     e.preventDefault()
+    if (missingPropertyInfo) return
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
     const payload = { contactId: contact._id }
@@ -95,7 +95,8 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
           <button
             type="submit"
             form="create-lead-form"
-            disabled={mut.isPending}
+            disabled={mut.isPending || missingPropertyInfo}
+            title={missingPropertyInfo ? 'This contact needs an address and area set first' : undefined}
             className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -125,7 +126,7 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
         <LeadTemperaturePicker value={status} onChange={setStatus} />
 
         <form id="create-lead-form" onSubmit={handleSubmit}>
-          <LeadFormFields form={form} setField={setField} errors={errors} areas={areas} />
+          <LeadFormFields form={form} setField={setField} errors={errors} contact={contact} />
         </form>
       </div>
     </SidePanel>

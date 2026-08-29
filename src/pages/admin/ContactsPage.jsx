@@ -15,6 +15,9 @@ import {
 import { contactsApi }         from '../../services/contactsApi'
 import { usersApi }            from '../../services/usersApi'
 import { contactRequestsApi }  from '../../services/contactRequestsApi'
+import { areasApi }            from '../../services/areasApi'
+import ContactCallHistory      from '../../components/contacts/ContactCallHistory'
+import ContactPastLeads        from '../../components/contacts/ContactPastLeads'
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
@@ -37,7 +40,7 @@ const SORT_OPTIONS = [
 ]
 
 const EMPTY_FORM = {
-  name: '', phone: '', altPhone: '', email: '', address: '',
+  name: '', phone: '', altPhone: '', email: '', address: '', area: '',
   unitNumber: '', sizeInSqm: '', sectionalScheme: '', idNumber: '',
   preferredPhone: 'primary', source: 'manual', notes: '', status: 'unassigned',
 }
@@ -741,6 +744,13 @@ function ContactDrawer({ mode, contact, callers, onClose, onSaved }) {
   const [errors, setErrors] = useState({})
   const qc = useQueryClient()
 
+  const { data: areasData } = useQuery({
+    queryKey: ['areas-select'],
+    queryFn: () => areasApi.list({ limit: 100 }).then((r) => r.data.data),
+    staleTime: 60_000,
+  })
+  const areas = areasData?.areas ?? areasData ?? []
+
   useEffect(() => {
     if (mode === 'edit' || mode === 'view') {
       setForm({
@@ -749,6 +759,7 @@ function ContactDrawer({ mode, contact, callers, onClose, onSaved }) {
         altPhone:        contact?.altPhone        ?? '',
         email:           contact?.email           ?? '',
         address:         contact?.address         ?? '',
+        area:            contact?.area?._id        ?? contact?.area ?? '',
         unitNumber:      contact?.unitNumber      ?? '',
         sizeInSqm:       contact?.sizeInSqm ?? contact?.sizeInSqm === 0 ? String(contact.sizeInSqm) : '',
         sectionalScheme: contact?.sectionalScheme ?? '',
@@ -909,6 +920,15 @@ function ContactDrawer({ mode, contact, callers, onClose, onSaved }) {
                 </Field>
               </div>
 
+              <Field label="Area">
+                <select value={form.area} onChange={(e) => setField('area', e.target.value)} className={inputCls(false)}>
+                  <option value="">-- Select area --</option>
+                  {areas.map((a) => (
+                    <option key={a._id} value={a._id}>{a.name}</option>
+                  ))}
+                </select>
+              </Field>
+
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Source">
                   <input value={form.source} onChange={(e) => setField('source', e.target.value)}
@@ -1050,6 +1070,7 @@ function ViewBody({ contact, assignedCaller }) {
         {[
           { icon: Mail,   label: 'Email',   value: contact.email },
           { icon: MapPin, label: 'Address', value: contact.address },
+          { icon: MapPin, label: 'Area',    value: contact.area && typeof contact.area === 'object' ? contact.area.name : null },
           { icon: Filter, label: 'Source',  value: contact.source },
         ].map(({ icon: Icon, label, value }) =>
           value ? (
@@ -1074,6 +1095,11 @@ function ViewBody({ contact, assignedCaller }) {
           </p>
         </div>
       )}
+
+      <div className="h-px bg-[#E5E7EB] dark:bg-[#2A2A2A]" />
+
+      <ContactCallHistory contactId={contact._id} />
+      <ContactPastLeads contactId={contact._id} />
 
       <div className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] space-y-1">
         <p>Created: {format(new Date(contact.createdAt), 'd MMM yyyy, HH:mm')}</p>

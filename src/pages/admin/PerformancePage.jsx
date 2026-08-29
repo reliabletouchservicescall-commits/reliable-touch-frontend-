@@ -1,26 +1,22 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import {
-  Trophy, Phone, TrendingUp, CheckCircle2, Medal,
-  Star, BarChart2, Users, ArrowUp, Loader2,
+  Trophy, Phone, TrendingUp, CheckCircle2,
+  Star, BarChart2, Users, LineChart,
+  ThermometerSnowflake, ThermometerSun, Flame,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
+import PeriodPicker from '../../components/performance/PeriodPicker'
+import LeaderboardChart from '../../components/performance/LeaderboardChart'
 
 /* ─── API ─────────────────────────────────────────────────────────── */
 
-async function fetchLeaderboard(period) {
-  const { data } = await axiosClient.get(`/performance/leaderboard?period=${period}`)
-  return data.data.leaderboard ?? []
+async function fetchLeaderboard({ period, month, year }) {
+  const params = month && year ? { month, year } : { period }
+  const { data } = await axiosClient.get('/performance/leaderboard', { params })
+  return { leaderboard: data.data.leaderboard ?? [], from: data.data.from, to: data.data.to }
 }
-
-/* ─── Period tabs ─────────────────────────────────────────────────── */
-
-const PERIODS = [
-  { key: 'day',   label: 'Today' },
-  { key: 'week',  label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-  { key: 'year',  label: 'This Year' },
-]
 
 /* ─── Medal colors ────────────────────────────────────────────────── */
 
@@ -122,6 +118,9 @@ function PodiumCard({ entry, maxScore }) {
           <span className="text-[9px] text-[#6B7280] dark:text-[#A1A1AA]">
             {entry.leadsClosed} closed
           </span>
+          <span className="text-[9px] font-semibold flex items-center gap-1" style={{ color: '#EF4444' }}>
+            <Flame className="w-2.5 h-2.5" /> {entry.hotCount} hot
+          </span>
         </div>
       </div>
     </div>
@@ -146,13 +145,17 @@ function StatPill({ icon: Icon, value, color }) {
 
 export default function PerformancePage() {
   const [period, setPeriod] = useState('week')
+  const [month, setMonth]   = useState('') // "YYYY-MM" — overrides period when set
 
-  const { data: board = [], isLoading } = useQuery({
-    queryKey: ['performance', 'leaderboard', period],
-    queryFn: () => fetchLeaderboard(period),
+  const [year, monthNum] = month ? month.split('-').map(Number) : [undefined, undefined]
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['performance', 'leaderboard', period, month],
+    queryFn: () => fetchLeaderboard({ period, month: monthNum, year }),
     staleTime: 30_000,
   })
 
+  const board = data?.leaderboard ?? []
   const maxScore = board[0]?.score ?? 0
 
   // Totals for the period
@@ -178,26 +181,14 @@ export default function PerformancePage() {
             </h1>
           </div>
           <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">
-            Cold caller rankings by calls, leads created, and leads closed
+            Cold caller rankings by calls, leads closed, and lead temperature
+            {data?.from && data?.to && (
+              <span className="text-[#9CA3AF]"> · {format(new Date(data.from), 'd MMM')} – {format(new Date(data.to), 'd MMM yyyy')}</span>
+            )}
           </p>
         </div>
 
-        {/* Period selector */}
-        <div className="flex items-center gap-1 p-1 bg-[#F3F4F6] dark:bg-[#202020] rounded-xl">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                period === p.key
-                  ? 'bg-white dark:bg-[#2A2A2A] text-[#F95C4B] shadow-sm'
-                  : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <PeriodPicker period={period} onPeriod={setPeriod} month={month} onMonth={setMonth} />
       </div>
 
       {/* Summary strip */}
@@ -239,6 +230,17 @@ export default function PerformancePage() {
         </div>
       )}
 
+      {/* Score chart */}
+      {!isLoading && board.length > 0 && (
+        <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <LineChart className="w-4 h-4 text-[#F95C4B]" />
+            <span className="text-sm font-bold text-[#111111] dark:text-white">Top Performers by Score</span>
+          </div>
+          <LeaderboardChart board={board} dataKey="score" name="Score" color="#F95C4B" />
+        </div>
+      )}
+
       {/* Full table */}
       <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
@@ -247,7 +249,7 @@ export default function PerformancePage() {
             <span className="text-sm font-bold text-[#111111] dark:text-white">Full Leaderboard</span>
           </div>
           <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-            Score = calls×1 + leads×3 + closed×5
+            Score = calls×1 + closed×5 + (cold×1 + warm×2 + hot×10 + converted×10)
           </span>
         </div>
 
@@ -267,12 +269,13 @@ export default function PerformancePage() {
         ) : (
           <div className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
             {/* Table header */}
-            <div className="hidden sm:grid grid-cols-[2.5rem_1fr_5rem_5rem_5rem_6rem_8rem] items-center gap-3 px-5 py-2.5 bg-[#FAFAF9] dark:bg-[#0F0F0F]">
+            <div className="hidden sm:grid grid-cols-[2.5rem_1fr_5rem_5rem_5rem_5rem_6rem_8rem] items-center gap-3 px-5 py-2.5 bg-[#FAFAF9] dark:bg-[#0F0F0F]">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280]">#</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280]">Name</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Calls</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Leads</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Closed</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Hot</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-right">Score</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280]">Progress</span>
             </div>
@@ -282,7 +285,7 @@ export default function PerformancePage() {
               return (
                 <div
                   key={entry.userId}
-                  className={`flex sm:grid sm:grid-cols-[2.5rem_1fr_5rem_5rem_5rem_6rem_8rem] items-center gap-3 px-5 py-3.5 hover:bg-[#FAFAF9] dark:hover:bg-[#111111] transition-colors ${
+                  className={`flex sm:grid sm:grid-cols-[2.5rem_1fr_5rem_5rem_5rem_5rem_6rem_8rem] items-center gap-3 px-5 py-3.5 hover:bg-[#FAFAF9] dark:hover:bg-[#111111] transition-colors ${
                     entry.rank <= 3 ? 'bg-gradient-to-r from-white dark:from-[#181818]' : ''
                   }`}
                   style={entry.rank <= 3 ? { backgroundImage: `linear-gradient(90deg, ${medal.bg} 0%, transparent 20%)` } : {}}
@@ -323,6 +326,11 @@ export default function PerformancePage() {
                     <StatPill icon={CheckCircle2} value={entry.leadsClosed} color="#8B5CF6" />
                   </div>
 
+                  {/* Hot */}
+                  <div className="hidden sm:flex justify-center">
+                    <StatPill icon={Flame} value={entry.hotCount} color="#EF4444" />
+                  </div>
+
                   {/* Score */}
                   <div className="sm:text-right ml-auto sm:ml-0">
                     <span className="text-base font-black text-[#111111] dark:text-white">
@@ -349,9 +357,12 @@ export default function PerformancePage() {
         </p>
         <div className="flex flex-wrap gap-3">
           {[
-            { icon: Phone,        label: 'Call logged',   pts: '+1 pt',  color: '#3B82F6' },
-            { icon: TrendingUp,   label: 'Lead created',  pts: '+3 pts', color: '#10B981' },
-            { icon: CheckCircle2, label: 'Lead closed',   pts: '+5 pts', color: '#8B5CF6' },
+            { icon: Phone,                label: 'Call logged',        pts: '+1 pt',  color: '#3B82F6' },
+            { icon: CheckCircle2,         label: 'Lead closed',        pts: '+5 pts', color: '#8B5CF6' },
+            { icon: ThermometerSnowflake, label: 'Cold lead',          pts: '+1 pt',  color: '#6B7280' },
+            { icon: ThermometerSun,       label: 'Warm lead',          pts: '+2 pts', color: '#F59E0B' },
+            { icon: Flame,                label: 'Hot lead',           pts: '+10 pts', color: '#EF4444' },
+            { icon: TrendingUp,           label: 'Converted lead',     pts: '+10 pts', color: '#10B981' },
           ].map((s) => (
             <div
               key={s.label}
@@ -365,6 +376,9 @@ export default function PerformancePage() {
             </div>
           ))}
         </div>
+        <p className="text-[11px] text-[#9CA3AF] mt-3">
+          5 warm leads or 10 cold leads are worth the same as 1 hot lead.
+        </p>
       </div>
     </div>
   )

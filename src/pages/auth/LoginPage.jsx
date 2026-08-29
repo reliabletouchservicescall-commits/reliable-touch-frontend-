@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import {
   Eye,
@@ -34,12 +34,13 @@ export default function LoginPage() {
 
   const justRegistered = location.state?.registered === true
 
-  useEffect(() => {
-    if (!selectedRole) navigate('/select-role', { replace: true })
-  }, [selectedRole, navigate])
-
-  const meta = ROLE_META[selectedRole] ?? ROLE_META.admin
-  const { Icon, label } = meta
+  // selectedRole is only ever used for the cosmetic "Signing in as X" badge below —
+  // the actual post-login redirect uses the real user.role from the API response, so
+  // this page works correctly with or without it. It used to force-redirect to
+  // /select-role whenever selectedRole was missing (e.g. a bookmarked/direct /login
+  // visit, or after logging out clears it), which made /login itself unreachable
+  // except by going through role selection first. Render a neutral header instead.
+  const meta = selectedRole ? ROLE_META[selectedRole] : null
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -89,17 +90,28 @@ export default function LoginPage() {
 
           {/* Card */}
           <div className="rounded-2xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-card dark:shadow-none p-8">
-            <div className="flex items-center gap-3 pb-6 mb-6 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#F95C4B]/10">
-                <Icon className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
+            {meta ? (
+              <div className="flex items-center gap-3 pb-6 mb-6 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#F95C4B]/10">
+                  <meta.Icon className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] uppercase tracking-widest mb-0.5 font-medium">
+                    Signing in as
+                  </p>
+                  <p className="text-sm font-semibold text-[#111111] dark:text-white">{meta.label}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] uppercase tracking-widest mb-0.5 font-medium">
-                  Signing in as
+            ) : (
+              <div className="pb-6 mb-6 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+                  Not sure which portal?{' '}
+                  <Link to="/select-role" className="text-[#F95C4B] font-semibold hover:underline">
+                    Choose your role
+                  </Link>
                 </p>
-                <p className="text-sm font-semibold text-[#111111] dark:text-white">{label}</p>
               </div>
-            </div>
+            )}
 
             <h1 className="text-2xl font-bold text-[#111111] dark:text-white mb-1.5 tracking-tight">
               Welcome back
@@ -189,7 +201,7 @@ export default function LoginPage() {
                     Signing in…
                   </>
                 ) : (
-                  `Sign in as ${label}`
+                  meta ? `Sign in as ${meta.label}` : 'Sign in'
                 )}
               </button>
             </form>

@@ -307,7 +307,7 @@ export default function LeaseRenewalsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-                  {['Agent', 'Lead / Property', 'Rental Amount', 'Renewal Date', 'Reminder Sent', 'Status', ''].map((h) => (
+                  {['Agency User', 'Lead / Property', 'Rental Amount', 'Renewal Date', 'Reminder Sent', 'Status', ''].map((h) => (
                     <th key={h} className="text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] px-4 py-3">
                       {h}
                     </th>

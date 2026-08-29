@@ -12,6 +12,7 @@ import { useAuthStore } from '../../store/authStore'
 import SidePanel from '../../components/common/SidePanel'
 import BookAppointmentDrawer from '../../components/appointments/BookAppointmentDrawer'
 import { Field, inputCls } from '../../components/leads/leadShared'
+import { DateField, TimeField } from '../../components/common/DateTimeFields'
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
@@ -151,10 +152,10 @@ function ReschedulePanel({ appt, onClose, onSaved }) {
       <form id="reschedule-form" onSubmit={handleSubmit} className="px-5 py-5 space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Date" required error={errors.scheduledDate}>
-            <input type="date" value={form.scheduledDate} onChange={(e) => setForm((f) => ({ ...f, scheduledDate: e.target.value }))} className={inputCls(errors.scheduledDate)} />
+            <DateField value={form.scheduledDate} onChange={(v) => setForm((f) => ({ ...f, scheduledDate: v }))} className={inputCls(errors.scheduledDate)} />
           </Field>
           <Field label="Time" required error={errors.scheduledTime}>
-            <input type="time" value={form.scheduledTime} onChange={(e) => setForm((f) => ({ ...f, scheduledTime: e.target.value }))} className={inputCls(errors.scheduledTime)} />
+            <TimeField value={form.scheduledTime} onChange={(v) => setForm((f) => ({ ...f, scheduledTime: v }))} className={inputCls(errors.scheduledTime)} />
           </Field>
         </div>
       </form>

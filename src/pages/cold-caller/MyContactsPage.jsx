@@ -8,12 +8,14 @@ import {
   UserCheck, RotateCcw, Sparkles, PlusCircle, Send, Bell, ChevronRight,
   Home, Layers, Hash,
 } from 'lucide-react'
-import { formatDistanceToNow, format } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns'
 import { contactsApi } from '../../services/contactsApi'
 import { callLogsApi } from '../../services/callLogsApi'
 import { contactRequestsApi } from '../../services/contactRequestsApi'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import SidePanel from '../../components/common/SidePanel'
+import ContactCallHistory from '../../components/contacts/ContactCallHistory'
+import ContactPastLeads from '../../components/contacts/ContactPastLeads'
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
@@ -272,74 +274,90 @@ function OutcomeSheet({ contact, logId, onClose, onSaved }) {
 
 /* ─── History Modal ─────────────────────────────────────────────────────── */
 
-function HistoryModal({ contact, onClose }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['call-history', contact._id],
-    queryFn: () => callLogsApi.listByContact(contact._id).then((r) => r.data.data.callLogs ?? []),
-    staleTime: 10_000,
-  })
+function ContactDetailPanel({ contact, onClose }) {
+  const statusMeta = STATUS_META[contact.status] ?? STATUS_META.unassigned
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl overflow-hidden max-h-[80vh] flex flex-col">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A] flex-shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center">
-            <PhoneCall className="w-4 h-4 text-[#3B82F6]" strokeWidth={1.75} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{contact.name}</p>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Call history · {contact.callCount ?? 0} calls</p>
-          </div>
-          <button onClick={onClose} className="text-[#6B7280] hover:text-[#111111] dark:hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
+    <SidePanel
+      onClose={onClose}
+      icon={BookUser}
+      iconColor="#3B82F6"
+      title={contact.name}
+      subtitle={contact.phone}
+      widthClass="sm:max-w-lg"
+      footer={
+        <button onClick={onClose} className="w-full py-3 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+          Close
+        </button>
+      }
+    >
+      <div className="px-5 py-5 space-y-6">
+        {/* Status + call count */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ color: statusMeta.color, backgroundColor: `${statusMeta.color}18` }}>
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: statusMeta.color }} />
+            {statusMeta.label}
+          </span>
+          <span className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
+            {contact.callCount ?? 0} call{(contact.callCount ?? 0) !== 1 ? 's' : ''} logged
+          </span>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="w-5 h-5 animate-spin text-[#F95C4B]" />
+
+        {/* Property details */}
+        {(contact.unitNumber || contact.sizeInSqm || contact.sectionalScheme) && (
+          <div className="rounded-xl border border-[#8B5CF6]/20 bg-[#8B5CF6]/5 dark:bg-[#8B5CF6]/8 p-4 space-y-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8B5CF6] flex items-center gap-1.5">
+              <Home className="w-3.5 h-3.5" /> Property Details
+            </p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+              {contact.unitNumber && (
+                <div>
+                  <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Unit</p>
+                  <p className="text-sm font-bold text-[#111111] dark:text-white">#{contact.unitNumber}</p>
+                </div>
+              )}
+              {contact.sizeInSqm != null && (
+                <div>
+                  <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Size</p>
+                  <p className="text-sm font-bold text-[#111111] dark:text-white">{contact.sizeInSqm} m²</p>
+                </div>
+              )}
+              {contact.sectionalScheme && (
+                <div className="col-span-2">
+                  <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Scheme</p>
+                  <p className="text-sm font-bold text-[#111111] dark:text-white">{contact.sectionalScheme}</p>
+                </div>
+              )}
             </div>
-          ) : !data?.length ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <PhoneCall className="w-8 h-8 text-[#6B7280]/20" strokeWidth={1.5} />
-              <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">No calls logged yet</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
-              {data.map((log) => {
-                const meta = OUTCOMES.find((o) => o.value === log.outcome) ?? OUTCOMES[0]
-                const Icon = meta.icon
-                return (
-                  <li key={log._id} className="flex items-start gap-3 px-5 py-3.5">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mt-0.5"
-                      style={{ backgroundColor: `${meta.color}15` }}>
-                      <Icon className="w-4 h-4" style={{ color: meta.color }} strokeWidth={1.75} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label}</span>
-                        {log.durationSeconds > 0 && (
-                          <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-                            {Math.floor(log.durationSeconds / 60)}m {log.durationSeconds % 60}s
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
-                        {format(new Date(log.calledAt), 'd MMM yyyy · HH:mm')}
-                      </p>
-                      {log.notes && (
-                        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1 italic">"{log.notes}"</p>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
+          </div>
+        )}
+
+        {/* Contact info */}
+        <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A] overflow-hidden">
+          {[
+            { icon: Phone,   label: 'Phone',     value: contact.phone },
+            { icon: Phone,   label: 'Alt Phone', value: contact.altPhone },
+            { icon: MessageSquare, label: 'Email', value: contact.email },
+            { icon: MapPin,  label: 'Address',   value: contact.address },
+          ].map(({ icon: Icon, label, value }) =>
+            value ? (
+              <div key={label} className="flex items-start gap-3 px-4 py-3 bg-white dark:bg-[#181818]">
+                <Icon className="w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 flex-shrink-0" strokeWidth={1.75} />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{label}</p>
+                  <p className="text-sm text-[#111111] dark:text-white break-words">{value}</p>
+                </div>
+              </div>
+            ) : null
           )}
         </div>
+
+        <div className="h-px bg-[#E5E7EB] dark:bg-[#2A2A2A]" />
+
+        <ContactCallHistory contactId={contact._id} />
+        <ContactPastLeads contactId={contact._id} />
       </div>
-    </div>
+    </SidePanel>
   )
 }
 
@@ -762,7 +780,7 @@ export default function MyContactsPage() {
       )}
 
       {historyContact && (
-        <HistoryModal contact={historyContact} onClose={() => setHistoryContact(null)} />
+        <ContactDetailPanel contact={historyContact} onClose={() => setHistoryContact(null)} />
       )}
     </div>
   )

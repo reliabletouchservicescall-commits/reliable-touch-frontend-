@@ -24,7 +24,7 @@ function buildExportUrl(path, params = {}) {
 }
 
 async function downloadExport(path, params) {
-  const token = JSON.parse(localStorage.getItem('auth-storage') ?? '{}')?.state?.token ?? ''
+  const token = JSON.parse(localStorage.getItem('rt-auth') ?? '{}')?.state?.accessToken ?? ''
   const url   = buildExportUrl(path, params)
   const res   = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) throw new Error('Export failed')

@@ -1,13 +1,12 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { Eye, Loader2, User, PhoneCall, History } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
-import { areasApi } from '../../services/areasApi'
 import SidePanel from '../common/SidePanel'
 import LeadFormFields from './LeadFormFields'
-import { LeadStatusBadge } from './leadShared'
+import { LeadStatusBadge, ListingBadge } from './leadShared'
 import LeadAppointments from '../appointments/LeadAppointments'
 
 const OUTCOME_LABEL = {
@@ -18,8 +17,9 @@ const OUTCOME_LABEL = {
 function fieldsFromLead(lead) {
   return {
     landlordName: lead.landlordName ?? '',
-    propertyAddress: lead.propertyAddress ?? '',
-    area: (lead.area && typeof lead.area === 'object') ? lead.area._id : (lead.area ?? ''),
+    listingType: lead.listingType ?? '',
+    priceMin: lead.priceMin ?? '',
+    priceMax: lead.priceMax ?? '',
     phone: lead.phone ?? '',
     email: lead.email ?? '',
     comments: lead.comments ?? '',
@@ -37,13 +37,10 @@ export default function LeadDetailDrawer({ lead, onClose, onUpdated }) {
   const [errors, setErrors] = useState({})
   const [form, setForm] = useState(() => fieldsFromLead(lead))
 
-  const { data: areasData } = useQuery({
-    queryKey: ['areas-select'],
-    queryFn: () => areasApi.list({ limit: 100 }).then((r) => r.data.data),
-    staleTime: 60_000,
-  })
-  const areas = areasData?.areas ?? areasData ?? []
-
+  // lead.area is the contact's area as it stood when this lead was created — merge it in
+  // since lead.contactId's own populate doesn't include area (leads never re-read it live).
+  const contactDoc = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
+  const contact = contactDoc ? { ...contactDoc, area: lead.area } : null
   const assignedAgent = (lead.assignedAgent && typeof lead.assignedAgent === 'object') ? lead.assignedAgent : null
   const sourceCall = (lead.callLogId && typeof lead.callLogId === 'object') ? lead.callLogId : null
 
@@ -65,8 +62,12 @@ export default function LeadDetailDrawer({ lead, onClose, onUpdated }) {
   function validate() {
     const errs = {}
     if (!form.landlordName.trim()) errs.landlordName = 'Landlord name is required'
-    if (!form.propertyAddress.trim()) errs.propertyAddress = 'Property address is required'
-    if (!form.area) errs.area = 'Area is required'
+    if (!form.listingType) errs.listingType = 'Select sale or rental'
+    if (form.priceMin === '') errs.priceMin = 'Enter a minimum price'
+    if (form.priceMax === '') errs.priceMax = 'Enter a maximum price'
+    if (form.priceMin !== '' && form.priceMax !== '' && Number(form.priceMax) < Number(form.priceMin)) {
+      errs.priceMax = 'Max price must be at least the min price'
+    }
     if (!form.phone.trim()) errs.phone = 'Phone is required'
     return errs
   }
@@ -107,7 +108,10 @@ export default function LeadDetailDrawer({ lead, onClose, onUpdated }) {
       <div className="px-5 py-5 space-y-5">
         {/* Status strip */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <LeadStatusBadge status={lead.status} size="lg" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <LeadStatusBadge status={lead.status} size="lg" />
+            <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} size="lg" />
+          </div>
           <span className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
             Added {format(new Date(lead.createdAt), 'd MMM yyyy')}
           </span>
@@ -175,7 +179,7 @@ export default function LeadDetailDrawer({ lead, onClose, onUpdated }) {
         <div className="h-px bg-[#E5E7EB] dark:bg-[#2A2A2A]" />
 
         <form id="edit-lead-form" onSubmit={handleSubmit}>
-          <LeadFormFields form={form} setField={setField} errors={errors} areas={areas} />
+          <LeadFormFields form={form} setField={setField} errors={errors} contact={contact} />
         </form>
       </div>
     </SidePanel>

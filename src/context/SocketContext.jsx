@@ -1,14 +1,19 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
+import { Flame, Trophy } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { connectSocket, disconnectSocket, getSocket } from '../lib/socket'
+import Fireworks from '../components/common/Fireworks'
 
 const SocketContext = createContext(null)
 
 export function SocketProvider({ children }) {
   const { accessToken, isAuthenticated } = useAuthStore()
+  const qc = useQueryClient()
   const [chatUnread, setChatUnread] = useState(0)
   const [onlineUsers, setOnlineUsers] = useState(new Set())
+  const [showFireworks, setShowFireworks] = useState(false)
   // Global message handlers registered by chat components
   const messageHandlers = useRef(new Map())
 
@@ -72,10 +77,36 @@ export function SocketProvider({ children }) {
       if (handler) handler({ byUserId })
     })
 
+    // A cold caller (other than you) just landed a hot lead — live, competitive nudge.
+    socket.on('hot_lead_created', ({ callerName, landlordName, propertyAddress }) => {
+      toast(`${callerName} just landed a HOT lead!`, {
+        description: `${landlordName} — ${propertyAddress}`,
+        icon: <Flame className="w-4 h-4 text-[#EF4444]" />,
+      })
+      qc.invalidateQueries({ queryKey: ['performance'] })
+    })
+
+    // Someone else just took #1 on the leaderboard this month.
+    socket.on('leaderboard_leader_changed', ({ newLeaderName }) => {
+      toast(`${newLeaderName} is now #1 on the leaderboard!`, {
+        icon: <Trophy className="w-4 h-4 text-[#F59E0B]" />,
+      })
+      qc.invalidateQueries({ queryKey: ['performance'] })
+    })
+
+    // You just became #1 — fireworks on your own screen.
+    socket.on('you_are_leader', () => {
+      setShowFireworks(true)
+      toast.success("You're now #1 on the leaderboard!", {
+        icon: <Trophy className="w-4 h-4" />,
+      })
+      qc.invalidateQueries({ queryKey: ['performance'] })
+    })
+
     return () => {
       disconnectSocket()
     }
-  }, [isAuthenticated, accessToken])
+  }, [isAuthenticated, accessToken, qc])
 
   function registerMessageHandler(key, fn) {
     messageHandlers.current.set(key, fn)
@@ -90,7 +121,12 @@ export function SocketProvider({ children }) {
     registerMessageHandler,
   }
 
-  return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
+  return (
+    <SocketContext.Provider value={value}>
+      {children}
+      {showFireworks && <Fireworks onDone={() => setShowFireworks(false)} />}
+    </SocketContext.Provider>
+  )
 }
 
 export function useSocket() {

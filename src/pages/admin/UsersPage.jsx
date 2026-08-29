@@ -15,13 +15,13 @@ const ROLE_TABS = [
   { key: '',            label: 'All' },
   { key: 'admin',       label: 'Admin' },
   { key: 'cold_caller', label: 'Cold Caller' },
-  { key: 'agent',       label: 'Agent' },
+  { key: 'agency',      label: 'Agency' },
 ]
 
 const ROLE_META = {
   admin:       { label: 'Admin',       color: '#F95C4B', bg: '#F95C4B18' },
   cold_caller: { label: 'Cold Caller', color: '#3B82F6', bg: '#3B82F618' },
-  agent:       { label: 'Agent',       color: '#10B981', bg: '#10B98118' },
+  agency:      { label: 'Agency',      color: '#10B981', bg: '#10B98118' },
 }
 
 const SORT_OPTIONS = [
@@ -35,7 +35,7 @@ const EMPTY_CREATE = {
   firstName: '', lastName: '', email: '', password: '', phone: '', role: 'cold_caller',
 }
 
-const ROLES_SELECT = ['admin', 'cold_caller', 'agent']
+const ROLES_SELECT = ['admin', 'cold_caller', 'agency']
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 

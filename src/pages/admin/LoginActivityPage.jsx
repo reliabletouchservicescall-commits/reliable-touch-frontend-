@@ -16,7 +16,7 @@ import axiosClient from '../../lib/axios'
 const ROLE_META = {
   admin:       { label: 'Admin',       color: '#F95C4B', bg: '#F95C4B18' },
   cold_caller: { label: 'Cold Caller', color: '#3B82F6', bg: '#3B82F618' },
-  agency:      { label: 'Agent',       color: '#10B981', bg: '#10B98118' },
+  agency:      { label: 'Agency',      color: '#10B981', bg: '#10B98118' },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -451,7 +451,7 @@ export default function LoginActivityPage() {
                 { key: '', label: 'All Roles' },
                 { key: 'admin',       label: 'Admin' },
                 { key: 'cold_caller', label: 'Cold Caller' },
-                { key: 'agency',      label: 'Agent' },
+                { key: 'agency',      label: 'Agency' },
               ].map(({ key, label }) => (
                 <button
                   key={key}

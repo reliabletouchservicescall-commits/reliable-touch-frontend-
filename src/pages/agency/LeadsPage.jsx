@@ -1,11 +1,16 @@
 import { useState } from 'react'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { format } from 'date-fns'
 import {
   TrendingUp, Search, X, ChevronLeft, ChevronRight, Loader2,
-  MapPin, Phone, User, Clock, Home, AlertCircle,
+  MapPin, Phone, Mail, User, Clock, Home, AlertCircle, Eye, Building2, Ruler,
 } from 'lucide-react'
 import { agentsApi } from '../../services/agentsApi'
+import { leadsApi } from '../../services/leadsApi'
+import SidePanel from '../../components/common/SidePanel'
+import LeadAppointments from '../../components/appointments/LeadAppointments'
+import { ListingBadge, inputCls, Field } from '../../components/leads/leadShared'
 
 const STATUS_META = {
   cold:      { label: 'Cold',      color: '#6B7280', bg: '#6B728018' },
@@ -41,9 +46,12 @@ function fmtDate(d) {
   return format(new Date(d), 'd MMM yyyy')
 }
 
-function LeadCard({ lead }) {
+function LeadCard({ lead, onClick }) {
   return (
-    <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 hover:shadow-sm transition-all">
+    <button
+      onClick={onClick}
+      className="group w-full text-left bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#3B82F6]/40 hover:shadow-sm transition-all p-5"
+    >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -58,6 +66,9 @@ function LeadCard({ lead }) {
               {lead.propertyAddress}
             </p>
           )}
+          <div className="mt-2">
+            <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
+          </div>
         </div>
       </div>
 
@@ -97,7 +108,154 @@ function LeadCard({ lead }) {
           {lead.notes}
         </p>
       )}
-    </div>
+
+      <div className="flex items-center justify-end mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#3B82F6] group-hover:gap-1.5 transition-all">
+          View details <ChevronRight className="w-3.5 h-3.5" />
+        </span>
+      </div>
+    </button>
+  )
+}
+
+/* ─── Lead Detail Panel ──────────────────────────────────────────────────── */
+
+function LeadDetailPanel({ lead, onClose, onSaved }) {
+  const qc = useQueryClient()
+  const [comments, setComments] = useState(lead.comments ?? '')
+  const [availability, setAvailability] = useState(lead.availability ?? '')
+  const [followUpDate, setFollowUpDate] = useState(lead.followUpDate ? lead.followUpDate.slice(0, 10) : '')
+
+  const contact = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
+  const area = (lead.area && typeof lead.area === 'object') ? lead.area : null
+  const creator = (lead.createdBy && typeof lead.createdBy === 'object') ? lead.createdBy : null
+
+  const mut = useMutation({
+    mutationFn: (payload) => leadsApi.update(lead._id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['agent-leads'] })
+      toast.success('Lead updated')
+      onSaved()
+    },
+    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to update lead'),
+  })
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    mut.mutate({
+      comments: comments.trim() || null,
+      availability: availability.trim() || null,
+      followUpDate: followUpDate || null,
+    })
+  }
+
+  function InfoRow({ icon: Icon, label, value }) {
+    if (!value) return null
+    return (
+      <div className="flex items-start gap-3 px-4 py-3 bg-white dark:bg-[#181818]">
+        <Icon className="w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 flex-shrink-0" strokeWidth={1.75} />
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{label}</p>
+          <p className="text-sm text-[#111111] dark:text-white break-words">{value}</p>
+        </div>
+      </div>
+    )
+  }
+
+  function Section({ title, children }) {
+    return (
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2">{title}</p>
+        <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A] overflow-hidden">
+          {children}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <SidePanel
+      onClose={onClose}
+      icon={Eye}
+      iconColor="#3B82F6"
+      title={lead.landlordName}
+      subtitle={lead.propertyAddress}
+      widthClass="sm:max-w-lg"
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+            Close
+          </button>
+          <button
+            type="submit"
+            form="agency-lead-form"
+            disabled={mut.isPending}
+            className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+            Save Changes
+          </button>
+        </>
+      }
+    >
+      <div className="px-5 py-5 space-y-6">
+        {/* Status + listing */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <StatusBadge status={lead.status} />
+          <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} size="lg" />
+        </div>
+
+        {/* Property */}
+        <Section title="Property">
+          <InfoRow icon={MapPin} label="Address" value={lead.propertyAddress} />
+          <InfoRow icon={Building2} label="Area" value={area ? `${area.name}${area.region ? `, ${area.region}` : ''}` : null} />
+        </Section>
+
+        {/* Contact — full detail except ID number */}
+        <Section title="Contact Details">
+          <InfoRow icon={User} label="Name" value={contact?.name ?? lead.landlordName} />
+          <InfoRow icon={Phone} label="Phone" value={contact?.phone ?? lead.phone} />
+          {contact?.altPhone && <InfoRow icon={Phone} label="Alt Phone" value={contact.altPhone} />}
+          <InfoRow icon={Mail} label="Email" value={contact?.email ?? lead.email} />
+          {contact?.address && <InfoRow icon={Home} label="Property Address" value={contact.address} />}
+          {contact?.unitNumber && <InfoRow icon={Building2} label="Unit Number" value={contact.unitNumber} />}
+          {contact?.sizeInSqm && <InfoRow icon={Ruler} label="Size" value={`${contact.sizeInSqm} m²`} />}
+          {contact?.sectionalScheme && <InfoRow icon={Building2} label="Sectional Scheme" value={contact.sectionalScheme} />}
+        </Section>
+
+        {/* Cold caller */}
+        {creator && (
+          <Section title="Sourced By">
+            <InfoRow icon={User} label="Name" value={`${creator.firstName} ${creator.lastName}`} />
+            <InfoRow icon={Mail} label="Email" value={creator.email} />
+          </Section>
+        )}
+
+        <LeadAppointments lead={lead} canBook={false} />
+
+        {/* Editable fields */}
+        <form id="agency-lead-form" onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">
+            Your Notes
+          </p>
+          <Field label="Comments" hint="Visible to admin and the cold caller who created this lead">
+            <textarea
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder="Notes from viewing the property, landlord feedback…"
+              rows={4}
+              className={`${inputCls(false)} resize-none`}
+            />
+          </Field>
+          <Field label="Availability">
+            <input value={availability} onChange={(e) => setAvailability(e.target.value)} placeholder="e.g. Weekday afternoons" className={inputCls(false)} />
+          </Field>
+          <Field label="Follow-up Date">
+            <input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} className={inputCls(false)} />
+          </Field>
+        </form>
+      </div>
+    </SidePanel>
   )
 }
 
@@ -105,6 +263,7 @@ export default function AgencyLeadsPage() {
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState(null)
 
   const params = { page, limit: 20, ...(status ? { status } : {}) }
 
@@ -210,7 +369,7 @@ export default function AgencyLeadsPage() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((lead) => (
-              <LeadCard key={lead._id} lead={lead} />
+              <LeadCard key={lead._id} lead={lead} onClick={() => setSelected(lead)} />
             ))}
           </div>
 
@@ -234,6 +393,14 @@ export default function AgencyLeadsPage() {
             </div>
           )}
         </>
+      )}
+
+      {selected && (
+        <LeadDetailPanel
+          lead={selected}
+          onClose={() => setSelected(null)}
+          onSaved={() => setSelected(null)}
+        />
       )}
     </div>
   )

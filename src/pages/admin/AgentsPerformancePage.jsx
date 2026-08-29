@@ -1,17 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import {
   Trophy, Crown, Medal, TrendingUp, Home,
-  ClipboardCheck, DollarSign, Star, Users,
+  ClipboardCheck, DollarSign, Star, Users, LineChart,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
-
-const PERIODS = [
-  { key: 'day',   label: 'Today' },
-  { key: 'week',  label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-  { key: 'year',  label: 'This Year' },
-]
+import PeriodPicker from '../../components/performance/PeriodPicker'
+import LeaderboardChart from '../../components/performance/LeaderboardChart'
 
 const MEDAL = {
   1: { color: '#F59E0B', bg: '#FEF3C7', label: '1st' },
@@ -117,15 +113,19 @@ function StatSummaryCard({ icon: Icon, label, value, color }) {
 
 export default function AgentsPerformancePage() {
   const [period, setPeriod] = useState('week')
+  const [month, setMonth]   = useState('') // "YYYY-MM" — overrides period when set
+  const [year, monthNum] = month ? month.split('-').map(Number) : [undefined, undefined]
 
   const { data, isLoading } = useQuery({
-    queryKey: ['agent-performance', 'leaderboard', period],
-    queryFn: () =>
-      axiosClient.get(`/performance/agents/leaderboard?period=${period}`).then((r) => r.data.data.leaderboard),
+    queryKey: ['agent-performance', 'leaderboard', period, month],
+    queryFn: () => {
+      const params = monthNum && year ? { month: monthNum, year } : { period }
+      return axiosClient.get('/performance/agents/leaderboard', { params }).then((r) => r.data.data)
+    },
     staleTime: 60_000,
   })
 
-  const board = data ?? []
+  const board = data?.leaderboard ?? []
   const maxScore = board[0]?.score ?? 1
 
   const totalVisits      = board.reduce((s, r) => s + (r.totalVisits ?? 0), 0)
@@ -147,26 +147,16 @@ export default function AgentsPerformancePage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">Agent Performance</h1>
-            <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">Rankings by visits, listings and deals closed</p>
+            <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">
+              Rankings by visits, listings and deals closed
+              {data?.from && data?.to && (
+                <span className="text-[#9CA3AF]"> · {format(new Date(data.from), 'd MMM')} – {format(new Date(data.to), 'd MMM yyyy')}</span>
+              )}
+            </p>
           </div>
         </div>
 
-        {/* Period tabs */}
-        <div className="flex items-center bg-[#F5F5F4] dark:bg-[#202020] rounded-xl p-1 gap-1">
-          {PERIODS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setPeriod(key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                period === key
-                  ? 'bg-white dark:bg-[#2A2A2A] text-[#F95C4B] shadow-sm'
-                  : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <PeriodPicker period={period} onPeriod={setPeriod} month={month} onMonth={setMonth} />
       </div>
 
       {/* Summary strip */}
@@ -197,6 +187,17 @@ export default function AgentsPerformancePage() {
               return <PodiumCard key={pos} entry={entry} position={pos} />
             })}
           </div>
+        </div>
+      )}
+
+      {/* Score chart */}
+      {!isLoading && board.length > 0 && (
+        <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <LineChart className="w-4 h-4 text-[#F95C4B]" />
+            <span className="text-sm font-bold text-[#111111] dark:text-white">Top Performers by Score</span>
+          </div>
+          <LeaderboardChart board={board} dataKey="score" name="Score" color="#F95C4B" />
         </div>
       )}
 

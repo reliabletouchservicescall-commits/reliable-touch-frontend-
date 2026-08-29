@@ -5,12 +5,13 @@ import {
   CalendarCheck, MapPin, Phone, Clock, Search, ChevronRight,
   User, Home, Tag, CheckCircle2, XCircle, AlertTriangle,
   FileText, DollarSign, CalendarClock, ArrowRight, Loader2,
-  Building2, ClipboardList, X,
+  Building2, ClipboardList, X, Mail, Ruler, Pencil, Check,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { appointmentsApi } from '../../services/appointmentsApi'
 import { agentsApi } from '../../services/agentsApi'
 import SidePanel from '../../components/common/SidePanel'
+import { ListingBadge } from '../../components/leads/leadShared'
 
 /* ─── Constants ─────────────────────────────────────────────────────────── */
 
@@ -170,9 +171,9 @@ function AppointmentCard({ appointment, onClick }) {
           )}
         </div>
 
-        {appointment.notes && (
+        {appointment.adminNotes && (
           <p className="mt-3 text-xs text-[#6B7280] dark:text-[#A1A1AA] italic border-l-2 border-[#F95C4B]/30 pl-3 line-clamp-2">
-            {appointment.notes}
+            {appointment.adminNotes}
           </p>
         )}
 
@@ -192,9 +193,25 @@ function AppointmentCard({ appointment, onClick }) {
 
 /* ─── Detail Side Panel ─────────────────────────────────────────────────── */
 
-function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, isUpdating }) {
+function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, onUpdateNotes, isUpdating, isSavingNotes }) {
   const lead = appointment.leadId
+  const contact = (lead?.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const actions = DEAL_STATUS_ACTIONS[appointment.status] ?? []
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesDraft, setNotesDraft] = useState(appointment.agencyNotes ?? '')
+  const [pendingAction, setPendingAction] = useState(null)
+  const [pendingNote, setPendingNote] = useState('')
+
+  function saveNotes() {
+    onUpdateNotes(notesDraft.trim() || null)
+    setEditingNotes(false)
+  }
+
+  function confirmPendingAction() {
+    onStatusUpdate(appointment._id, pendingAction.status, pendingNote.trim() || undefined)
+    setPendingAction(null)
+    setPendingNote('')
+  }
 
   return (
     <SidePanel
@@ -205,43 +222,75 @@ function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, is
       subtitle={lead?.landlordName ?? 'Appointment'}
       widthClass="sm:max-w-lg"
       footer={
-        <div className="flex flex-col gap-2 w-full">
-          {/* Status action buttons */}
-          {actions.map((action) => (
-            <button
-              key={action.status}
-              onClick={() => onStatusUpdate(appointment._id, action.status)}
-              disabled={isUpdating}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 border"
-              style={{
-                color: action.color,
-                borderColor: `${action.color}30`,
-                backgroundColor: `${action.color}10`,
-              }}
-            >
-              {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
-              {action.label}
-            </button>
-          ))}
+        pendingAction ? (
+          <div className="w-full space-y-2.5">
+            <p className="text-xs font-semibold text-[#111111] dark:text-white">
+              Mark as "{pendingAction.label}" — add a note? (optional)
+            </p>
+            <textarea
+              autoFocus
+              value={pendingNote}
+              onChange={(e) => setPendingNote(e.target.value)}
+              placeholder="e.g. Landlord asked to reschedule next viewing to the weekend"
+              rows={3}
+              className={`${inputCls(false)} resize-none`}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setPendingAction(null); setPendingNote('') }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPendingAction}
+                disabled={isUpdating}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-colors"
+                style={{ backgroundColor: pendingAction.color }}
+              >
+                {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
+                Confirm
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 w-full">
+            {/* Status action buttons */}
+            {actions.map((action) => (
+              <button
+                key={action.status}
+                onClick={() => setPendingAction(action)}
+                disabled={isUpdating}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 border"
+                style={{
+                  color: action.color,
+                  borderColor: `${action.color}30`,
+                  backgroundColor: `${action.color}10`,
+                }}
+              >
+                {action.label}
+              </button>
+            ))}
 
-          {/* Record outcome (completed only) */}
-          {appointment.status === 'completed' && (
-            <button
-              onClick={onRecordOutcome}
-              className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#F95C4B] hover:bg-[#E84B3A] transition-colors flex items-center justify-center gap-2"
-            >
-              <ClipboardList className="w-4 h-4" />
-              Record Deal Outcome
-            </button>
-          )}
+            {/* Record outcome (completed only) */}
+            {appointment.status === 'completed' && (
+              <button
+                onClick={onRecordOutcome}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#F95C4B] hover:bg-[#E84B3A] transition-colors flex items-center justify-center gap-2"
+              >
+                <ClipboardList className="w-4 h-4" />
+                Record Deal Outcome
+              </button>
+            )}
 
-          <button
-            onClick={onClose}
-            className="w-full py-2.5 rounded-xl text-sm font-medium text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] border border-[#E5E7EB] dark:border-[#2A2A2A] transition-colors"
-          >
-            Close
-          </button>
-        </div>
+            <button
+              onClick={onClose}
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] border border-[#E5E7EB] dark:border-[#2A2A2A] transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        )
       }
     >
       <div className="px-5 py-5 space-y-6">
@@ -298,9 +347,12 @@ function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, is
 
         {/* Lead / Property info */}
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-3">
-            Property & Landlord
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">
+              Property & Landlord
+            </p>
+            <ListingBadge listingType={lead?.listingType} priceMin={lead?.priceMin} priceMax={lead?.priceMax} />
+          </div>
           <div className="space-y-3">
             <InfoRow icon={User}     label="Landlord"         value={lead?.landlordName} />
             <InfoRow icon={Home}     label="Property Address" value={lead?.propertyAddress} />
@@ -317,17 +369,88 @@ function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, is
           </div>
         </div>
 
-        {/* Appointment notes */}
-        {appointment.notes && (
+        {/* Contact details — full detail except ID number */}
+        {contact && (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2">
-              Notes
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-3">
+              Contact Details
             </p>
-            <div className="bg-[#F5F5F4] dark:bg-[#202020] rounded-xl p-4 border-l-3 border-[#F95C4B]">
-              <p className="text-sm text-[#111111] dark:text-white leading-relaxed">{appointment.notes}</p>
+            <div className="space-y-3">
+              <InfoRow icon={User}  label="Name"            value={contact.name} />
+              <InfoRow icon={Phone} label="Phone"           value={contact.phone} />
+              {contact.altPhone && <InfoRow icon={Phone} label="Alt Phone" value={contact.altPhone} />}
+              <InfoRow icon={Mail}  label="Email"           value={contact.email} />
+              {contact.address && <InfoRow icon={Home} label="Address" value={contact.address} />}
+              {contact.unitNumber && <InfoRow icon={Building2} label="Unit Number" value={contact.unitNumber} />}
+              {contact.sizeInSqm && <InfoRow icon={Ruler} label="Size" value={`${contact.sizeInSqm} m²`} />}
+              {contact.sectionalScheme && <InfoRow icon={Building2} label="Sectional Scheme" value={contact.sectionalScheme} />}
             </div>
           </div>
         )}
+
+        {/* Note from admin — read-only */}
+        {appointment.adminNotes && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2">
+              Note from Admin
+            </p>
+            <div className="bg-[#3B82F6]/8 border border-[#3B82F6]/20 rounded-xl p-4">
+              <p className="text-sm text-[#111111] dark:text-white leading-relaxed">{appointment.adminNotes}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Your note — editable, shown to admin too */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">
+              Your Note
+            </p>
+            {!editingNotes && (
+              <button
+                onClick={() => { setNotesDraft(appointment.agencyNotes ?? ''); setEditingNotes(true) }}
+                className="flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B] hover:underline"
+              >
+                <Pencil className="w-3 h-3" /> {appointment.agencyNotes ? 'Edit' : 'Add note'}
+              </button>
+            )}
+          </div>
+
+          {editingNotes ? (
+            <div className="space-y-2">
+              <textarea
+                autoFocus
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                placeholder="Add a note for admin to see…"
+                rows={4}
+                className={`${inputCls(false)} resize-none`}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditingNotes(false)}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveNotes}
+                  disabled={isSavingNotes}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 flex items-center justify-center gap-1.5"
+                >
+                  {isSavingNotes ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : appointment.agencyNotes ? (
+            <div className="bg-[#F5F5F4] dark:bg-[#202020] rounded-xl p-4 border-l-3 border-[#F95C4B]">
+              <p className="text-sm text-[#111111] dark:text-white leading-relaxed">{appointment.agencyNotes}</p>
+            </div>
+          ) : (
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No notes yet.</p>
+          )}
+        </div>
       </div>
     </SidePanel>
   )
@@ -585,13 +708,11 @@ export default function AgencyAppointmentsPage() {
   })
 
   const updateMut = useMutation({
-    mutationFn: ({ id, status }) => appointmentsApi.update(id, { status }),
-    onSuccess: (res, vars) => {
+    mutationFn: ({ id, ...data }) => appointmentsApi.update(id, data),
+    onSuccess: (res, { id, ...data }) => {
       qc.invalidateQueries({ queryKey: ['agency-appointments'] })
-      // Update the selected appointment in place so panel reflects new status
-      setSelected((prev) =>
-        prev?._id === vars.id ? { ...prev, status: vars.status } : prev
-      )
+      // Update the selected appointment in place so panel reflects the change immediately
+      setSelected((prev) => (prev?._id === id ? { ...prev, ...data } : prev))
       toast.success('Appointment updated')
     },
     onError: (err) => toast.error(err.response?.data?.message ?? 'Update failed'),
@@ -742,9 +863,11 @@ export default function AgencyAppointmentsPage() {
         <DetailPanel
           appointment={selected}
           onClose={closePanel}
-          onStatusUpdate={(id, status) => updateMut.mutate({ id, status })}
+          onStatusUpdate={(id, status, agencyNotes) => updateMut.mutate({ id, status, ...(agencyNotes !== undefined ? { agencyNotes } : {}) })}
           onRecordOutcome={() => setShowOutcome(true)}
+          onUpdateNotes={(agencyNotes) => updateMut.mutate({ id: selected._id, agencyNotes })}
           isUpdating={updateMut.isPending}
+          isSavingNotes={updateMut.isPending}
         />
       )}
 

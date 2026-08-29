@@ -3,9 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Trophy, Phone, TrendingUp, CheckCircle2,
   Medal, Star, Crown, BarChart2,
+  ThermometerSnowflake, ThermometerSun, Flame, Sparkles,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
+
+const LEAD_STATUS_STAT = [
+  { key: 'coldCount',      label: 'Cold',      icon: ThermometerSnowflake, color: '#6B7280', weight: '×1' },
+  { key: 'warmCount',      label: 'Warm',      icon: ThermometerSun,       color: '#F59E0B', weight: '×2' },
+  { key: 'hotCount',       label: 'Hot',       icon: Flame,                color: '#EF4444', weight: '×10' },
+  { key: 'convertedCount', label: 'Converted', icon: Sparkles,             color: '#10B981', weight: '×10' },
+]
 
 /* ─── API ─────────────────────────────────────────────────────────── */
 
@@ -206,6 +214,33 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
+      {/* Lead temperature breakdown */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-3">
+          My Leads by Temperature
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {LEAD_STATUS_STAT.map((s) => (
+            <div
+              key={s.key}
+              className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4 flex flex-col gap-3"
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${s.color}15` }}>
+                  <s.icon className="w-4 h-4" style={{ color: s.color }} strokeWidth={1.75} />
+                </div>
+                <span className="text-[10px] font-bold" style={{ color: s.color }}>{s.weight}</span>
+              </div>
+              {loading
+                ? <div className="h-7 w-10 rounded-lg bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />
+                : <p className="text-2xl font-black text-[#111111] dark:text-white">{myStats?.[s.key] ?? 0}</p>
+              }
+              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] font-medium">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Leaderboard */}
       <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
@@ -294,8 +329,11 @@ export default function LeaderboardPage() {
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-[#3B82F6] bg-[#3B82F6]/10">
                         <Phone className="w-3 h-3" /> {entry.totalCalls}
                       </span>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-[#10B981] bg-[#10B981]/10">
-                        <TrendingUp className="w-3 h-3" /> {entry.leadsCreated}
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-[#EF4444] bg-[#EF4444]/10">
+                        <Flame className="w-3 h-3" /> {entry.hotCount}
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-[#F59E0B] bg-[#F59E0B]/10">
+                        <ThermometerSun className="w-3 h-3" /> {entry.warmCount}
                       </span>
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-[#8B5CF6] bg-[#8B5CF6]/10">
                         <CheckCircle2 className="w-3 h-3" /> {entry.leadsClosed}
@@ -320,17 +358,34 @@ export default function LeaderboardPage() {
       {/* Scoring info */}
       <div className="bg-[#F95C4B]/5 dark:bg-[#F95C4B]/10 border border-[#F95C4B]/20 rounded-2xl p-4">
         <p className="text-xs font-semibold text-[#F95C4B] mb-2">How scores are calculated</p>
-        <div className="flex flex-wrap gap-x-5 gap-y-1">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 mb-2.5">
           <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
             <span className="font-bold text-[#3B82F6]">+1 pt</span> per call logged
-          </span>
-          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-            <span className="font-bold text-[#10B981]">+3 pts</span> per lead created
           </span>
           <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
             <span className="font-bold text-[#8B5CF6]">+5 pts</span> per lead closed
           </span>
         </div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#F95C4B]/70 mb-1.5">
+          Plus, per lead — by temperature
+        </p>
+        <div className="flex flex-wrap gap-x-5 gap-y-1">
+          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+            <span className="font-bold text-[#6B7280]">+1 pt</span> cold
+          </span>
+          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+            <span className="font-bold text-[#F59E0B]">+2 pts</span> warm
+          </span>
+          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+            <span className="font-bold text-[#EF4444]">+10 pts</span> hot
+          </span>
+          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+            <span className="font-bold text-[#10B981]">+10 pts</span> converted
+          </span>
+        </div>
+        <p className="text-[11px] text-[#9CA3AF] mt-2.5">
+          5 warm leads or 10 cold leads are worth the same as 1 hot lead.
+        </p>
       </div>
     </div>
   )

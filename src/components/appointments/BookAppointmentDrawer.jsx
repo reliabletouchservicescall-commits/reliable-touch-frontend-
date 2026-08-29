@@ -5,6 +5,7 @@ import { CalendarPlus, Loader2, MapPin, BellRing } from 'lucide-react'
 import { appointmentsApi } from '../../services/appointmentsApi'
 import SidePanel from '../common/SidePanel'
 import { Field, inputCls } from '../leads/leadShared'
+import { DateField, TimeField } from '../common/DateTimeFields'
 
 const ROLE_LABEL = { admin: 'Admin', agency: 'Agency', cold_caller: 'Cold Caller' }
 
@@ -15,7 +16,7 @@ const ROLE_LABEL = { admin: 'Admin', agency: 'Agency', cold_caller: 'Cold Caller
 export default function BookAppointmentDrawer({ lead, onClose, onBooked }) {
   const qc = useQueryClient()
   const [errors, setErrors] = useState({})
-  const [form, setForm] = useState({ agentId: '', scheduledDate: '', scheduledTime: '', notes: '' })
+  const [form, setForm] = useState({ agentId: '', scheduledDate: '', scheduledTime: '', adminNotes: '' })
 
   const { data: assigneesData, isLoading: loadingAssignees } = useQuery({
     queryKey: ['appointment-assignees'],
@@ -57,7 +58,7 @@ export default function BookAppointmentDrawer({ lead, onClose, onBooked }) {
       agentId: form.agentId,
       scheduledDate: form.scheduledDate,
       scheduledTime: form.scheduledTime,
-      notes: form.notes.trim() || null,
+      adminNotes: form.adminNotes.trim() || null,
     })
   }
 
@@ -116,17 +117,17 @@ export default function BookAppointmentDrawer({ lead, onClose, onBooked }) {
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Date" required error={errors.scheduledDate}>
-              <input type="date" value={form.scheduledDate} onChange={(e) => setField('scheduledDate', e.target.value)} className={inputCls(errors.scheduledDate)} />
+              <DateField value={form.scheduledDate} onChange={(v) => setField('scheduledDate', v)} className={inputCls(errors.scheduledDate)} />
             </Field>
             <Field label="Time" required error={errors.scheduledTime}>
-              <input type="time" value={form.scheduledTime} onChange={(e) => setField('scheduledTime', e.target.value)} className={inputCls(errors.scheduledTime)} />
+              <TimeField value={form.scheduledTime} onChange={(v) => setField('scheduledTime', v)} className={inputCls(errors.scheduledTime)} />
             </Field>
           </div>
 
-          <Field label="Notes">
+          <Field label="Note for Agency" hint="Visible to whoever this is assigned to">
             <textarea
-              value={form.notes}
-              onChange={(e) => setField('notes', e.target.value)}
+              value={form.adminNotes}
+              onChange={(e) => setField('adminNotes', e.target.value)}
               placeholder="Special instructions or landlord preferences…"
               rows={3}
               className={`${inputCls(false)} resize-none`}

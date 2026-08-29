@@ -10,8 +10,9 @@ import {
 } from 'lucide-react'
 import { appointmentsApi } from '../../services/appointmentsApi'
 import { leadsApi }        from '../../services/leadsApi'
+import { DateField, TimeField } from '../../components/common/DateTimeFields'
 
-const ROLE_LABEL = { admin: 'Admin', agent: 'Agent', cold_caller: 'Cold Caller' }
+const ROLE_LABEL = { admin: 'Admin', agency: 'Agency', cold_caller: 'Cold Caller' }
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
@@ -39,7 +40,7 @@ const SORT_OPTIONS = [
 ]
 
 const EMPTY_FORM = {
-  leadId: '', agentId: '', scheduledDate: '', scheduledTime: '', notes: '', status: '',
+  leadId: '', agentId: '', scheduledDate: '', scheduledTime: '', adminNotes: '', status: '',
 }
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
@@ -148,7 +149,7 @@ function AppointmentForm({ id, initial, onSubmit, isPending, isEdit }) {
       agentId:       form.agentId,
       scheduledDate: form.scheduledDate,
       scheduledTime: form.scheduledTime.trim(),
-      notes:         form.notes.trim() || null,
+      adminNotes:    form.adminNotes.trim() || null,
       ...(isEdit && form.status ? { status: form.status } : {}),
     })
   }
@@ -164,7 +165,7 @@ function AppointmentForm({ id, initial, onSubmit, isPending, isEdit }) {
         </select>
       </Field>
 
-      <Field label="Assign To" required error={errors.agentId} hint="Any admin, agent, or cold caller — they'll get an email + in-app reminder 30 minutes before">
+      <Field label="Assign To" required error={errors.agentId} hint="Any admin, agency user, or cold caller — they'll get an email + in-app reminder 30 minutes before">
         <select value={form.agentId} onChange={(e) => set('agentId', e.target.value)} className={inputCls(errors.agentId)}>
           <option value="">-- Select a person --</option>
           {assignees.map((a) => (
@@ -175,10 +176,10 @@ function AppointmentForm({ id, initial, onSubmit, isPending, isEdit }) {
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Date" required error={errors.scheduledDate}>
-          <input type="date" value={form.scheduledDate} onChange={(e) => set('scheduledDate', e.target.value)} className={inputCls(errors.scheduledDate)} />
+          <DateField value={form.scheduledDate} onChange={(v) => set('scheduledDate', v)} className={inputCls(errors.scheduledDate)} />
         </Field>
         <Field label="Time" required error={errors.scheduledTime}>
-          <input type="time" value={form.scheduledTime} onChange={(e) => set('scheduledTime', e.target.value)} className={inputCls(errors.scheduledTime)} />
+          <TimeField value={form.scheduledTime} onChange={(v) => set('scheduledTime', v)} className={inputCls(errors.scheduledTime)} />
         </Field>
       </div>
 
@@ -193,11 +194,19 @@ function AppointmentForm({ id, initial, onSubmit, isPending, isEdit }) {
         </Field>
       )}
 
-      <Field label="Notes">
-        <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)}
+      <Field label="Note for Agency" hint="Visible to whoever this appointment is assigned to">
+        <textarea value={form.adminNotes} onChange={(e) => set('adminNotes', e.target.value)}
           placeholder="Special instructions or landlord preferences..." rows={4}
           className={`${inputCls(false)} resize-none`} />
       </Field>
+
+      {isEdit && initial.agencyNotes && (
+        <Field label="Note from Agency" hint="Read-only — added by the assignee">
+          <p className="text-sm text-[#111111] dark:text-white bg-[#F5F5F4] dark:bg-[#202020] rounded-xl p-3.5 leading-relaxed whitespace-pre-wrap">
+            {initial.agencyNotes}
+          </p>
+        </Field>
+      )}
     </form>
   )
 }
@@ -265,7 +274,8 @@ function EditDrawer({ appt, onClose, onSaved }) {
     agentId:       resolveUser(appt.agentId)?._id ?? appt.agentId ?? '',
     scheduledDate: appt.scheduledDate ? appt.scheduledDate.slice(0, 10) : '',
     scheduledTime: appt.scheduledTime ?? '',
-    notes:         appt.notes ?? '',
+    adminNotes:    appt.adminNotes ?? '',
+    agencyNotes:   appt.agencyNotes ?? '',
     status:        appt.status ?? '',
   }
   return (
@@ -364,10 +374,17 @@ function ViewPanel({ appt, onClose, onEdit }) {
             <InfoRow icon={Phone} label="Phone" value={agent?.phone} />
           </Section>
 
-          {appt.notes && (
+          {appt.adminNotes && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2">Notes</p>
-              <p className="text-sm text-[#111111] dark:text-white bg-[#F5F5F4] dark:bg-[#202020] rounded-xl p-4 leading-relaxed whitespace-pre-wrap">{appt.notes}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2">Note for Agency</p>
+              <p className="text-sm text-[#111111] dark:text-white bg-[#F5F5F4] dark:bg-[#202020] rounded-xl p-4 leading-relaxed whitespace-pre-wrap">{appt.adminNotes}</p>
+            </div>
+          )}
+
+          {appt.agencyNotes && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2">Note from Agency</p>
+              <p className="text-sm text-[#111111] dark:text-white bg-[#10B981]/8 border border-[#10B981]/20 rounded-xl p-4 leading-relaxed whitespace-pre-wrap">{appt.agencyNotes}</p>
             </div>
           )}
 

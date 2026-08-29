@@ -1,10 +1,12 @@
-import { Field, inputCls } from './leadShared'
+import { Field, inputCls, ListingFields, PropertyFromContact } from './leadShared'
+import { DateField, TimeField } from '../common/DateTimeFields'
 
 /**
  * Field subset a cold caller is allowed to set (mirrors the backend's
  * CALLER_EDITABLE list in leads.service.js) — no assignment/status/admin fields.
+ * Address/Area are never entered here — they always mirror the linked contact.
  */
-export default function LeadFormFields({ form, setField, errors, areas }) {
+export default function LeadFormFields({ form, setField, errors, contact, contactLoading }) {
   return (
     <div className="space-y-5">
       <Field label="Landlord Name" required error={errors.landlordName}>
@@ -16,23 +18,9 @@ export default function LeadFormFields({ form, setField, errors, areas }) {
         />
       </Field>
 
-      <Field label="Property Address" required error={errors.propertyAddress} hint="What did the landlord tell you about the property?">
-        <input
-          value={form.propertyAddress}
-          onChange={(e) => setField('propertyAddress', e.target.value)}
-          placeholder="123 Main St, City, 0000"
-          className={inputCls(errors.propertyAddress)}
-        />
-      </Field>
+      <PropertyFromContact contact={contact} loading={contactLoading} />
 
-      <Field label="Area" required error={errors.area}>
-        <select value={form.area} onChange={(e) => setField('area', e.target.value)} className={inputCls(errors.area)}>
-          <option value="">-- Select area --</option>
-          {Array.isArray(areas) && areas.map((a) => (
-            <option key={a._id} value={a._id}>{a.name}</option>
-          ))}
-        </select>
-      </Field>
+      <ListingFields form={form} setField={setField} errors={errors} />
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Phone" required error={errors.phone}>
@@ -64,15 +52,15 @@ export default function LeadFormFields({ form, setField, errors, areas }) {
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Follow-up Date">
-          <input type="date" value={form.followUpDate} onChange={(e) => setField('followUpDate', e.target.value)} className={inputCls(false)} />
+          <DateField value={form.followUpDate} onChange={(v) => setField('followUpDate', v)} className={inputCls(false)} />
         </Field>
         <Field label="Appointment Date">
-          <input type="date" value={form.appointmentDate} onChange={(e) => setField('appointmentDate', e.target.value)} className={inputCls(false)} />
+          <DateField value={form.appointmentDate} onChange={(v) => setField('appointmentDate', v)} className={inputCls(false)} />
         </Field>
       </div>
 
       <Field label="Appointment Time">
-        <input value={form.appointmentTime} onChange={(e) => setField('appointmentTime', e.target.value)} placeholder="10:00" className={inputCls(false)} />
+        <TimeField value={form.appointmentTime} onChange={(v) => setField('appointmentTime', v)} className={inputCls(false)} />
       </Field>
     </div>
   )

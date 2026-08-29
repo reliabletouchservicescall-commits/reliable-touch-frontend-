@@ -5,24 +5,26 @@ import { format, formatDistanceToNow } from 'date-fns'
 import {
   Bell, CheckCheck, Loader2, AlertTriangle, ChevronLeft, ChevronRight,
   Flame, CalendarCheck, CalendarClock, BellRing, FileText,
-  Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote,
+  Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote, ThermometerSun,
 } from 'lucide-react'
 import { notificationsApi } from '../../services/notificationsApi'
 
 const EVENT_META = {
-  new_lead:             { label: 'New Lead',        icon: FileText,     color: '#F95C4B' },
-  hot_lead:             { label: 'Hot Lead',         icon: Flame,        color: '#EF4444' },
-  lead_status_updated:  { label: 'Status Updated',   icon: RefreshCw,    color: '#3B82F6' },
-  appointment_booked:   { label: 'Appointment',      icon: CalendarClock,color: '#3B82F6' },
-  appointment_confirmed:{ label: 'Confirmed',        icon: CalendarCheck,color: '#10B981' },
-  appointment_reminder: { label: 'Reminder',         icon: BellRing,     color: '#F59E0B' },
-  listing_signed:       { label: 'Listing Signed',   icon: FileCheck2,   color: '#10B981' },
-  property_rented:      { label: 'Property Rented',  icon: Home,         color: '#10B981' },
-  property_sold:        { label: 'Property Sold',    icon: Home,         color: '#10B981' },
-  personal_record:      { label: 'Personal Record',  icon: Trophy,       color: '#F59E0B' },
-  daily_winner:         { label: 'Daily Winner',     icon: Trophy,       color: '#F59E0B' },
-  commission_due:       { label: 'Commission Due',   icon: Wallet,       color: '#8B5CF6' },
-  renewal_due:          { label: 'Renewal Due',      icon: Banknote,     color: '#8B5CF6' },
+  new_lead:                { label: 'New Lead',        icon: FileText,      color: '#F95C4B' },
+  hot_lead:                { label: 'Hot Lead',         icon: Flame,         color: '#EF4444' },
+  lead_status_updated:     { label: 'Status Updated',   icon: RefreshCw,     color: '#3B82F6' },
+  lead_status_escalated:   { label: 'Lead Heating Up',  icon: ThermometerSun,color: '#F59E0B' },
+  appointment_booked:      { label: 'Appointment',      icon: CalendarClock, color: '#3B82F6' },
+  appointment_confirmed:   { label: 'Confirmed',        icon: CalendarCheck, color: '#10B981' },
+  appointment_reminder:    { label: 'Reminder',         icon: BellRing,      color: '#F59E0B' },
+  listing_signed:          { label: 'Listing Signed',   icon: FileCheck2,    color: '#10B981' },
+  property_rented:         { label: 'Property Rented',  icon: Home,          color: '#10B981' },
+  property_sold:           { label: 'Property Sold',    icon: Home,          color: '#10B981' },
+  personal_record:         { label: 'Personal Record',  icon: Trophy,        color: '#F59E0B' },
+  daily_winner:            { label: 'Daily Winner',     icon: Trophy,        color: '#F59E0B' },
+  leaderboard_leader_changed: { label: 'Leaderboard',   icon: Trophy,        color: '#F59E0B' },
+  commission_due:          { label: 'Commission Due',   icon: Wallet,        color: '#8B5CF6' },
+  renewal_due:             { label: 'Renewal Due',      icon: Banknote,      color: '#8B5CF6' },
 }
 const DEFAULT_META = { label: 'Notification', icon: Bell, color: '#6B7280' }
 

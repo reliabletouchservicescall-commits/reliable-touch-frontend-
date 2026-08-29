@@ -1,0 +1,125 @@
+/* Brand-matching skin for react-datepicker — keep in sync with the palette used
+   throughout the app (#F95C4B primary, #E5E7EB/#2A2A2A borders, #6B7280/#A1A1AA muted text). */
+
+.react-datepicker-popper {
+  z-index: 9999;
+}
+
+.react-datepicker {
+  font-family: inherit;
+  border: 1px solid #E5E7EB;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.react-datepicker__triangle {
+  display: none;
+}
+
+.react-datepicker__header {
+  background: #FAFAF9;
+  border-bottom: 1px solid #E5E7EB;
+  padding-top: 0.75rem;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header {
+  color: #111111;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.react-datepicker__day-name {
+  color: #6B7280;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.react-datepicker__day {
+  color: #111111;
+  border-radius: 0.5rem;
+}
+
+.react-datepicker__day:hover {
+  background: #F95C4B18;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: #F95C4B !important;
+  color: white !important;
+}
+
+.react-datepicker__day--disabled {
+  color: #D1D5DB;
+  cursor: not-allowed;
+}
+
+.react-datepicker__day--disabled:hover {
+  background: transparent;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: #6B7280;
+}
+
+.react-datepicker__time-container {
+  border-left: 1px solid #E5E7EB;
+}
+
+.react-datepicker__time-list-item {
+  color: #111111 !important;
+}
+
+.react-datepicker__time-list-item:hover {
+  background: #F95C4B18 !important;
+}
+
+.react-datepicker__time-list-item--selected {
+  background: #F95C4B !important;
+  color: white !important;
+  font-weight: 600;
+}
+
+/* Dark mode — mirrors the app's html.dark class-based theming */
+html.dark .react-datepicker {
+  background: #181818;
+  border-color: #2A2A2A;
+}
+
+html.dark .react-datepicker__header {
+  background: #202020;
+  border-bottom-color: #2A2A2A;
+}
+
+html.dark .react-datepicker__current-month,
+html.dark .react-datepicker-time__header,
+html.dark .react-datepicker__day {
+  color: white;
+}
+
+html.dark .react-datepicker__day-name {
+  color: #A1A1AA;
+}
+
+html.dark .react-datepicker__day:hover {
+  background: #F95C4B26;
+}
+
+html.dark .react-datepicker__day--disabled {
+  color: #4B5563;
+}
+
+html.dark .react-datepicker__time-container {
+  border-left-color: #2A2A2A;
+}
+
+html.dark .react-datepicker__time-list-item {
+  background: #181818 !important;
+  color: white !important;
+}
+
+html.dark .react-datepicker__time-list-item:hover {
+  background: #F95C4B26 !important;
+}

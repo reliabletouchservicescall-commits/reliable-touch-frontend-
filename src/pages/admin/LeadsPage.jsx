@@ -10,9 +10,10 @@ import {
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
-import { areasApi } from '../../services/areasApi'
 import { usersApi } from '../../services/usersApi'
 import LeadAppointments from '../../components/appointments/LeadAppointments'
+import { ListingFields, ListingBadge, PropertyFromContact } from '../../components/leads/leadShared'
+import { DateField, TimeField } from '../../components/common/DateTimeFields'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
@@ -40,7 +41,7 @@ const SORT_OPTIONS = [
 ]
 
 const EMPTY_CREATE = {
-  contactId: '', landlordName: '', propertyAddress: '', area: '',
+  contactId: '', landlordName: '', listingType: '', priceMin: '', priceMax: '',
   phone: '', email: '', comments: '', availability: '', bestCallTime: '',
   followUpDate: '', appointmentDate: '', appointmentTime: '', assignedAgent: '',
 }
@@ -273,11 +274,6 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
     queryFn: () => contactsApi.list({ limit: 100 }).then((r) => r.data.data),
     staleTime: 60_000,
   })
-  const { data: areasData } = useQuery({
-    queryKey: ['areas-select'],
-    queryFn: () => areasApi.list({ limit: 100 }).then((r) => r.data.data),
-    staleTime: 60_000,
-  })
   const { data: agentsData } = useQuery({
     queryKey: ['agency-users-select'],
     queryFn: () => usersApi.list({ role: 'agency', limit: 100 }).then((r) => r.data.data),
@@ -285,9 +281,9 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
   })
 
   const contacts = contactsData?.contacts ?? contactsData ?? []
-  const areas    = areasData?.areas       ?? areasData    ?? []
   const agentsRaw = agentsData?.users     ?? agentsData   ?? []
   const agents   = Array.isArray(agentsRaw) ? agentsRaw : []
+  const selectedContact = contacts.find((c) => c._id === form.contactId) ?? null
 
   function setField(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -297,8 +293,12 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
   function validate() {
     const errs = {}
     if (!form.landlordName.trim())     errs.landlordName     = 'Landlord name is required'
-    if (!form.propertyAddress.trim())  errs.propertyAddress  = 'Property address is required'
-    if (!form.area)                    errs.area             = 'Area is required'
+    if (!form.listingType)             errs.listingType      = 'Select sale or rental'
+    if (form.priceMin === '')          errs.priceMin         = 'Enter a minimum price'
+    if (form.priceMax === '')          errs.priceMax         = 'Enter a maximum price'
+    if (form.priceMin !== '' && form.priceMax !== '' && Number(form.priceMax) < Number(form.priceMin)) {
+      errs.priceMax = 'Max price must be at least the min price'
+    }
     if (!form.phone.trim())            errs.phone            = 'Phone is required'
     return errs
   }
@@ -329,18 +329,9 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
         <input value={form.landlordName} onChange={(e) => setField('landlordName', e.target.value)} placeholder="Full name" className={inputCls(errors.landlordName)} />
       </Field>
 
-      <Field label="Property Address" required error={errors.propertyAddress}>
-        <input value={form.propertyAddress} onChange={(e) => setField('propertyAddress', e.target.value)} placeholder="123 Main St, City, 0000" className={inputCls(errors.propertyAddress)} />
-      </Field>
+      <PropertyFromContact contact={selectedContact} />
 
-      <Field label="Area" required error={errors.area}>
-        <select value={form.area} onChange={(e) => setField('area', e.target.value)} className={inputCls(errors.area)}>
-          <option value="">-- Select area --</option>
-          {Array.isArray(areas) && areas.map((a) => (
-            <option key={a._id} value={a._id}>{a.name}</option>
-          ))}
-        </select>
-      </Field>
+      <ListingFields form={form} setField={setField} errors={errors} />
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Phone" required error={errors.phone}>
@@ -366,15 +357,15 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Follow-up Date">
-          <input type="date" value={form.followUpDate} onChange={(e) => setField('followUpDate', e.target.value)} className={inputCls(false)} />
+          <DateField value={form.followUpDate} onChange={(v) => setField('followUpDate', v)} className={inputCls(false)} />
         </Field>
         <Field label="Appointment Date">
-          <input type="date" value={form.appointmentDate} onChange={(e) => setField('appointmentDate', e.target.value)} className={inputCls(false)} />
+          <DateField value={form.appointmentDate} onChange={(v) => setField('appointmentDate', v)} className={inputCls(false)} />
         </Field>
       </div>
 
       <Field label="Appointment Time">
-        <input value={form.appointmentTime} onChange={(e) => setField('appointmentTime', e.target.value)} placeholder="10:00" className={inputCls(false)} />
+        <TimeField value={form.appointmentTime} onChange={(v) => setField('appointmentTime', v)} className={inputCls(false)} />
       </Field>
 
       <Field label="Assigned Agent">
@@ -489,8 +480,9 @@ function EditDrawer({ lead, onClose, onSaved }) {
   const initial = {
     contactId:       lead.contactId?._id ?? lead.contactId ?? '',
     landlordName:    lead.landlordName   ?? '',
-    propertyAddress: lead.propertyAddress ?? '',
-    area:            lead.area?._id      ?? lead.area      ?? '',
+    listingType:     lead.listingType    ?? '',
+    priceMin:        lead.priceMin       ?? '',
+    priceMax:        lead.priceMax       ?? '',
     phone:           lead.phone          ?? '',
     email:           lead.email          ?? '',
     comments:        lead.comments       ?? '',
@@ -601,6 +593,9 @@ function ViewPanel({ lead, onClose, onChangeStatus }) {
               <div>
                 <h3 className="text-lg font-bold text-[#111111] dark:text-white">{lead.landlordName}</h3>
                 <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">{lead.propertyAddress}</p>
+                <div className="mt-2">
+                  <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
+                </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
                 <div className="flex items-center gap-2">
@@ -670,10 +665,13 @@ function ViewPanel({ lead, onClose, onChangeStatus }) {
 
           {/* Property Details */}
           <Section title="Property Details">
-            <InfoRow icon={MapPin}    label="Address"       value={lead.propertyAddress} />
-            <InfoRow icon={Building2} label="Area"          value={areaObj?.name} />
-            <InfoRow icon={Clock}     label="Availability"  value={lead.availability} />
-            <InfoRow icon={Phone}     label="Best Call Time" value={lead.bestCallTime} />
+            <InfoRow icon={MapPin}    label="Address"          value={lead.propertyAddress} />
+            <InfoRow icon={Building2} label="Area"             value={areaObj?.name} />
+            <InfoRow icon={Building2} label="Sectional Scheme" value={contactObj?.sectionalScheme} />
+            <InfoRow icon={FileText}  label="Unit"             value={contactObj?.unitNumber} />
+            <InfoRow icon={FileText}  label="Size"             value={contactObj?.sizeInSqm ? `${contactObj.sizeInSqm} m²` : null} />
+            <InfoRow icon={Clock}     label="Availability"     value={lead.availability} />
+            <InfoRow icon={Phone}     label="Best Call Time"   value={lead.bestCallTime} />
           </Section>
 
           {/* Follow-up & Appointments */}
@@ -903,6 +901,9 @@ function LeadRow({ lead, onView, onEdit, onChangeStatus, onDelete }) {
       <td className="px-4 py-3.5">
         <p className="text-sm font-semibold text-[#111111] dark:text-white truncate max-w-[180px]">{lead.landlordName}</p>
         <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate max-w-[180px]">{lead.propertyAddress}</p>
+        <div className="mt-1">
+          <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
+        </div>
       </td>
       <td className="px-4 py-3.5">
         <p className="text-sm text-[#111111] dark:text-white">{contactObj?.name ?? lead.landlordName}</p>
