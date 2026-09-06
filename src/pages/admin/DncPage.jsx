@@ -6,9 +6,10 @@ import {
   PhoneOff, Search, X, Trash2, AlertTriangle, Loader2,
   Phone, ShieldAlert, ShieldCheck, Shield, User, Clock,
   Plus, SlidersHorizontal, ChevronLeft, ChevronRight,
-  TriangleAlert, RotateCcw, FileText,
+  TriangleAlert, RotateCcw, FileText, Inbox, Check, Ban,
 } from 'lucide-react'
 import { dncApi } from '../../services/dncApi'
+import { blockRequestsApi } from '../../services/blockRequestsApi'
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -469,6 +470,109 @@ function DncRow({ entry, onRemove }) {
   )
 }
 
+/* ─── Pending Block Requests ─────────────────────────────────────────────── */
+
+function BlockRequestCard({ request, onResolve, isPending }) {
+  const [note, setNote] = useState('')
+  const caller = resolveUser(request.requestedBy)
+  const contact = request.contactId && typeof request.contactId === 'object' ? request.contactId : null
+
+  return (
+    <div className="p-4 rounded-xl bg-[#FFFBEB] dark:bg-[#F59E0B]/8 border border-[#F59E0B]/25">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-[#111111] dark:text-white truncate">
+            {contact?.name ?? 'Unknown contact'}
+          </p>
+          <p className="text-xs font-mono text-[#6B7280] dark:text-[#A1A1AA]">{request.phone}</p>
+        </div>
+        {caller && (
+          <span className="flex items-center gap-1 text-[10px] text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0">
+            <User className="w-3 h-3" /> {caller.firstName} {caller.lastName}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-start gap-1.5 mb-3">
+        <FileText className="w-3.5 h-3.5 text-[#F59E0B] mt-0.5 flex-shrink-0" />
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed">"{request.reason}"</p>
+      </div>
+
+      <input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Optional note back to the cold caller…"
+        className="w-full mb-3 px-3 py-2 rounded-lg text-xs bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 outline-none focus:border-[#F59E0B]"
+      />
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => onResolve(request._id, 'dismiss', note)}
+          disabled={isPending}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-50"
+        >
+          <Ban className="w-3.5 h-3.5" /> Dismiss
+        </button>
+        <button
+          onClick={() => onResolve(request._id, 'approve', note)}
+          disabled={isPending}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] disabled:opacity-60"
+        >
+          {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          Approve & Block
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function PendingBlockRequests() {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['block-requests', 'pending'],
+    queryFn: () => blockRequestsApi.list({ status: 'pending', limit: 20 }),
+    staleTime: 15_000,
+  })
+  const requests = data?.requests ?? []
+
+  const mut = useMutation({
+    mutationFn: ({ id, action, adminNote }) => blockRequestsApi.resolve(id, { action, adminNote: adminNote || undefined }),
+    onSuccess: (_res, { action }) => {
+      qc.invalidateQueries({ queryKey: ['block-requests'] })
+      qc.invalidateQueries({ queryKey: ['dnc'] })
+      qc.invalidateQueries({ queryKey: ['dnc-stats'] })
+      toast.success(action === 'approve' ? 'Number blocked' : 'Request dismissed')
+    },
+    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to resolve request'),
+  })
+
+  if (requests.length === 0) return null
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <Inbox className="w-4 h-4 text-[#F59E0B]" strokeWidth={1.75} />
+        <p className="text-sm font-bold text-[#111111] dark:text-white">
+          Pending Block Requests
+        </p>
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#F59E0B]/15 text-[#F59E0B]">
+          {requests.length}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {requests.map((r) => (
+          <BlockRequestCard
+            key={r._id}
+            request={r}
+            onResolve={(id, action, adminNote) => mut.mutate({ id, action, adminNote })}
+            isPending={mut.isPending && mut.variables?.id === r._id}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ─── Empty State ─────────────────────────────────────────────────────────── */
 
 function EmptyState({ hasFilters, onAdd }) {
@@ -583,6 +687,8 @@ export default function DncPage() {
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 sm:px-8 py-5 space-y-5">
+
+          <PendingBlockRequests />
 
           {/* ── Top row: Stats + Checker ─────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

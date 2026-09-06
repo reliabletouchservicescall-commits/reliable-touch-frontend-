@@ -13,4 +13,6 @@ export const contactsApi = {
   }),
   assignByRange:  (data) => axiosClient.post('/contacts/assign-by-range', data),
   assignByScheme: (data) => axiosClient.post('/contacts/assign-by-scheme', data),
+  assignByBatch:  (data) => axiosClient.post('/contacts/assign-by-batch', data),
+  assignPreview:  (data) => axiosClient.post('/contacts/assign-preview', data),
 }

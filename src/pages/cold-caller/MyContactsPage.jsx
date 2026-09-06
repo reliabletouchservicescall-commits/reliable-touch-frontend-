@@ -16,6 +16,7 @@ import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import SidePanel from '../../components/common/SidePanel'
 import ContactCallHistory from '../../components/contacts/ContactCallHistory'
 import ContactPastLeads from '../../components/contacts/ContactPastLeads'
+import { CALL_OUTCOME_META, DEFAULT_OUTCOME_META } from '../../constants/callOutcomes'
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
@@ -169,6 +170,7 @@ function OutcomeSheet({ contact, logId, onClose, onSaved }) {
     mutationFn: () => callLogsApi.update(logId, { outcome: selected, notes: notes || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-contacts'] })
+      qc.invalidateQueries({ queryKey: ['my-contacts-called-today-count'] })
       qc.invalidateQueries({ queryKey: ['call-logs'] })
       toast.success('Call outcome saved')
       onSaved(selectedMeta)
@@ -363,7 +365,7 @@ function ContactDetailPanel({ contact, onClose }) {
 
 /* ─── Contact Card ──────────────────────────────────────────────────────── */
 
-function ContactCard({ contact, onCallInitiated }) {
+function ContactCard({ contact, onCallInitiated, showOutcome }) {
   const statusMeta    = STATUS_META[contact.status] ?? STATUS_META.unassigned
   const lastCalled    = contact.lastCalledAt ? timeAgo(contact.lastCalledAt) : null
   const isCalledToday = contact.lastCalledAt
@@ -456,35 +458,60 @@ function ContactCard({ contact, onCallInitiated }) {
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          <a
-            href={`tel:${cleanPhone(preferredPhone)}`}
-            onClick={(e) => { e.preventDefault(); onCallInitiated(contact) }}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#10B981] hover:bg-[#059669] active:scale-[0.98] transition-all shadow-sm"
-          >
-            <Phone className="w-4 h-4" strokeWidth={2} />
-            Call Now
-          </a>
-          <button
-            onClick={() => onCallInitiated(contact, 'history')}
-            className="flex items-center justify-center w-10 h-10 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#3B82F6] transition-colors"
-            title="View call history"
-          >
-            <PhoneCall className="w-4 h-4" strokeWidth={1.75} />
-          </button>
-        </div>
+        {/* Actions — the Called Today tab shows the outcome instead, since re-dialing
+            isn't the point of reviewing what's already been attempted today. */}
+        {showOutcome ? (
+          <div className="flex items-center justify-between gap-2">
+            {(() => {
+              const meta = CALL_OUTCOME_META[contact.lastCallOutcome] ?? { ...DEFAULT_OUTCOME_META, label: contact.lastCallOutcome ?? 'Unknown' }
+              const Icon = meta.icon
+              return (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold flex-shrink-0"
+                  style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
+                  <Icon className="w-3.5 h-3.5" /> {meta.label}
+                </span>
+              )
+            })()}
+            <button
+              onClick={() => onCallInitiated(contact, 'history')}
+              className="flex items-center justify-center w-10 h-10 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#3B82F6] transition-colors flex-shrink-0"
+              title="View call history"
+            >
+              <PhoneCall className="w-4 h-4" strokeWidth={1.75} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <a
+                href={`tel:${cleanPhone(preferredPhone)}`}
+                onClick={(e) => { e.preventDefault(); onCallInitiated(contact) }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#10B981] hover:bg-[#059669] active:scale-[0.98] transition-all shadow-sm"
+              >
+                <Phone className="w-4 h-4" strokeWidth={2} />
+                Call Now
+              </a>
+              <button
+                onClick={() => onCallInitiated(contact, 'history')}
+                className="flex items-center justify-center w-10 h-10 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#3B82F6] transition-colors"
+                title="View call history"
+              >
+                <PhoneCall className="w-4 h-4" strokeWidth={1.75} />
+              </button>
+            </div>
 
-        {/* Alt phone (if preferred is primary) */}
-        {contact.altPhone && contact.preferredPhone !== 'alt' && (
-          <a
-            href={`tel:${cleanPhone(contact.altPhone)}`}
-            onClick={(e) => { e.preventDefault(); onCallInitiated({ ...contact, phone: contact.altPhone }, 'alt') }}
-            className="flex items-center justify-center gap-2 w-full mt-2 py-2 rounded-xl text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] border border-dashed border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#10B981]/40 hover:text-[#10B981] transition-colors"
-          >
-            <Phone className="w-3.5 h-3.5" />
-            Alt: {contact.altPhone}
-          </a>
+            {/* Alt phone (if preferred is primary) */}
+            {contact.altPhone && contact.preferredPhone !== 'alt' && (
+              <a
+                href={`tel:${cleanPhone(contact.altPhone)}`}
+                onClick={(e) => { e.preventDefault(); onCallInitiated({ ...contact, phone: contact.altPhone }, 'alt') }}
+                className="flex items-center justify-center gap-2 w-full mt-2 py-2 rounded-xl text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] border border-dashed border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#10B981]/40 hover:text-[#10B981] transition-colors"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                Alt: {contact.altPhone}
+              </a>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -514,6 +541,50 @@ function EmptyQueue({ onRequest }) {
   )
 }
 
+function EmptyDoneForToday({ onViewToday, onRequest }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+      <div className="w-16 h-16 rounded-2xl bg-[#10B981]/10 flex items-center justify-center mb-4">
+        <CheckCircle2 className="w-8 h-8 text-[#10B981]" strokeWidth={1.5} />
+      </div>
+      <h3 className="text-base font-bold text-[#111111] dark:text-white mb-1">All done for today!</h3>
+      <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] max-w-xs mb-5">
+        You've called everyone in today's queue — check back tomorrow, or view what you called today.
+      </p>
+      <div className="flex items-center gap-2.5">
+        <button
+          onClick={onViewToday}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-[#6B7280] dark:text-[#A1A1AA] border border-[#E5E7EB] dark:border-[#2A2A2A] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors"
+        >
+          <Clock className="w-4 h-4" />
+          View Called Today
+        </button>
+        <button
+          onClick={onRequest}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] transition-colors shadow-sm"
+        >
+          <PlusCircle className="w-4 h-4" />
+          Request Contacts
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function EmptyCalledToday() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+      <div className="w-16 h-16 rounded-2xl bg-[#3B82F6]/10 flex items-center justify-center mb-4">
+        <Clock className="w-8 h-8 text-[#3B82F6]" strokeWidth={1.5} />
+      </div>
+      <h3 className="text-base font-bold text-[#111111] dark:text-white mb-1">No calls logged yet</h3>
+      <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] max-w-xs">
+        Head to the "To Call" tab to get started — everyone you call today will show up here.
+      </p>
+    </div>
+  )
+}
+
 function EmptySearch() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center px-4">
@@ -531,6 +602,8 @@ function EmptySearch() {
 export default function MyContactsPage() {
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [viewMode, setViewMode]         = useState('todo') // 'todo' | 'today'
+  const [unreachableOnly, setUnreachableOnly] = useState(false)
   const [page, setPage]                 = useState(1)
   const [outcomeState, setOutcomeState] = useState(null)
   const [leadPrompt, setLeadPrompt]     = useState(null)
@@ -539,14 +612,30 @@ export default function MyContactsPage() {
   const qc = useQueryClient()
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['my-contacts', { search, status: statusFilter, page }],
+    queryKey: ['my-contacts', { search, status: statusFilter, page, view: viewMode, lastCallOutcome: unreachableOnly ? 'unreachable' : undefined }],
     queryFn: () =>
       contactsApi
-        .list({ search: search || undefined, status: statusFilter || undefined, page, limit: 20 })
+        .list({
+          search: search || undefined,
+          status: statusFilter || undefined,
+          page, limit: 20,
+          view: viewMode === 'today' ? 'today' : undefined,
+          lastCallOutcome: unreachableOnly ? 'unreachable' : undefined,
+        })
         .then((r) => r.data.data),
     placeholderData: keepPreviousData,
     staleTime: 15_000,
   })
+
+  // Drives the "Called Today" tab's badge count and the fixed summary-bar stat — computed
+  // server-side (via the SAST day-boundary in contacts.service.js) rather than from the
+  // current page's contacts, since the default "To Call" view now excludes today's calls.
+  const { data: calledTodayData } = useQuery({
+    queryKey: ['my-contacts-called-today-count'],
+    queryFn: () => contactsApi.list({ view: 'today', limit: 1 }).then((r) => r.data.data),
+    staleTime: 15_000,
+  })
+  const calledTodayCount = calledTodayData?.total ?? 0
 
   const { data: pendingRequest } = useQuery({
     queryKey: ['contact-request-pending'],
@@ -565,6 +654,7 @@ export default function MyContactsPage() {
       const logId   = res.data?.data?.callLog?._id
       const contact = contacts.find((c) => c._id === vars.contactId)
       qc.invalidateQueries({ queryKey: ['my-contacts'] })
+      qc.invalidateQueries({ queryKey: ['my-contacts-called-today-count'] })
       setOutcomeState({ contact, logId })
     },
     onError: () => toast.error('Could not log call — check your connection'),
@@ -576,9 +666,8 @@ export default function MyContactsPage() {
     initiateCallMut.mutate({ contactId: contact._id })
   }, [contacts])
 
-  const calledToday = contacts.filter(
-    (c) => c.lastCalledAt && new Date(c.lastCalledAt).toDateString() === new Date().toDateString()
-  ).length
+  // Page-local approximation (only meaningful in the "To Call" view) — matches the
+  // pre-existing limitation of this stat, not something this feature changes.
   const neverCalled = contacts.filter((c) => !c.lastCalledAt).length
 
   return (
@@ -613,7 +702,9 @@ export default function MyContactsPage() {
             <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
               {isLoading
                 ? 'Loading…'
-                : `${total} contact${total !== 1 ? 's' : ''} assigned · ${calledToday} called today · ${neverCalled} never called`}
+                : viewMode === 'today'
+                  ? `${total} call${total !== 1 ? 's' : ''} logged today`
+                  : `${total} to call · ${calledTodayCount} called today · ${neverCalled} never called`}
             </p>
           </div>
 
@@ -641,13 +732,36 @@ export default function MyContactsPage() {
           </div>
         </div>
 
-        {/* Summary bar */}
-        {!isLoading && total > 0 && (
+        {/* View toggle — "To Call" excludes anyone already called today (server-side, SAST
+            day boundary); "Called Today" shows everyone called today with their outcome,
+            so nothing attempted is ever fully out of sight. */}
+        <div className="flex gap-2 mb-3">
+          {[
+            { key: 'todo',  label: 'To Call',      count: total },
+            { key: 'today', label: 'Called Today', count: calledTodayCount },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => { setViewMode(t.key); setPage(1) }}
+              className={[
+                'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all',
+                viewMode === t.key
+                  ? 'bg-[#3B82F6] text-white shadow-sm'
+                  : 'text-[#6B7280] dark:text-[#A1A1AA] border border-[#E5E7EB] dark:border-[#2A2A2A] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
+              ].join(' ')}
+            >
+              {t.label} <span className="opacity-80">({t.count})</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Summary bar — only meaningful for the "To Call" queue */}
+        {!isLoading && viewMode === 'todo' && (total > 0 || calledTodayCount > 0) && (
           <div className="flex items-center gap-4 mb-4">
             {[
-              { label: 'Never called', count: neverCalled,       color: '#3B82F6' },
-              { label: 'Called today', count: calledToday,       color: '#10B981' },
-              { label: 'Remaining',    count: total - calledToday, color: '#F59E0B' },
+              { label: 'Never called', count: neverCalled,      color: '#3B82F6' },
+              { label: 'Called today', count: calledTodayCount, color: '#10B981' },
+              { label: 'To call',      count: total,            color: '#F59E0B' },
             ].map(({ label, count, color }) => (
               <div key={label} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
@@ -659,33 +773,36 @@ export default function MyContactsPage() {
           </div>
         )}
 
-        {/* Status filter tabs */}
-        <div className="flex gap-0.5 overflow-x-auto pb-px">
-          {[
-            { key: '',           label: 'All' },
-            { key: 'assigned',   label: 'Assigned' },
-            { key: 'contacted',  label: 'Contacted' },
-            { key: 'converted',  label: 'Converted' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => { setStatusFilter(tab.key); setPage(1) }}
-              className={[
-                'px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-all rounded-t-lg',
-                statusFilter === tab.key
-                  ? 'border-[#3B82F6] text-[#3B82F6] bg-[#3B82F6]/5'
-                  : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
-              ].join(' ')}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Status filter tabs — statuses don't apply once viewing today's calls, since
+            everything there is by definition "contacted" */}
+        {viewMode === 'todo' && (
+          <div className="flex gap-0.5 overflow-x-auto pb-px">
+            {[
+              { key: '',           label: 'All' },
+              { key: 'assigned',   label: 'Assigned' },
+              { key: 'contacted',  label: 'Contacted' },
+              { key: 'converted',  label: 'Converted' },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => { setStatusFilter(tab.key); setPage(1) }}
+                className={[
+                  'px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-all rounded-t-lg',
+                  statusFilter === tab.key
+                    ? 'border-[#3B82F6] text-[#3B82F6] bg-[#3B82F6]/5'
+                    : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
+                ].join(' ')}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Search ──────────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 py-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="relative max-w-sm">
+      <div className="px-5 sm:px-8 py-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A] flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
           <input
             value={search}
@@ -699,6 +816,19 @@ export default function MyContactsPage() {
             </button>
           )}
         </div>
+
+        <button
+          onClick={() => { setUnreachableOnly((v) => !v); setPage(1) }}
+          className={[
+            'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all flex-shrink-0',
+            unreachableOnly
+              ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/30'
+              : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#8B5CF6]/40 hover:text-[#8B5CF6]',
+          ].join(' ')}
+        >
+          <PhoneMissed className="w-3.5 h-3.5" />
+          Unreachable
+        </button>
       </div>
 
       {/* ── Contact grid ────────────────────────────────────────────────── */}
@@ -710,14 +840,20 @@ export default function MyContactsPage() {
             ))}
           </div>
         ) : contacts.length === 0 ? (
-          total === 0 && !search && !statusFilter
-            ? <EmptyQueue onRequest={() => setShowRequestModal(true)} />
-            : <EmptySearch />
+          viewMode === 'today' ? (
+            <EmptyCalledToday />
+          ) : total === 0 && !search && !statusFilter && !unreachableOnly ? (
+            calledTodayCount > 0
+              ? <EmptyDoneForToday onViewToday={() => setViewMode('today')} onRequest={() => setShowRequestModal(true)} />
+              : <EmptyQueue onRequest={() => setShowRequestModal(true)} />
+          ) : (
+            <EmptySearch />
+          )
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {contacts.map((c) => (
-                <ContactCard key={c._id} contact={c} onCallInitiated={handleCallInitiated} />
+                <ContactCard key={c._id} contact={c} onCallInitiated={handleCallInitiated} showOutcome={viewMode === 'today'} />
               ))}
             </div>
 

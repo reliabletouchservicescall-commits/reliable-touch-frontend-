@@ -117,7 +117,7 @@ function Avatar({ name, color, size = 8 }) {
 
 /* ─── Field wrapper ──────────────────────────────────────────────────── */
 
-function Field({ label, required, error, children }) {
+function Field({ label, required, error, hint, children }) {
   return (
     <div>
       <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">
@@ -125,6 +125,7 @@ function Field({ label, required, error, children }) {
       </label>
       {children}
       {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
+      {!error && hint && <p className="mt-1 text-xs text-[#6B7280] dark:text-[#A1A1AA]">{hint}</p>}
     </div>
   )
 }
@@ -293,14 +294,36 @@ function BulkAssignBar({ count, callers, onAssign, onClear, busy }) {
 
 /* ─── Smart Assignment Modal ─────────────────────────────────────────── */
 
-function SmartAssignModal({ callers, schemes, onClose, onDone }) {
+function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClose, onDone }) {
   const qc = useQueryClient()
-  const [mode, setMode]   = useState('scheme') // 'scheme' | 'range'
+  const [mode, setMode]   = useState(initialMode ?? 'scheme') // 'scheme' | 'range' | 'file'
   const [callerId, setCaller] = useState('')
   const [scheme, setScheme]   = useState('')
   const [fromIdx, setFrom]    = useState('')
   const [toIdx, setTo]        = useState('')
   const [batchId, setBatchId] = useState('')
+  const [fileBatchId, setFileBatchId] = useState(initialBatchId ?? '')
+
+  // Recently-called preflight — see contactsApi.assignPreview. Reset whenever any filter
+  // that would change what gets matched changes, so a stale "proceed anyway" can't leak
+  // into a different selection.
+  const [confirmedRecent, setConfirmedRecent] = useState(false)
+  const [recentWarning, setRecentWarning] = useState(null) // { totalMatched, recentlyCalledCount, windowDays } | null
+  useEffect(() => {
+    setConfirmedRecent(false)
+    setRecentWarning(null)
+  }, [mode, callerId, scheme, fromIdx, toIdx, batchId, fileBatchId])
+
+  const { data: filesData } = useQuery({
+    queryKey: ['contact-files'],
+    queryFn: () => contactsApi.listFiles().then((r) => r.data.data.files),
+    staleTime: 30_000,
+  })
+  const files = filesData ?? []
+
+  const previewMut = useMutation({
+    mutationFn: (filters) => contactsApi.assignPreview(filters).then((r) => r.data.data),
+  })
 
   const rangeMut = useMutation({
     mutationFn: () => contactsApi.assignByRange({
@@ -329,20 +352,63 @@ function SmartAssignModal({ callers, schemes, onClose, onDone }) {
     onError: (e) => toast.error(e.response?.data?.message ?? 'Assignment failed'),
   })
 
-  const busy   = rangeMut.isPending || schemeMut.isPending
+  const batchMut = useMutation({
+    mutationFn: () => contactsApi.assignByBatch({ callerId, uploadBatchId: fileBatchId }),
+    onSuccess: (res) => {
+      toast.success(`${res.data.data.assigned} contacts assigned`)
+      qc.invalidateQueries({ queryKey: ['contacts'] })
+      qc.invalidateQueries({ queryKey: ['caller-counts'] })
+      qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
+      onDone()
+    },
+    onError: (e) => toast.error(e.response?.data?.message ?? 'Assignment failed'),
+  })
+
+  const busy   = rangeMut.isPending || schemeMut.isPending || batchMut.isPending
   const caller = callers.find((c) => c._id === callerId)
 
-  function submit(e) {
+  function currentFilters() {
+    if (mode === 'scheme') return { sectionalScheme: scheme }
+    if (mode === 'file')   return { uploadBatchId: fileBatchId }
+    return { fromIndex: parseInt(fromIdx), toIndex: parseInt(toIdx), uploadBatchId: batchId || undefined }
+  }
+
+  function runAssignment() {
+    if (mode === 'scheme') schemeMut.mutate()
+    else if (mode === 'file') batchMut.mutate()
+    else rangeMut.mutate()
+  }
+
+  function proceedAnyway() {
+    setRecentWarning(null)
+    setConfirmedRecent(true)
+    runAssignment()
+  }
+
+  async function submit(e) {
     e.preventDefault()
     if (!callerId) { toast.error('Select a cold caller'); return }
-    if (mode === 'scheme') {
-      if (!scheme) { toast.error('Select a sectional scheme'); return }
-      schemeMut.mutate()
-    } else {
+    if (mode === 'scheme' && !scheme) { toast.error('Select a sectional scheme'); return }
+    if (mode === 'file' && !fileBatchId) { toast.error('Select an uploaded file'); return }
+    if (mode === 'range') {
       if (!fromIdx || !toIdx) { toast.error('Enter both from and to index'); return }
       if (parseInt(fromIdx) > parseInt(toIdx)) { toast.error('From index must be ≤ To index'); return }
-      rangeMut.mutate()
     }
+
+    if (!confirmedRecent) {
+      try {
+        const preview = await previewMut.mutateAsync(currentFilters())
+        if (preview.recentlyCalledCount > 0) {
+          setRecentWarning(preview)
+          return
+        }
+      } catch {
+        toast.error('Could not check recent call history — try again')
+        return
+      }
+    }
+
+    runAssignment()
   }
 
   return (
@@ -359,7 +425,7 @@ function SmartAssignModal({ callers, schemes, onClose, onDone }) {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-[#111111] dark:text-white">Smart Assignment</h2>
-                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Assign by scheme or index range</p>
+                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Assign by scheme, index range, or a whole uploaded file</p>
               </div>
             </div>
             <button onClick={onClose}
@@ -372,8 +438,9 @@ function SmartAssignModal({ callers, schemes, onClose, onDone }) {
             {/* Mode toggle */}
             <div className="flex rounded-xl bg-[#F5F5F4] dark:bg-[#202020] p-1 gap-1">
               {[
-                { key: 'scheme', label: 'By Section Scheme', icon: Building2 },
-                { key: 'range',  label: 'By Index Range',   icon: Hash },
+                { key: 'scheme', label: 'By Scheme', icon: Building2 },
+                { key: 'range',  label: 'By Range',  icon: Hash },
+                { key: 'file',   label: 'By File',   icon: FolderOpen },
               ].map(({ key, label, icon: Icon }) => (
                 <button key={key} type="button" onClick={() => setMode(key)}
                   className={['flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all',
@@ -398,6 +465,15 @@ function SmartAssignModal({ callers, schemes, onClose, onDone }) {
                 <select value={scheme} onChange={(e) => setScheme(e.target.value)} className={inputCls(false)}>
                   <option value="">Select scheme…</option>
                   {schemes.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+            ) : mode === 'file' ? (
+              <Field label="Uploaded File" required hint="The whole file's contacts will be assigned in one action.">
+                <select value={fileBatchId} onChange={(e) => setFileBatchId(e.target.value)} className={inputCls(false)}>
+                  <option value="">Select file…</option>
+                  {files.map((f) => (
+                    <option key={f.batchId ?? f.name} value={f.batchId ?? ''}>{f.displayName}</option>
+                  ))}
                 </select>
               </Field>
             ) : (
@@ -427,17 +503,40 @@ function SmartAssignModal({ callers, schemes, onClose, onDone }) {
               </>
             )}
 
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={onClose}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
-                Cancel
-              </button>
-              <button type="submit" disabled={busy}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-                Assign Contacts
-              </button>
-            </div>
+            {recentWarning ? (
+              <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/30">
+                <AlertTriangle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs text-[#F59E0B] font-semibold">
+                    {recentWarning.recentlyCalledCount} of {recentWarning.totalMatched} matching contact{recentWarning.totalMatched !== 1 ? 's' : ''} {recentWarning.recentlyCalledCount !== 1 ? 'were' : 'was'} called in the past {recentWarning.windowDays} days.
+                  </p>
+                  <p className="text-xs text-[#F59E0B]/80 mt-1">Proceed with reassigning them anyway?</p>
+                  <div className="flex gap-2 mt-2.5">
+                    <button type="button" onClick={() => setRecentWarning(null)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#F59E0B]/30 text-[#F59E0B] hover:bg-[#F59E0B]/10">
+                      Cancel
+                    </button>
+                    <button type="button" onClick={proceedAnyway} disabled={busy}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-60 flex items-center gap-1.5">
+                      {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Proceed Anyway
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={onClose}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+                  Cancel
+                </button>
+                <button type="submit" disabled={busy || previewMut.isPending}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  {(busy || previewMut.isPending) && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {previewMut.isPending ? 'Checking…' : 'Assign Contacts'}
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </div>
@@ -447,7 +546,7 @@ function SmartAssignModal({ callers, schemes, onClose, onDone }) {
 
 /* ─── Import Modal ───────────────────────────────────────────────────── */
 
-function ImportModal({ onClose, onDone }) {
+function ImportModal({ onClose, onDone, onViewMissingPhone }) {
   const qc = useQueryClient()
   const [dragOver, setDragOver] = useState(false)
   const [file, setFile]         = useState(null)
@@ -546,11 +645,20 @@ function ImportModal({ onClose, onDone }) {
                 </div>
 
                 {/* Info */}
-                <div className="rounded-xl bg-[#F5F5F4] dark:bg-[#202020] p-4 space-y-2">
-                  <p className="text-xs font-semibold text-[#111111] dark:text-white">Expected columns:</p>
-                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed">
-                    <strong>UNIT</strong> · <strong>SIZE</strong> · <strong>SECTIONAL SCHEME</strong> · <strong>NAME</strong> · <strong>IDENTIFIER</strong> (ID number) · <strong>Column1</strong> (phone / DO NOT CONTACT / COMPANY / etc.)
-                  </p>
+                <div className="rounded-xl bg-[#F5F5F4] dark:bg-[#202020] p-4 space-y-2.5">
+                  <p className="text-xs font-semibold text-[#111111] dark:text-white">Two formats are auto-detected:</p>
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#111111] dark:text-white">Deeds office owner report</p>
+                    <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed">
+                      <strong>UNIT</strong> · <strong>SIZE</strong> · <strong>SECTIONAL SCHEME</strong> · <strong>NAME</strong> · <strong>IDENTIFIER</strong> (ID number) · <strong>Column1</strong> (phone / DO NOT CONTACT / COMPANY / etc.)
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#111111] dark:text-white">Scheme / Units workbook</p>
+                    <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed">
+                      A workbook with a <strong>Units</strong> sheet — <strong>Unit Number</strong> · <strong>Current Owners Names</strong> · <strong>Current Owners IDs</strong> · <strong>Size (m²)</strong> · <strong>Phone Numbers</strong>. Co-owned units (multiple names) are split into one contact per owner, matched to their own number where labeled.
+                    </p>
+                  </div>
                   <p className="text-[11px] text-[#EF4444]">
                     "DO NOT CONTACT" entries are automatically added to the Do Not Call list.
                   </p>
@@ -582,7 +690,6 @@ function ImportModal({ onClose, onDone }) {
                   {[
                     { label: 'Total rows',    value: result.stats.total,      color: '#111111' },
                     { label: 'Imported',      value: result.stats.created,    color: '#10B981' },
-                    { label: 'No phone',      value: result.stats.noPhone,    color: '#F59E0B' },
                     { label: 'DNC',           value: result.stats.dnc,        color: '#EF4444' },
                     { label: 'Duplicates',    value: result.stats.duplicates, color: '#6B7280' },
                     { label: 'Skipped',       value: result.stats.skipped,    color: '#6B7280' },
@@ -593,6 +700,29 @@ function ImportModal({ onClose, onDone }) {
                     </div>
                   ))}
                 </div>
+
+                {/* Missing phone — the one stat that needs admin follow-up, so it gets a
+                    dedicated, clickable call-to-action instead of hiding in the grid. */}
+                {result.stats.noPhone > 0 ? (
+                  <button
+                    onClick={() => onViewMissingPhone(result.batchId)}
+                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#F59E0B]/8 border border-[#F59E0B]/25 hover:bg-[#F59E0B]/12 transition-colors text-left"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-[#F59E0B]/15 flex items-center justify-center flex-shrink-0">
+                      <PhoneOff className="w-4 h-4 text-[#F59E0B]" strokeWidth={1.75} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-[#F59E0B]">{result.stats.noPhone} contact{result.stats.noPhone !== 1 ? 's' : ''} missing a phone number</p>
+                      <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">Click to view and fix them one by one</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#F59E0B] flex-shrink-0" />
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-[#10B981]/8 border border-[#10B981]/20">
+                    <CheckCircle2 className="w-4 h-4 text-[#10B981] flex-shrink-0" />
+                    <p className="text-xs text-[#10B981] font-semibold">Every imported contact has a phone number</p>
+                  </div>
+                )}
 
                 <button onClick={onDone}
                   className="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] flex items-center justify-center gap-2">
@@ -609,7 +739,7 @@ function ImportModal({ onClose, onDone }) {
 
 /* ─── Files Vault Modal ──────────────────────────────────────────────── */
 
-function FilesVaultModal({ onClose }) {
+function FilesVaultModal({ onClose, onAssignFile }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['contact-files'],
     queryFn: () => contactsApi.listFiles().then((r) => r.data.data.files),
@@ -670,6 +800,12 @@ function FilesVaultModal({ onClose }) {
                         {fmtBytes(f.size)} · {f.createdAt ? format(new Date(f.createdAt), 'd MMM yyyy') : '—'}
                       </p>
                     </div>
+                    {f.batchId && (
+                      <button onClick={() => onAssignFile(f)} title="Assign this file's contacts to a cold caller"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] transition-all flex-shrink-0">
+                        <UserCheck className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <a href={f.downloadUrl} target="_blank" rel="noreferrer"
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#10B981]/10 hover:text-[#10B981] transition-all flex-shrink-0">
                       <Download className="w-3.5 h-3.5" />
@@ -1149,6 +1285,39 @@ function DeleteDialog({ contact, onClose, onDeleted }) {
   )
 }
 
+/* ─── Recently-called preflight confirm (checkbox bulk-assign) ──────────── */
+
+function RecentlyCalledConfirmModal({ totalMatched, recentlyCalledCount, windowDays, onCancel, onConfirm }) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onCancel} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-[#F59E0B]" />
+            </div>
+            <h3 className="font-bold text-[#111111] dark:text-white">Recently Called</h3>
+          </div>
+          <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mb-6">
+            <span className="font-semibold text-[#F59E0B]">{recentlyCalledCount}</span> of{' '}
+            <span className="font-semibold text-[#111111] dark:text-white">{totalMatched}</span> selected contacts
+            were called in the past {windowDays} days. Proceed with reassigning them anyway?
+          </p>
+          <div className="flex gap-3">
+            <button onClick={onCancel}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">Cancel</button>
+            <button onClick={onConfirm}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F59E0B] hover:bg-[#D97706]">
+              Proceed Anyway
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 /* ─── Sort header ────────────────────────────────────────────────────── */
 
 function SortTh({ label, field, sort, onSort }) {
@@ -1328,6 +1497,9 @@ export default function ContactsPage() {
   const [statusFilter, setStatus]     = useState('')
   const [callerFilter, setCaller]     = useState('')
   const [schemeFilter, setScheme]     = useState('')
+  const [missingPhoneFilter, setMissingPhoneFilter] = useState(false)
+  const [unreachableFilter, setUnreachableFilter] = useState(false)
+  const [batchFilter,  setBatchFilter] = useState('')
   const [sort,         setSort]       = useState('-createdAt')
   const [page,         setPage]       = useState(1)
   const [drawer,       setDrawer]     = useState(null)
@@ -1335,15 +1507,17 @@ export default function ContactsPage() {
   const [selected,     setSelected]   = useState(new Set())
   const [assigning,    setAssigning]  = useState(false)
   const [modal,        setModal]      = useState(null) // 'import' | 'files' | 'smart-assign'
+  const [smartAssignSeed, setSmartAssignSeed] = useState(null) // { mode, batchId } | null
+  const [pendingBulkAssign, setPendingBulkAssign] = useState(null) // { callerId, ids, totalMatched, recentlyCalledCount, windowDays } | null
 
   const debouncedSearch = useDebounce(search)
   const qc = useQueryClient()
 
-  useEffect(() => { setPage(1); setSelected(new Set()) }, [debouncedSearch, statusFilter, callerFilter, schemeFilter, sort])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [debouncedSearch, statusFilter, callerFilter, schemeFilter, missingPhoneFilter, unreachableFilter, batchFilter, sort])
 
   /* Contacts */
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['contacts', { page, search: debouncedSearch, status: statusFilter, assignedTo: callerFilter, sectionalScheme: schemeFilter, sort }],
+    queryKey: ['contacts', { page, search: debouncedSearch, status: statusFilter, assignedTo: callerFilter, sectionalScheme: schemeFilter, hasPhone: missingPhoneFilter, lastCallOutcome: unreachableFilter, uploadBatchId: batchFilter, sort }],
     queryFn: () =>
       contactsApi.list({
         page, limit: 20,
@@ -1351,10 +1525,26 @@ export default function ContactsPage() {
         status:          statusFilter    || undefined,
         assignedTo:      callerFilter    || undefined,
         sectionalScheme: schemeFilter    || undefined,
+        hasPhone:        missingPhoneFilter ? 'false' : undefined,
+        lastCallOutcome: unreachableFilter ? 'unreachable' : undefined,
+        uploadBatchId:   batchFilter     || undefined,
         sort,
       }).then((r) => r.data.data),
     placeholderData: keepPreviousData,
   })
+
+  function viewMissingPhoneForBatch(newBatchId) {
+    setModal(null)
+    setStatus(''); setCaller(''); setScheme('')
+    setSearch('')
+    setBatchFilter(newBatchId)
+    setMissingPhoneFilter(true)
+  }
+
+  function clearBatchFilter() {
+    setBatchFilter('')
+    setMissingPhoneFilter(false)
+  }
 
   const { data: countData } = useQuery({
     queryKey: ['contacts-total'],
@@ -1422,7 +1612,7 @@ export default function ContactsPage() {
   const contacts   = data?.contacts   ?? []
   const total      = data?.total      ?? 0
   const totalPages = data?.totalPages ?? 1
-  const hasFilters = Boolean(search || statusFilter || callerFilter || schemeFilter)
+  const hasFilters = Boolean(search || statusFilter || callerFilter || schemeFilter || missingPhoneFilter || unreachableFilter || batchFilter)
   const schemes    = schemesData ?? []
 
   const callers = (callersData ?? []).map((c) => ({
@@ -1452,16 +1642,33 @@ export default function ContactsPage() {
     })
   }
 
-  /* Bulk assign */
+  /* Bulk assign — checks the recently-called preflight before touching anything */
   async function handleBulkAssign(callerId) {
+    const ids = [...selected]
+    setAssigning(true)
+    try {
+      const preview = await contactsApi.assignPreview({ ids }).then((r) => r.data.data)
+      if (preview.recentlyCalledCount > 0) {
+        setPendingBulkAssign({ callerId, ids, ...preview })
+        return
+      }
+      await doBulkAssign(callerId, ids)
+    } catch {
+      toast.error('Could not check recent call history — try again')
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  async function doBulkAssign(callerId, ids) {
     setAssigning(true)
     const caller = callers.find((c) => c._id === callerId)
     try {
-      await Promise.all([...selected].map((id) => contactsApi.update(id, { assignedTo: callerId, status: 'assigned' })))
+      await Promise.all(ids.map((id) => contactsApi.update(id, { assignedTo: callerId, status: 'assigned' })))
       qc.invalidateQueries({ queryKey: ['contacts'] })
       qc.invalidateQueries({ queryKey: ['caller-counts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
-      toast.success(`${selected.size} contact${selected.size !== 1 ? 's' : ''} assigned to ${caller?.firstName} ${caller?.lastName}`)
+      toast.success(`${ids.length} contact${ids.length !== 1 ? 's' : ''} assigned to ${caller?.firstName} ${caller?.lastName}`)
       setSelected(new Set())
     } catch { toast.error('Some assignments failed.') } finally { setAssigning(false) }
   }
@@ -1648,6 +1855,41 @@ export default function ContactsPage() {
           </select>
         </div>
 
+        <button
+          onClick={() => setMissingPhoneFilter((v) => !v)}
+          className={[
+            'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all self-start',
+            missingPhoneFilter
+              ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30'
+              : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F59E0B]/40 hover:text-[#F59E0B]',
+          ].join(' ')}
+        >
+          <PhoneOff className="w-3.5 h-3.5" />
+          Missing Phone
+        </button>
+
+        <button
+          onClick={() => setUnreachableFilter((v) => !v)}
+          className={[
+            'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all self-start',
+            unreachableFilter
+              ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/30'
+              : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#8B5CF6]/40 hover:text-[#8B5CF6]',
+          ].join(' ')}
+        >
+          <PhoneCall className="w-3.5 h-3.5" />
+          Unreachable
+        </button>
+
+        {batchFilter && (
+          <button onClick={clearBatchFilter}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/25 hover:bg-[#3B82F6]/15 self-start">
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            This import only
+            <X className="w-3 h-3" />
+          </button>
+        )}
+
         {selected.size > 0 && (
           <button onClick={() => setSelected(new Set())}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#F95C4B]/10 text-[#F95C4B] border border-[#F95C4B]/20 hover:bg-[#F95C4B]/15">
@@ -1750,19 +1992,40 @@ export default function ContactsPage() {
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       {modal === 'import' && (
-        <ImportModal onClose={() => setModal(null)} onDone={() => setModal(null)} />
+        <ImportModal
+          onClose={() => setModal(null)}
+          onDone={() => setModal(null)}
+          onViewMissingPhone={viewMissingPhoneForBatch}
+        />
       )}
 
       {modal === 'files' && (
-        <FilesVaultModal onClose={() => setModal(null)} />
+        <FilesVaultModal
+          onClose={() => setModal(null)}
+          onAssignFile={(f) => { setSmartAssignSeed({ mode: 'file', batchId: f.batchId }); setModal('smart-assign') }}
+        />
       )}
 
       {modal === 'smart-assign' && (
         <SmartAssignModal
           callers={callers}
           schemes={schemes}
-          onClose={() => setModal(null)}
-          onDone={() => setModal(null)}
+          initialMode={smartAssignSeed?.mode}
+          initialBatchId={smartAssignSeed?.batchId}
+          onClose={() => { setModal(null); setSmartAssignSeed(null) }}
+          onDone={() => { setModal(null); setSmartAssignSeed(null) }}
+        />
+      )}
+
+      {pendingBulkAssign && (
+        <RecentlyCalledConfirmModal
+          {...pendingBulkAssign}
+          onCancel={() => setPendingBulkAssign(null)}
+          onConfirm={() => {
+            const { callerId, ids } = pendingBulkAssign
+            setPendingBulkAssign(null)
+            doBulkAssign(callerId, ids)
+          }}
         />
       )}
 

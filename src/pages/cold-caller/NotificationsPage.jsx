@@ -5,7 +5,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import {
   Bell, CheckCheck, Loader2, AlertTriangle, ChevronLeft, ChevronRight,
   Flame, CalendarCheck, CalendarClock, BellRing, FileText,
-  Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote, ThermometerSun,
+  Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote, ThermometerSun, PhoneOff,
 } from 'lucide-react'
 import { notificationsApi } from '../../services/notificationsApi'
 
@@ -27,6 +27,7 @@ const EVENT_META = {
   leaderboard_leader_changed: { label: 'Leaderboard',   icon: Trophy,        color: '#F59E0B' },
   commission_due:          { label: 'Commission Due',   icon: Wallet,        color: '#8B5CF6' },
   renewal_due:             { label: 'Renewal Due',      icon: Banknote,      color: '#8B5CF6' },
+  block_request_resolved:  { label: 'Block Resolved',   icon: PhoneOff,      color: '#EF4444' },
 }
 const DEFAULT_META = { label: 'Notification', icon: Bell, color: '#6B7280' }
 

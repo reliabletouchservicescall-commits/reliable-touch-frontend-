@@ -1,21 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import {
-  PhoneCall, PhoneMissed, PhoneOff, Voicemail, Clock, CheckCircle2, ThumbsDown, AlertCircle, Loader2,
-} from 'lucide-react'
+import { PhoneCall, Loader2 } from 'lucide-react'
 import { callLogsApi } from '../../services/callLogsApi'
-
-// Matches the outcome palette used everywhere else calls are logged/shown
-// (cold-caller's MyContactsPage / CallLogsPage, admin's CallLogsPage).
-const CALL_OUTCOME_META = {
-  no_answer:          { label: 'No Answer',          icon: PhoneMissed,  color: '#6B7280' },
-  voicemail:          { label: 'Voicemail',          icon: Voicemail,    color: '#6B7280' },
-  callback_requested: { label: 'Callback Requested', icon: Clock,        color: '#F59E0B' },
-  interested:         { label: 'Interested',         icon: CheckCircle2, color: '#10B981' },
-  not_interested:     { label: 'Not Interested',     icon: ThumbsDown,   color: '#F97316' },
-  wrong_number:       { label: 'Wrong Number',       icon: AlertCircle,  color: '#8B5CF6' },
-  remove_me:          { label: 'Remove Me (DNC)',    icon: PhoneOff,     color: '#EF4444' },
-}
+import { CALL_OUTCOME_META, DEFAULT_OUTCOME_META } from '../../constants/callOutcomes'
 
 /**
  * Full call-log history for one contact — every call ever logged against them,
@@ -51,7 +38,7 @@ export default function ContactCallHistory({ contactId }) {
       ) : (
         <ul className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A] overflow-hidden">
           {logs.map((log) => {
-            const meta = CALL_OUTCOME_META[log.outcome] ?? { label: log.outcome, icon: PhoneCall, color: '#6B7280' }
+            const meta = CALL_OUTCOME_META[log.outcome] ?? { ...DEFAULT_OUTCOME_META, label: log.outcome }
             const Icon = meta.icon
             const caller = (log.calledBy && typeof log.calledBy === 'object') ? log.calledBy : null
             return (

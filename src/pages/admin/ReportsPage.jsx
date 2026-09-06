@@ -119,7 +119,7 @@ const EXPORT_CONFIGS = {
     color:   '#10B981',
     filters: [
       { key: 'status', label: 'Status', type: 'select',
-        options: ['', 'cold', 'warm', 'hot', 'converted', 'lost'],
+        options: ['', 'cold', 'warm', 'hot', 'listed', 'rented_out', 'sold', 'lost'],
         labels:  ['All statuses', 'Cold', 'Warm', 'Hot', 'Converted', 'Lost'] },
     ],
   },
@@ -365,7 +365,7 @@ function WeeklyLeadTrendChart({ data }) {
           activeDot={{ r: 5 }}
         />
         <Line
-          type="monotone" dataKey="converted" name="Converted"
+          type="monotone" dataKey="closed" name="Closed"
           stroke="#10B981" strokeWidth={2} dot={{ r: 3, fill: '#10B981' }}
           activeDot={{ r: 5 }}
         />
@@ -522,19 +522,19 @@ export default function ReportsPage() {
             : <p className="text-2xl font-black text-[#3B82F6] mt-1">{kpis.leadsThisWeek?.toLocaleString() ?? '—'}</p>}
         </div>
         <div className="bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
-          <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA]">Leads Converted</p>
+          <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA]">Leads Closed</p>
           {isLoading
             ? <div className="h-7 w-16 rounded bg-[#F5F5F4] dark:bg-[#202020] animate-pulse mt-2" />
-            : <p className="text-2xl font-black text-[#10B981] mt-1">{kpis.convertedLeads?.toLocaleString() ?? '—'}</p>}
+            : <p className="text-2xl font-black text-[#10B981] mt-1">{kpis.closedLeads?.toLocaleString() ?? '—'}</p>}
         </div>
         <div className="bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
-          <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA]">Conversion Rate</p>
+          <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA]">Closing Rate</p>
           {isLoading
             ? <div className="h-7 w-16 rounded bg-[#F5F5F4] dark:bg-[#202020] animate-pulse mt-2" />
             : (
               <div className="flex items-end gap-1 mt-1">
                 <p className="text-2xl font-black text-[#F59E0B]">{kpis.conversionRate ?? 0}%</p>
-                <p className="text-[10px] text-[#6B7280] pb-1">leads → converted</p>
+                <p className="text-[10px] text-[#6B7280] pb-1">leads → listed/rented/sold</p>
               </div>
             )}
         </div>
@@ -583,7 +583,7 @@ export default function ReportsPage() {
 
         <ChartCard
           title="Weekly Lead Trend"
-          sub="Leads created vs converted — last 8 weeks"
+          sub="Leads created vs closed — last 8 weeks"
           loading={isLoading}
         >
           {charts.weeklyLeads && <WeeklyLeadTrendChart data={charts.weeklyLeads} />}

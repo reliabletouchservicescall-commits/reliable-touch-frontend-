@@ -3,12 +3,20 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { toast } from 'sonner'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
-  PhoneOff, Search, X, Plus, Loader2, AlertTriangle, Phone,
-  ShieldAlert, ShieldCheck, User, Clock, FileText,
+  PhoneOff, Search, X, Loader2, AlertTriangle, Phone,
+  ShieldAlert, ShieldCheck, User, Clock, FileText, Send, CheckCircle2, XCircle,
 } from 'lucide-react'
 import { dncApi } from '../../services/dncApi'
+import { blockRequestsApi } from '../../services/blockRequestsApi'
+import { contactsApi } from '../../services/contactsApi'
 import SidePanel from '../../components/common/SidePanel'
 import { Field, inputCls } from '../../components/leads/leadShared'
+
+const REQUEST_STATUS_META = {
+  pending:   { label: 'Pending Review', color: '#F59E0B', Icon: Clock },
+  approved:  { label: 'Blocked',        color: '#EF4444', Icon: CheckCircle2 },
+  dismissed: { label: 'Dismissed',      color: '#6B7280', Icon: XCircle },
+}
 
 function useDebounce(value, delay = 400) {
   const [d, setD] = useState(value)
@@ -82,36 +90,41 @@ function PhoneChecker() {
   )
 }
 
-/* ─── Add DNC Panel ──────────────────────────────────────────────────────── */
+/* ─── Request Block Panel ────────────────────────────────────────────────── */
+// Cold callers can no longer block a number directly — this submits a request with a
+// reason, and only shows up as actually blocked once admin approves it.
 
-function AddDncPanel({ onClose, onSaved }) {
+function RequestBlockPanel({ onClose, onSaved }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ phone: '', reason: '' })
-  const [errors, setErrors] = useState({})
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState(null)
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+  const debouncedSearch = useDebounce(search)
+
+  const { data: contactsData, isFetching } = useQuery({
+    queryKey: ['my-contacts-search', debouncedSearch],
+    queryFn: () => contactsApi.list({ search: debouncedSearch, limit: 8 }).then((r) => r.data.data),
+    enabled: debouncedSearch.length > 1 && !selected,
+  })
+  const results = (contactsData?.contacts ?? []).filter((c) => c.phone)
 
   const mut = useMutation({
-    mutationFn: (data) => dncApi.add(data),
+    mutationFn: () => blockRequestsApi.create(selected._id, reason.trim()),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['dnc'] })
-      qc.invalidateQueries({ queryKey: ['my-contacts'] })
-      toast.success('Number added to Do Not Call list')
+      qc.invalidateQueries({ queryKey: ['my-block-requests'] })
+      toast.success('Block request sent to admin')
       onSaved()
     },
-    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to add to DNC list'),
+    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to send block request'),
   })
-
-  function set(k, v) {
-    setForm((f) => ({ ...f, [k]: v }))
-    if (errors[k]) setErrors((e) => ({ ...e, [k]: null }))
-  }
 
   function handleSubmit(e) {
     e.preventDefault()
-    const errs = {}
-    if (!form.phone.trim()) errs.phone = 'Phone number is required'
-    if (form.reason.length > 300) errs.reason = 'Reason must be under 300 characters'
-    if (Object.keys(errs).length) { setErrors(errs); return }
-    mut.mutate({ phone: form.phone.trim(), reason: form.reason.trim() || null })
+    if (!selected) { setError('Select a contact first'); return }
+    if (reason.trim().length < 3) { setError('Add a reason — at least 3 characters'); return }
+    setError('')
+    mut.mutate()
   }
 
   return (
@@ -119,8 +132,8 @@ function AddDncPanel({ onClose, onSaved }) {
       onClose={onClose}
       icon={PhoneOff}
       iconColor="#EF4444"
-      title="Block a Number"
-      subtitle="Add to the Do Not Call list"
+      title="Request a Block"
+      subtitle="Admin reviews and approves before it takes effect"
       widthClass="sm:max-w-sm"
       footer={
         <>
@@ -129,12 +142,12 @@ function AddDncPanel({ onClose, onSaved }) {
           </button>
           <button
             type="submit"
-            form="add-dnc-form"
+            form="request-block-form"
             disabled={mut.isPending}
             className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            Block Number
+            {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Send Request
           </button>
         </>
       }
@@ -143,27 +156,115 @@ function AddDncPanel({ onClose, onSaved }) {
         <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#EF4444]/6 border border-[#EF4444]/20">
           <ShieldAlert className="w-4 h-4 text-[#EF4444] flex-shrink-0 mt-0.5" strokeWidth={1.75} />
           <p className="text-xs text-[#EF4444] leading-relaxed">
-            Only add numbers where the contact has explicitly asked not to be called again.
-            This immediately removes any matching contact from every cold caller's list.
+            Only request a block when the contact has explicitly asked not to be called
+            again. Admin will review your reason before the number is actually blocked.
           </p>
         </div>
 
-        <form id="add-dnc-form" onSubmit={handleSubmit} className="space-y-5">
-          <Field label="Phone Number" required error={errors.phone}>
-            <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+27831234567" className={inputCls(errors.phone)} />
+        <form id="request-block-form" onSubmit={handleSubmit} className="space-y-5">
+          <Field label="Contact" required>
+            {selected ? (
+              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{selected.name}</p>
+                  <p className="text-xs font-mono text-[#6B7280] dark:text-[#A1A1AA]">{selected.phone}</p>
+                </div>
+                <button type="button" onClick={() => { setSelected(null); setSearch('') }} className="text-[#6B7280] hover:text-[#111111] dark:hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search your contacts by name or phone…"
+                  className={inputCls(false)}
+                />
+                {search.length > 1 && (
+                  <div className="mt-1.5 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] max-h-48 overflow-y-auto divide-y divide-[#F5F5F4] dark:divide-[#202020]">
+                    {isFetching ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#6B7280]" />
+                      </div>
+                    ) : results.length === 0 ? (
+                      <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] text-center py-4">No matching contacts</p>
+                    ) : (
+                      results.map((c) => (
+                        <button
+                          key={c._id}
+                          type="button"
+                          onClick={() => { setSelected(c); setError('') }}
+                          className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-[#F5F5F4] dark:hover:bg-[#202020]"
+                        >
+                          <span className="text-sm text-[#111111] dark:text-white truncate">{c.name}</span>
+                          <span className="text-xs font-mono text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0">{c.phone}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </Field>
-          <Field label="Reason" error={errors.reason} hint={`${form.reason.length}/300`}>
+
+          <Field label="Reason" required error={error} hint={`${reason.length}/500`}>
             <textarea
-              value={form.reason}
-              onChange={(e) => set('reason', e.target.value)}
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); if (error) setError('') }}
               placeholder="e.g. Asked to be removed during the call"
               rows={4}
-              className={`${inputCls(errors.reason)} resize-none`}
+              className={`${inputCls(Boolean(error))} resize-none`}
             />
           </Field>
         </form>
       </div>
     </SidePanel>
+  )
+}
+
+/* ─── My Block Requests ──────────────────────────────────────────────────── */
+
+function MyBlockRequests() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-block-requests'],
+    queryFn: () => blockRequestsApi.myRequests({ limit: 20 }),
+    staleTime: 15_000,
+  })
+  const requests = data?.requests ?? []
+  if (isLoading || requests.length === 0) return null
+
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2.5">
+        My Block Requests
+      </p>
+      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] divide-y divide-[#F5F5F4] dark:divide-[#202020] overflow-hidden">
+        {requests.map((r) => {
+          const meta = REQUEST_STATUS_META[r.status]
+          const contact = r.contactId && typeof r.contactId === 'object' ? r.contactId : null
+          return (
+            <div key={r._id} className="flex items-start gap-3 px-4 py-3">
+              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mt-0.5" style={{ backgroundColor: `${meta.color}15` }}>
+                <meta.Icon className="w-4 h-4" style={{ color: meta.color }} strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{contact?.name ?? r.phone}</p>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
+                    {meta.label}
+                  </span>
+                </div>
+                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">"{r.reason}"</p>
+                {r.adminNote && (
+                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] mt-1 italic">Admin: "{r.adminNote}"</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -221,7 +322,7 @@ function EmptyState({ hasFilters, onAdd }) {
       </p>
       {!hasFilters && (
         <button onClick={onAdd} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626]">
-          <PhoneOff className="w-4 h-4" /> Block a Number
+          <Send className="w-4 h-4" /> Request a Block
         </button>
       )}
     </div>
@@ -263,14 +364,15 @@ export default function ColdCallerDncPage() {
             onClick={() => setShowAdd(true)}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] shadow-sm hover:shadow-md active:scale-[0.98] transition-all self-start sm:self-auto"
           >
-            <Plus className="w-4 h-4" />
-            Block Number
+            <Send className="w-4 h-4" />
+            Request a Block
           </button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 sm:px-8 py-5 bg-[#FAFAF9] dark:bg-[#0B0B0B] space-y-5">
         <PhoneChecker />
+        <MyBlockRequests />
 
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
@@ -310,7 +412,7 @@ export default function ColdCallerDncPage() {
       </div>
 
       {showAdd && (
-        <AddDncPanel onClose={() => setShowAdd(false)} onSaved={() => setShowAdd(false)} />
+        <RequestBlockPanel onClose={() => setShowAdd(false)} onSaved={() => setShowAdd(false)} />
       )}
     </div>
   )

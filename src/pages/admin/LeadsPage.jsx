@@ -18,20 +18,24 @@ import { DateField, TimeField } from '../../components/common/DateTimeFields'
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
 const STATUS_TABS = [
-  { key: '',          label: 'All' },
-  { key: 'cold',      label: 'Cold' },
-  { key: 'warm',      label: 'Warm' },
-  { key: 'hot',       label: 'Hot' },
-  { key: 'converted', label: 'Converted' },
-  { key: 'lost',      label: 'Lost' },
+  { key: '',           label: 'All' },
+  { key: 'cold',       label: 'Cold' },
+  { key: 'warm',       label: 'Warm' },
+  { key: 'hot',        label: 'Hot' },
+  { key: 'listed',     label: 'Listed' },
+  { key: 'rented_out', label: 'Rented Out' },
+  { key: 'sold',       label: 'Sold' },
+  { key: 'lost',       label: 'Lost' },
 ]
 
 const LEAD_STATUS_META = {
-  cold:      { label: 'Cold',      color: '#6B7280', bg: '#6B728018' },
-  warm:      { label: 'Warm',      color: '#F59E0B', bg: '#F59E0B18' },
-  hot:       { label: 'Hot',       color: '#EF4444', bg: '#EF444418' },
-  converted: { label: 'Converted', color: '#10B981', bg: '#10B98118' },
-  lost:      { label: 'Lost',      color: '#9CA3AF', bg: '#9CA3AF18' },
+  cold:       { label: 'Cold',       color: '#6B7280', bg: '#6B728018' },
+  warm:       { label: 'Warm',       color: '#F59E0B', bg: '#F59E0B18' },
+  hot:        { label: 'Hot',        color: '#EF4444', bg: '#EF444418' },
+  listed:     { label: 'Listed',     color: '#8B5CF6', bg: '#8B5CF618' },
+  rented_out: { label: 'Rented Out', color: '#10B981', bg: '#10B98118' },
+  sold:       { label: 'Sold',       color: '#F95C4B', bg: '#F95C4B18' },
+  lost:       { label: 'Lost',       color: '#9CA3AF', bg: '#9CA3AF18' },
 }
 
 const SORT_OPTIONS = [
@@ -46,7 +50,7 @@ const EMPTY_CREATE = {
   followUpDate: '', appointmentDate: '', appointmentTime: '', assignedAgent: '',
 }
 
-const STATUS_OPTS = ['cold', 'warm', 'hot', 'converted', 'lost']
+const STATUS_OPTS = ['cold', 'warm', 'hot', 'listed', 'rented_out', 'sold', 'lost']
 
 const CALL_OUTCOME_LABEL = {
   no_answer: 'No Answer', voicemail: 'Voicemail', callback_requested: 'Callback Requested',

@@ -249,7 +249,7 @@ export default function PerformancePage() {
             <span className="text-sm font-bold text-[#111111] dark:text-white">Full Leaderboard</span>
           </div>
           <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-            Score = calls×1 + closed×5 + (cold×1 + warm×2 + hot×10 + converted×10)
+            Score = calls×1 + closed×5 + (cold×1 + warm×2 + hot×10 + listed×15 + rented/sold×25)
           </span>
         </div>
 
@@ -362,7 +362,8 @@ export default function PerformancePage() {
             { icon: ThermometerSnowflake, label: 'Cold lead',          pts: '+1 pt',  color: '#6B7280' },
             { icon: ThermometerSun,       label: 'Warm lead',          pts: '+2 pts', color: '#F59E0B' },
             { icon: Flame,                label: 'Hot lead',           pts: '+10 pts', color: '#EF4444' },
-            { icon: TrendingUp,           label: 'Converted lead',     pts: '+10 pts', color: '#10B981' },
+            { icon: TrendingUp,           label: 'Listed lead',        pts: '+15 pts', color: '#8B5CF6' },
+            { icon: TrendingUp,           label: 'Rented out / Sold',  pts: '+25 pts', color: '#10B981' },
           ].map((s) => (
             <div
               key={s.label}

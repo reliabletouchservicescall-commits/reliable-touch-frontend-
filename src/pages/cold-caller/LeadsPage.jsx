@@ -14,12 +14,14 @@ import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import LeadDetailDrawer from '../../components/leads/LeadDetailDrawer'
 
 const STATUS_TABS = [
-  { key: '',          label: 'All' },
-  { key: 'cold',      label: 'Cold' },
-  { key: 'warm',      label: 'Warm' },
-  { key: 'hot',       label: 'Hot' },
-  { key: 'converted', label: 'Converted' },
-  { key: 'lost',      label: 'Lost' },
+  { key: '',           label: 'All' },
+  { key: 'cold',       label: 'Cold' },
+  { key: 'warm',       label: 'Warm' },
+  { key: 'hot',        label: 'Hot' },
+  { key: 'listed',     label: 'Listed' },
+  { key: 'rented_out', label: 'Rented Out' },
+  { key: 'sold',       label: 'Sold' },
+  { key: 'lost',       label: 'Lost' },
 ]
 
 function useDebounce(value, delay = 400) {

@@ -2,7 +2,7 @@ export const ROLES = ['admin', 'cold_caller', 'agency']
 
 export const CALL_OUTCOMES = ['no_answer', 'wrong_number', 'remove_me', 'interested', 'callback_requested']
 
-export const LEAD_STATUS = ['cold', 'warm', 'hot', 'converted', 'lost']
+export const LEAD_STATUS = ['cold', 'warm', 'hot', 'listed', 'rented_out', 'sold', 'lost']
 
 export const APPOINTMENT_STATUS = ['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show']
 

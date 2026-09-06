@@ -9,10 +9,12 @@ import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
 
 const LEAD_STATUS_STAT = [
-  { key: 'coldCount',      label: 'Cold',      icon: ThermometerSnowflake, color: '#6B7280', weight: '×1' },
-  { key: 'warmCount',      label: 'Warm',      icon: ThermometerSun,       color: '#F59E0B', weight: '×2' },
-  { key: 'hotCount',       label: 'Hot',       icon: Flame,                color: '#EF4444', weight: '×10' },
-  { key: 'convertedCount', label: 'Converted', icon: Sparkles,             color: '#10B981', weight: '×10' },
+  { key: 'coldCount',      label: 'Cold',       icon: ThermometerSnowflake, color: '#6B7280', weight: '×1' },
+  { key: 'warmCount',      label: 'Warm',       icon: ThermometerSun,       color: '#F59E0B', weight: '×2' },
+  { key: 'hotCount',       label: 'Hot',        icon: Flame,                color: '#EF4444', weight: '×10' },
+  { key: 'listedCount',    label: 'Listed',     icon: Sparkles,             color: '#8B5CF6', weight: '×15' },
+  { key: 'rentedOutCount', label: 'Rented Out', icon: Sparkles,             color: '#10B981', weight: '×25' },
+  { key: 'soldCount',      label: 'Sold',       icon: Sparkles,             color: '#F95C4B', weight: '×25' },
 ]
 
 /* ─── API ─────────────────────────────────────────────────────────── */
@@ -219,7 +221,7 @@ export default function LeaderboardPage() {
         <p className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-3">
           My Leads by Temperature
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {LEAD_STATUS_STAT.map((s) => (
             <div
               key={s.key}
@@ -380,7 +382,10 @@ export default function LeaderboardPage() {
             <span className="font-bold text-[#EF4444]">+10 pts</span> hot
           </span>
           <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-            <span className="font-bold text-[#10B981]">+10 pts</span> converted
+            <span className="font-bold text-[#8B5CF6]">+15 pts</span> listed
+          </span>
+          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+            <span className="font-bold text-[#10B981]">+25 pts</span> rented out / sold
           </span>
         </div>
         <p className="text-[11px] text-[#9CA3AF] mt-2.5">
