@@ -294,6 +294,17 @@ function BulkAssignBar({ count, callers, onAssign, onClear, busy }) {
 
 /* ─── Smart Assignment Modal ─────────────────────────────────────────── */
 
+// Builds a toast message explaining any gap between the file/scheme/range's total row
+// count and how many actually got assigned — e.g. an admin assigning a whole Excel file
+// shouldn't be left wondering why "assigned" is much smaller than the file's row count.
+function buildAssignToast({ assigned, totalMatched, skippedNoPhone, skippedDnc }, callerName) {
+  const parts = []
+  if (skippedNoPhone > 0) parts.push(`${skippedNoPhone} have no phone number`)
+  if (skippedDnc > 0) parts.push(`${skippedDnc} are on the Do Not Call list`)
+  const base = `${assigned} of ${totalMatched} contact${totalMatched !== 1 ? 's' : ''} assigned to ${callerName}.`
+  return parts.length ? `${base} ${parts.join(', ')}.` : base
+}
+
 function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClose, onDone }) {
   const qc = useQueryClient()
   const [mode, setMode]   = useState(initialMode ?? 'scheme') // 'scheme' | 'range' | 'file'
@@ -331,7 +342,8 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
       uploadBatchId: batchId || undefined,
     }),
     onSuccess: (res) => {
-      toast.success(`${res.data.data.assigned} contacts assigned`)
+      const caller = callers.find((c) => c._id === callerId)
+      toast.success(buildAssignToast(res.data.data, caller ? `${caller.firstName} ${caller.lastName}` : 'the cold caller'))
       qc.invalidateQueries({ queryKey: ['contacts'] })
       qc.invalidateQueries({ queryKey: ['caller-counts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
@@ -343,7 +355,8 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
   const schemeMut = useMutation({
     mutationFn: () => contactsApi.assignByScheme({ callerId, sectionalScheme: scheme }),
     onSuccess: (res) => {
-      toast.success(`${res.data.data.assigned} contacts assigned`)
+      const caller = callers.find((c) => c._id === callerId)
+      toast.success(buildAssignToast(res.data.data, caller ? `${caller.firstName} ${caller.lastName}` : 'the cold caller'))
       qc.invalidateQueries({ queryKey: ['contacts'] })
       qc.invalidateQueries({ queryKey: ['caller-counts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
@@ -355,7 +368,8 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
   const batchMut = useMutation({
     mutationFn: () => contactsApi.assignByBatch({ callerId, uploadBatchId: fileBatchId }),
     onSuccess: (res) => {
-      toast.success(`${res.data.data.assigned} contacts assigned`)
+      const caller = callers.find((c) => c._id === callerId)
+      toast.success(buildAssignToast(res.data.data, caller ? `${caller.firstName} ${caller.lastName}` : 'the cold caller'))
       qc.invalidateQueries({ queryKey: ['contacts'] })
       qc.invalidateQueries({ queryKey: ['caller-counts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
@@ -546,7 +560,7 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
 
 /* ─── Import Modal ───────────────────────────────────────────────────── */
 
-function ImportModal({ onClose, onDone, onViewMissingPhone }) {
+function ImportModal({ onClose, onDone, onViewMissingPhone, onReviewDuplicates }) {
   const qc = useQueryClient()
   const [dragOver, setDragOver] = useState(false)
   const [file, setFile]         = useState(null)
@@ -691,7 +705,6 @@ function ImportModal({ onClose, onDone, onViewMissingPhone }) {
                     { label: 'Total rows',    value: result.stats.total,      color: '#111111' },
                     { label: 'Imported',      value: result.stats.created,    color: '#10B981' },
                     { label: 'DNC',           value: result.stats.dnc,        color: '#EF4444' },
-                    { label: 'Duplicates',    value: result.stats.duplicates, color: '#6B7280' },
                     { label: 'Skipped',       value: result.stats.skipped,    color: '#6B7280' },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
@@ -700,6 +713,25 @@ function ImportModal({ onClose, onDone, onViewMissingPhone }) {
                     </div>
                   ))}
                 </div>
+
+                {/* Duplicates — a phone number that already exists on another contact was
+                    dropped from creation entirely unless reviewed here, so this needs a
+                    dedicated CTA rather than a bare number admin can't act on. */}
+                {result.stats.duplicates > 0 && (
+                  <button
+                    onClick={() => onReviewDuplicates(result.duplicates)}
+                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#8B5CF6]/8 border border-[#8B5CF6]/25 hover:bg-[#8B5CF6]/12 transition-colors text-left"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-[#8B5CF6]/15 flex items-center justify-center flex-shrink-0">
+                      <Layers className="w-4 h-4 text-[#8B5CF6]" strokeWidth={1.75} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-[#8B5CF6]">{result.stats.duplicates} duplicate{result.stats.duplicates !== 1 ? 's' : ''} matched an existing contact</p>
+                      <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">Not created — click to review and decide what to do with them</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#8B5CF6] flex-shrink-0" />
+                  </button>
+                )}
 
                 {/* Missing phone — the one stat that needs admin follow-up, so it gets a
                     dedicated, clickable call-to-action instead of hiding in the grid. */}
@@ -737,9 +769,234 @@ function ImportModal({ onClose, onDone, onViewMissingPhone }) {
   )
 }
 
+/* ─── Duplicates Review Modal ─────────────────────────────────────────── */
+
+// A duplicate row is one whose phone number already matched an existing contact during
+// import, so it was never created — this is a one-shot, in-memory review of that list
+// (it's only ever returned once, by the import call itself), letting admin decide per
+// row (or in bulk) whether to skip it, merge it into the existing contact, or force-create
+// it as a genuinely separate contact anyway (e.g. two co-owners sharing one phone).
+function DuplicatesReviewModal({ duplicates, onClose, onDone }) {
+  const qc = useQueryClient()
+  const [resolutions, setResolutions] = useState(() =>
+    Object.fromEntries(duplicates.map((_, i) => [i, 'skip']))
+  )
+  const [touched, setTouched] = useState(() => new Set())
+  const [confirmingClose, setConfirmingClose] = useState(false)
+
+  const untouchedCount = duplicates.length - touched.size
+
+  function setRowAction(i, action) {
+    setResolutions((prev) => ({ ...prev, [i]: action }))
+    setTouched((prev) => new Set(prev).add(i))
+  }
+
+  function bulkSetAll(action) {
+    setResolutions(Object.fromEntries(duplicates.map((_, i) => [i, action])))
+    setTouched(new Set(duplicates.map((_, i) => i)))
+  }
+
+  const mut = useMutation({
+    mutationFn: () => contactsApi.resolveDuplicates({
+      resolutions: duplicates.map((d, i) => ({
+        existingId: d.existingContact._id,
+        action: resolutions[i],
+        data: resolutions[i] !== 'skip'
+          ? { ...d.newData, source: d.source, uploadBatchId: d.uploadBatchId, importIndex: d.importIndex }
+          : undefined,
+      })),
+    }),
+    onSuccess: (res) => {
+      const { resolved, created, skipped, errors } = res.data.data
+      toast.success(`${resolved} updated, ${created} created, ${skipped} skipped${errors ? `, ${errors} failed` : ''}`)
+      qc.invalidateQueries({ queryKey: ['contacts'] })
+      qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
+      onDone()
+    },
+    onError: (e) => toast.error(e.response?.data?.message ?? 'Failed to resolve duplicates'),
+  })
+
+  function requestClose() {
+    if (untouchedCount > 0) setConfirmingClose(true)
+    else onClose()
+  }
+
+  const ACTION_META = {
+    skip:   { label: 'Skip',            color: '#6B7280' },
+    update: { label: 'Update Existing', color: '#3B82F6' },
+    create: { label: 'Create Separate', color: '#8B5CF6' },
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]" onClick={requestClose} />
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl max-h-[85vh] bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl overflow-hidden flex flex-col">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A] flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#8B5CF6]/10 flex items-center justify-center">
+                <Layers className="w-5 h-5 text-[#8B5CF6]" strokeWidth={1.75} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-[#111111] dark:text-white">Review Duplicates</h2>
+                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{duplicates.length} row{duplicates.length !== 1 ? 's' : ''} matched an existing contact's phone number</p>
+              </div>
+            </div>
+            <button onClick={requestClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {confirmingClose ? (
+            <div className="p-6">
+              <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/30">
+                <AlertTriangle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs text-[#F59E0B] font-semibold">
+                    {untouchedCount} of {duplicates.length} duplicates weren't reviewed — they'll be skipped and won't be created or updated.
+                  </p>
+                  <p className="text-xs text-[#F59E0B]/80 mt-1">Close anyway?</p>
+                  <div className="flex gap-2 mt-2.5">
+                    <button type="button" onClick={() => setConfirmingClose(false)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#F59E0B]/30 text-[#F59E0B] hover:bg-[#F59E0B]/10">
+                      Go Back
+                    </button>
+                    <button type="button" onClick={onClose}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#F59E0B] hover:bg-[#D97706]">
+                      Close Anyway
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Bulk actions */}
+              <div className="flex items-center gap-2 px-6 py-3 border-b border-[#E5E7EB] dark:border-[#2A2A2A] flex-shrink-0">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mr-1">Bulk:</span>
+                <button onClick={() => bulkSetAll('skip')}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+                  Skip All
+                </button>
+                <button onClick={() => bulkSetAll('update')}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#3B82F6]/30 text-[#3B82F6] hover:bg-[#3B82F6]/10">
+                  Update All with New Data
+                </button>
+              </div>
+
+              {/* Row list */}
+              <div className="flex-1 overflow-y-auto divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
+                {duplicates.map((d, i) => (
+                  <div key={i} className="px-6 py-4 flex items-center gap-4">
+                    <div className="flex-1 min-w-0 grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1">Existing Contact</p>
+                        <p className="font-semibold text-[#111111] dark:text-white truncate">{d.existingContact.name}</p>
+                        <p className="text-[#6B7280] dark:text-[#A1A1AA] font-mono">{d.existingContact.phone}</p>
+                        {d.existingContact.sectionalScheme && (
+                          <p className="text-[#6B7280] dark:text-[#A1A1AA] truncate">{d.existingContact.sectionalScheme}</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8B5CF6] mb-1">New Row (Excel)</p>
+                        <p className="font-semibold text-[#111111] dark:text-white truncate">{d.newData.name}</p>
+                        <p className="text-[#6B7280] dark:text-[#A1A1AA] font-mono">{d.newData.phone}</p>
+                        {d.newData.sectionalScheme && (
+                          <p className="text-[#6B7280] dark:text-[#A1A1AA] truncate">{d.newData.sectionalScheme}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      {(['skip', 'update', 'create']).map((action) => (
+                        <button key={action} onClick={() => setRowAction(i, action)}
+                          className={[
+                            'px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all whitespace-nowrap',
+                            resolutions[i] === action
+                              ? 'text-white border-transparent'
+                              : 'border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
+                          ].join(' ')}
+                          style={resolutions[i] === action ? { backgroundColor: ACTION_META[action].color } : {}}
+                        >
+                          {ACTION_META[action].label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[#E5E7EB] dark:border-[#2A2A2A] flex-shrink-0">
+                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+                  {untouchedCount > 0 ? `${untouchedCount} not yet reviewed (default: skip)` : 'All rows reviewed'}
+                </p>
+                <div className="flex gap-3">
+                  <button type="button" onClick={requestClose}
+                    className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+                    Cancel
+                  </button>
+                  <button onClick={() => mut.mutate()} disabled={mut.isPending}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 flex items-center justify-center gap-2">
+                    {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 /* ─── Files Vault Modal ──────────────────────────────────────────────── */
 
+function BatchStatsPanel({ batchId }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['batch-stats', batchId],
+    queryFn: () => contactsApi.getBatchStats(batchId).then((r) => r.data.data),
+    enabled: Boolean(batchId),
+    staleTime: 15_000,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="px-6 pb-4 pt-1">
+        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6B7280]" />
+      </div>
+    )
+  }
+  if (!data) return null
+
+  return (
+    <div className="px-6 pb-4 pt-1 space-y-1.5 bg-[#FAFAF9] dark:bg-[#111111]">
+      {data.perCaller.length === 0 ? (
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Not yet assigned to any cold caller.</p>
+      ) : (
+        data.perCaller.map((c) => (
+          <p key={c.callerId} className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+            Assigned to <span className="font-semibold text-[#111111] dark:text-white">{c.callerName}</span> on{' '}
+            {c.assignedAt ? format(new Date(c.assignedAt), 'd MMM yyyy, HH:mm') : '—'} —{' '}
+            <span className="font-semibold text-[#10B981]">{c.called}</span>/{c.total} called,{' '}
+            <span className="font-semibold text-[#F59E0B]">{c.notCalled}</span> remaining
+          </p>
+        ))
+      )}
+      {data.unassigned > 0 && (
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+          <span className="font-semibold text-[#111111] dark:text-white">{data.unassigned}</span> unassigned
+        </p>
+      )}
+    </div>
+  )
+}
+
 function FilesVaultModal({ onClose, onAssignFile }) {
+  const [expandedName, setExpandedName] = useState(null)
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['contact-files'],
     queryFn: () => contactsApi.listFiles().then((r) => r.data.data.files),
@@ -789,29 +1046,41 @@ function FilesVaultModal({ onClose, onAssignFile }) {
               </div>
             ) : (
               <ul className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
-                {data.map((f) => (
-                  <li key={f.name} className="flex items-center gap-4 px-6 py-4 hover:bg-[#FAFAF9] dark:hover:bg-[#111111]">
-                    <div className="w-9 h-9 rounded-xl bg-[#10B981]/10 flex items-center justify-center flex-shrink-0">
-                      <FileSpreadsheet className="w-5 h-5 text-[#10B981]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{f.displayName}</p>
-                      <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-                        {fmtBytes(f.size)} · {f.createdAt ? format(new Date(f.createdAt), 'd MMM yyyy') : '—'}
-                      </p>
-                    </div>
-                    {f.batchId && (
-                      <button onClick={() => onAssignFile(f)} title="Assign this file's contacts to a cold caller"
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] transition-all flex-shrink-0">
-                        <UserCheck className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <a href={f.downloadUrl} target="_blank" rel="noreferrer"
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#10B981]/10 hover:text-[#10B981] transition-all flex-shrink-0">
-                      <Download className="w-3.5 h-3.5" />
-                    </a>
-                  </li>
-                ))}
+                {data.map((f) => {
+                  const expanded = expandedName === f.name
+                  return (
+                    <li key={f.name}>
+                      <div className="flex items-center gap-4 px-6 py-4 hover:bg-[#FAFAF9] dark:hover:bg-[#111111]">
+                        <div className="w-9 h-9 rounded-xl bg-[#10B981]/10 flex items-center justify-center flex-shrink-0">
+                          <FileSpreadsheet className="w-5 h-5 text-[#10B981]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{f.displayName}</p>
+                          <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
+                            {fmtBytes(f.size)} · {f.createdAt ? format(new Date(f.createdAt), 'd MMM yyyy') : '—'}
+                          </p>
+                        </div>
+                        {f.batchId && (
+                          <button onClick={() => setExpandedName(expanded ? null : f.name)} title="Assignment & call progress"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-all flex-shrink-0">
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                          </button>
+                        )}
+                        {f.batchId && (
+                          <button onClick={() => onAssignFile(f)} title="Assign this file's contacts to a cold caller"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] transition-all flex-shrink-0">
+                            <UserCheck className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <a href={f.downloadUrl} target="_blank" rel="noreferrer"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#10B981]/10 hover:text-[#10B981] transition-all flex-shrink-0">
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                      {expanded && <BatchStatsPanel batchId={f.batchId} />}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
@@ -1509,6 +1778,7 @@ export default function ContactsPage() {
   const [modal,        setModal]      = useState(null) // 'import' | 'files' | 'smart-assign'
   const [smartAssignSeed, setSmartAssignSeed] = useState(null) // { mode, batchId } | null
   const [pendingBulkAssign, setPendingBulkAssign] = useState(null) // { callerId, ids, totalMatched, recentlyCalledCount, windowDays } | null
+  const [reviewingDuplicates, setReviewingDuplicates] = useState(null) // duplicates[] | null
 
   const debouncedSearch = useDebounce(search)
   const qc = useQueryClient()
@@ -1996,6 +2266,15 @@ export default function ContactsPage() {
           onClose={() => setModal(null)}
           onDone={() => setModal(null)}
           onViewMissingPhone={viewMissingPhoneForBatch}
+          onReviewDuplicates={(dups) => setReviewingDuplicates(dups)}
+        />
+      )}
+
+      {reviewingDuplicates && (
+        <DuplicatesReviewModal
+          duplicates={reviewingDuplicates}
+          onClose={() => setReviewingDuplicates(null)}
+          onDone={() => { setReviewingDuplicates(null); setModal(null) }}
         />
       )}
 
