@@ -159,6 +159,37 @@ function SchemeStrip({ schemes, active, onSelect }) {
   )
 }
 
+/* ─── Uploaded File Strip ────────────────────────────────────────────── */
+
+function FileStrip({ files, active, onSelect }) {
+  if (!files?.length) return null
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+      <button
+        onClick={() => onSelect('')}
+        className={[
+          'flex-shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all whitespace-nowrap',
+          active === '' ? 'border-[#F95C4B] bg-[#F95C4B]/8 text-[#F95C4B] dark:bg-[#F95C4B]/12' : 'border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40',
+        ].join(' ')}
+      >
+        <LayoutGrid className="w-3.5 h-3.5" /> All Files
+      </button>
+      {files.map((f) => (
+        <button key={f.batchId ?? f.name}
+          onClick={() => onSelect(f.batchId)}
+          title={f.displayName}
+          className={[
+            'flex-shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all whitespace-nowrap max-w-[220px]',
+            active === f.batchId ? 'border-[#3B82F6] bg-[#3B82F6]/8 text-[#3B82F6] dark:bg-[#3B82F6]/12' : 'border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#3B82F6]/40',
+          ].join(' ')}>
+          <FileSpreadsheet className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="truncate">{f.displayName}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /* ─── Cold Caller Strip ──────────────────────────────────────────────── */
 
 function CallerStrip({ callers, activeCaller, onSelect, totalUnassigned }) {
@@ -1870,6 +1901,7 @@ export default function ContactsPage() {
   const [statusFilter, setStatus]     = useState('')
   const [callerFilter, setCaller]     = useState('')
   const [schemeFilter, setScheme]     = useState('')
+  const [groupFilterMode, setGroupFilterMode] = useState('scheme') // 'scheme' | 'file'
   const [missingPhoneFilter, setMissingPhoneFilter] = useState(false)
   const [unreachableFilter, setUnreachableFilter] = useState(false)
   const [batchFilter,  setBatchFilter] = useState('')
@@ -1912,6 +1944,7 @@ export default function ContactsPage() {
     setStatus(''); setCaller(''); setScheme('')
     setSearch('')
     setBatchFilter(newBatchId)
+    setGroupFilterMode('file')
     setMissingPhoneFilter(true)
   }
 
@@ -1936,6 +1969,12 @@ export default function ContactsPage() {
     queryKey: ['contact-schemes'],
     queryFn: () => contactsApi.listSchemes().then((r) => r.data.data.schemes),
     staleTime: 120_000,
+  })
+
+  const { data: filesForFilterData } = useQuery({
+    queryKey: ['contact-files'],
+    queryFn: () => contactsApi.listFiles().then((r) => r.data.data.files),
+    staleTime: 30_000,
   })
 
   const { data: callersData } = useQuery({
@@ -1988,6 +2027,7 @@ export default function ContactsPage() {
   const totalPages = data?.totalPages ?? 1
   const hasFilters = Boolean(search || statusFilter || callerFilter || schemeFilter || missingPhoneFilter || unreachableFilter || batchFilter)
   const schemes    = schemesData ?? []
+  const filesForFilter = filesForFilterData ?? []
 
   const callers = (callersData ?? []).map((c) => ({
     ...c, contactCount: callerCountQueries.data?.[c._id] ?? 0,
@@ -2171,21 +2211,50 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* ── Sectional Scheme strip ─────────────────────────────────────── */}
-      {schemes.length > 0 && (
+      {/* ── Group filter: by Scheme or by Uploaded File ──────────────────── */}
+      {(schemes.length > 0 || filesForFilter.length > 0) && (
         <div className="px-5 sm:px-8 py-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <div className="flex items-center gap-2 mb-2.5">
-            <Layers className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA]" />
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">
-              Filter by Sectional Scheme
-            </p>
-            {schemeFilter && (
-              <button onClick={() => setScheme('')} className="ml-auto flex items-center gap-1 text-[10px] text-[#8B5CF6] font-semibold hover:underline">
+          <div className="flex items-center gap-3 mb-2.5">
+            <Layers className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" />
+            <div className="flex rounded-lg bg-[#F5F5F4] dark:bg-[#202020] p-0.5 gap-0.5">
+              <button onClick={() => setGroupFilterMode('scheme')}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-all ${
+                  groupFilterMode === 'scheme'
+                    ? 'bg-white dark:bg-[#111111] text-[#8B5CF6] shadow-sm'
+                    : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
+                }`}>
+                By Scheme
+              </button>
+              <button onClick={() => setGroupFilterMode('file')}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-all ${
+                  groupFilterMode === 'file'
+                    ? 'bg-white dark:bg-[#111111] text-[#3B82F6] shadow-sm'
+                    : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
+                }`}>
+                By File
+              </button>
+            </div>
+            {(schemeFilter || batchFilter) && (
+              <button onClick={() => { setScheme(''); setBatchFilter('') }} className="ml-auto flex items-center gap-1 text-[10px] text-[#F95C4B] font-semibold hover:underline flex-shrink-0">
                 <X className="w-3 h-3" /> Clear
               </button>
             )}
           </div>
-          <SchemeStrip schemes={schemes} active={schemeFilter} onSelect={(s) => setScheme((prev) => prev === s ? '' : s)} />
+          {groupFilterMode === 'scheme' ? (
+            schemes.length > 0 ? (
+              <SchemeStrip schemes={schemes} active={schemeFilter} onSelect={(s) => { setScheme((prev) => prev === s ? '' : s); setBatchFilter('') }} />
+            ) : (
+              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">
+                No usable sectional scheme names found — try "By File" instead.
+              </p>
+            )
+          ) : (
+            filesForFilter.length > 0 ? (
+              <FileStrip files={filesForFilter} active={batchFilter} onSelect={(b) => { setBatchFilter((prev) => prev === b ? '' : b); setScheme('') }} />
+            ) : (
+              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No uploaded files yet.</p>
+            )
+          )}
         </div>
       )}
 
