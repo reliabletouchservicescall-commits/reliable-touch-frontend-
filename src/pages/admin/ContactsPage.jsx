@@ -10,7 +10,7 @@ import {
   CheckSquare, Square, Users, UserPlus, ChevronDown, LayoutGrid,
   Upload, FileSpreadsheet, Building2, Ruler, CreditCard, Hash,
   FolderOpen, Download, CloudUpload, RefreshCw, PhoneForwarded,
-  Layers, Target, Settings2, Bell, Clock, MessageSquare,
+  Layers, Target, Settings2, Bell, Clock, MessageSquare, RotateCcw,
 } from 'lucide-react'
 import { contactsApi }         from '../../services/contactsApi'
 import { usersApi }            from '../../services/usersApi'
@@ -330,7 +330,10 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
     queryFn: () => contactsApi.listFiles().then((r) => r.data.data.files),
     staleTime: 30_000,
   })
-  const files = filesData ?? []
+  // Files currently locked to a cold caller (see assignByBatch) are hidden here — once
+  // assigned via Smart Assign, a file can't be picked again until it's manually
+  // returned (Files Vault > Assigned tab) or the 30-day lock auto-expires.
+  const files = (filesData ?? []).filter((f) => !f.assignment)
 
   const previewMut = useMutation({
     mutationFn: (filters) => contactsApi.assignPreview(filters).then((r) => r.data.data),
@@ -373,6 +376,9 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
       qc.invalidateQueries({ queryKey: ['contacts'] })
       qc.invalidateQueries({ queryKey: ['caller-counts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
+      // The just-assigned file is now locked — refetch so it disappears from this
+      // picker and reappears (with its assignee) in the Files Vault's Assigned tab.
+      qc.invalidateQueries({ queryKey: ['contact-files'] })
       onDone()
     },
     onError: (e) => toast.error(e.response?.data?.message ?? 'Assignment failed'),
@@ -482,13 +488,26 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
                 </select>
               </Field>
             ) : mode === 'file' ? (
-              <Field label="Uploaded File" required hint="The whole file's contacts will be assigned in one action.">
+              <Field
+                label="Uploaded File"
+                required
+                hint={
+                  files.length === 0 && (filesData?.length ?? 0) > 0
+                    ? 'All uploaded files are currently assigned — check the Files Vault\'s Assigned tab to free one up.'
+                    : "The whole file's contacts will be assigned in one action."
+                }
+              >
                 <select value={fileBatchId} onChange={(e) => setFileBatchId(e.target.value)} className={inputCls(false)}>
                   <option value="">Select file…</option>
                   {files.map((f) => (
                     <option key={f.batchId ?? f.name} value={f.batchId ?? ''}>{f.displayName}</option>
                   ))}
                 </select>
+                {files.length > 0 && (filesData?.length ?? 0) > files.length && (
+                  <p className="mt-1.5 text-xs text-[#8B5CF6]">
+                    {(filesData.length - files.length)} file{filesData.length - files.length !== 1 ? 's' : ''} currently assigned and hidden — see Files Vault.
+                  </p>
+                )}
               </Field>
             ) : (
               <>
@@ -997,11 +1016,26 @@ function BatchStatsPanel({ batchId }) {
 
 function FilesVaultModal({ onClose, onAssignFile }) {
   const [expandedName, setExpandedName] = useState(null)
+  const [tab, setTab] = useState('available') // 'available' | 'assigned'
+  const qc = useQueryClient()
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['contact-files'],
     queryFn: () => contactsApi.listFiles().then((r) => r.data.data.files),
     staleTime: 30_000,
   })
+
+  const returnMut = useMutation({
+    mutationFn: (fileBatchId) => contactsApi.returnFileToPool(fileBatchId),
+    onSuccess: () => {
+      toast.success('File returned to Smart Assign')
+      qc.invalidateQueries({ queryKey: ['contact-files'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.message ?? 'Failed to return file'),
+  })
+
+  const availableFiles = (data ?? []).filter((f) => !f.assignment)
+  const assignedFiles  = (data ?? []).filter((f) => f.assignment)
+  const activeList = tab === 'available' ? availableFiles : assignedFiles
 
   return (
     <>
@@ -1032,6 +1066,26 @@ function FilesVaultModal({ onClose, onAssignFile }) {
             </div>
           </div>
 
+          {/* Tabs — "Assigned" is where a locked file can be freed back up for Smart
+              Assign, so it's a first-class tab here rather than buried behind a filter. */}
+          {!isLoading && (data?.length ?? 0) > 0 && (
+            <div className="flex gap-1 px-6 pt-3 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+              {[
+                { key: 'available', label: 'Available', count: availableFiles.length },
+                { key: 'assigned',  label: 'Assigned',  count: assignedFiles.length },
+              ].map((t) => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  className={`px-3.5 py-2 text-xs font-semibold whitespace-nowrap border-b-2 transition-all -mb-px ${
+                    tab === t.key
+                      ? 'border-[#F59E0B] text-[#F59E0B]'
+                      : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
+                  }`}>
+                  {t.label} <span className="opacity-70">({t.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* List */}
           <div className="overflow-y-auto max-h-[420px]">
             {isLoading ? (
@@ -1044,10 +1098,29 @@ function FilesVaultModal({ onClose, onAssignFile }) {
                 <p className="text-sm font-semibold text-[#111111] dark:text-white">No files yet</p>
                 <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">Import an Excel file to see it here.</p>
               </div>
+            ) : activeList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center px-6">
+                {tab === 'available' ? (
+                  <>
+                    <UserCheck className="w-10 h-10 text-[#6B7280] dark:text-[#A1A1AA] mb-3" strokeWidth={1.5} />
+                    <p className="text-sm font-semibold text-[#111111] dark:text-white">All files are assigned</p>
+                    <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">Check the Assigned tab to free one up.</p>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-10 h-10 text-[#6B7280] dark:text-[#A1A1AA] mb-3" strokeWidth={1.5} />
+                    <p className="text-sm font-semibold text-[#111111] dark:text-white">Nothing assigned yet</p>
+                    <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">Files assigned via Smart Assign will show up here.</p>
+                  </>
+                )}
+              </div>
             ) : (
               <ul className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
-                {data.map((f) => {
+                {activeList.map((f) => {
                   const expanded = expandedName === f.name
+                  const daysLeft = f.assignment
+                    ? Math.max(0, Math.ceil((new Date(f.assignment.expiresAt) - Date.now()) / (1000 * 60 * 60 * 24)))
+                    : null
                   return (
                     <li key={f.name}>
                       <div className="flex items-center gap-4 px-6 py-4 hover:bg-[#FAFAF9] dark:hover:bg-[#111111]">
@@ -1056,9 +1129,27 @@ function FilesVaultModal({ onClose, onAssignFile }) {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{f.displayName}</p>
-                          <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-                            {fmtBytes(f.size)} · {f.createdAt ? format(new Date(f.createdAt), 'd MMM yyyy') : '—'}
-                          </p>
+                          {f.assignment ? (
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                                style={{ color: callerColor(f.assignment.assignedToId), backgroundColor: `${callerColor(f.assignment.assignedToId)}15` }}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: callerColor(f.assignment.assignedToId) }} />
+                                {f.assignment.assignedToName}
+                              </span>
+                              <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
+                                assigned {formatDistanceToNow(new Date(f.assignment.assignedAt), { addSuffix: true })}
+                              </span>
+                              <span className={`text-[10px] font-semibold ${daysLeft <= 3 ? 'text-[#F59E0B]' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
+                                · reverts in {daysLeft}d
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
+                              {fmtBytes(f.size)} · {f.createdAt ? format(new Date(f.createdAt), 'd MMM yyyy') : '—'}
+                            </p>
+                          )}
                         </div>
                         {f.batchId && (
                           <button onClick={() => setExpandedName(expanded ? null : f.name)} title="Assignment & call progress"
@@ -1066,10 +1157,23 @@ function FilesVaultModal({ onClose, onAssignFile }) {
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                           </button>
                         )}
-                        {f.batchId && (
+                        {f.batchId && !f.assignment && (
                           <button onClick={() => onAssignFile(f)} title="Assign this file's contacts to a cold caller"
                             className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] transition-all flex-shrink-0">
                             <UserCheck className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {f.assignment && (
+                          <button
+                            onClick={() => returnMut.mutate(f.batchId)}
+                            disabled={returnMut.isPending && returnMut.variables === f.batchId}
+                            title="Return to Smart Assign"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-[#F95C4B] hover:bg-[#F95C4B]/10 transition-all flex-shrink-0 disabled:opacity-50"
+                          >
+                            {returnMut.isPending && returnMut.variables === f.batchId
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <RotateCcw className="w-3.5 h-3.5" />}
+                            Return
                           </button>
                         )}
                         <a href={f.downloadUrl} target="_blank" rel="noreferrer"
