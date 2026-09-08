@@ -30,9 +30,20 @@ import { contactRequestsApi } from '../../services/contactRequestsApi'
 
 /* ─── Stat Card ───────────────────────────────────────────────────────────── */
 
-function StatCard({ icon: Icon, label, value, sub, trend, color = '#F95C4B', loading }) {
+function StatCard({ icon: Icon, label, value, sub, trend, color = '#F95C4B', loading, to }) {
+  const navigate = useNavigate()
+  const clickable = Boolean(to) && !loading
+
   return (
-    <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex flex-col gap-4">
+    <div
+      onClick={clickable ? () => navigate(to) : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === 'Enter') navigate(to) } : undefined}
+      className={`bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex flex-col gap-4 transition-all ${
+        clickable ? 'cursor-pointer hover:border-[#F95C4B]/40 hover:shadow-sm active:scale-[0.98]' : ''
+      }`}
+    >
       <div className="flex items-start justify-between">
         <div
           className="flex items-center justify-center w-10 h-10 rounded-xl"
@@ -51,6 +62,9 @@ function StatCard({ icon: Icon, label, value, sub, trend, color = '#F95C4B', loa
             {trend >= 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
             {Math.abs(trend)}%
           </span>
+        )}
+        {clickable && (
+          <ChevronRight className="w-4 h-4 text-[#9CA3AF] flex-shrink-0" />
         )}
       </div>
       <div>
@@ -362,11 +376,11 @@ export default function DashboardPage() {
           CRM Overview
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <StatCard icon={Users}        label="Total Users"   value={stats?.users}        color="#F95C4B" loading={loading} />
-          <StatCard icon={BookUser}     label="Contacts"      value={stats?.contacts}     color="#8B5CF6" loading={loading} />
-          <StatCard icon={TrendingUp}   label="Leads"         value={stats?.leads}        color="#3B82F6" loading={loading} />
-          <StatCard icon={CalendarCheck} label="Appointments" value={stats?.appointments}  color="#10B981" loading={loading} />
-          <StatCard icon={Megaphone}    label="Campaigns"     value={stats?.campaigns}    color="#F59E0B" loading={loading} />
+          <StatCard icon={Users}        label="Total Users"   value={stats?.users}        color="#F95C4B" loading={loading} to="/admin/users" />
+          <StatCard icon={BookUser}     label="Contacts"      value={stats?.contacts}     color="#8B5CF6" loading={loading} to="/admin/contacts" />
+          <StatCard icon={TrendingUp}   label="Leads"         value={stats?.leads}        color="#3B82F6" loading={loading} to="/admin/leads" />
+          <StatCard icon={CalendarCheck} label="Appointments" value={stats?.appointments}  color="#10B981" loading={loading} to="/admin/appointments" />
+          <StatCard icon={Megaphone}    label="Campaigns"     value={stats?.campaigns}    color="#F59E0B" loading={loading} to="/admin/campaigns" />
         </div>
       </div>
 
@@ -461,6 +475,7 @@ export default function DashboardPage() {
             sub="Awaiting payment"
             color="#F59E0B"
             loading={loading}
+            to="/admin/commissions"
           />
           <StatCard
             icon={RotateCcw}
@@ -469,6 +484,7 @@ export default function DashboardPage() {
             sub="Active lease tracking"
             color="#EC4899"
             loading={loading}
+            to="/admin/lease-renewals"
           />
         </div>
       </div>
