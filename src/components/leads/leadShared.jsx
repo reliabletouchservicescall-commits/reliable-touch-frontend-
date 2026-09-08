@@ -133,12 +133,15 @@ export function ListingFields({ form, setField, errors }) {
 }
 
 /**
- * Read-only property summary sourced from the linked contact — address, area, and
- * sectional scheme are never re-entered on a lead, they always mirror the contact.
- * Shown wherever a lead is created or displayed. If the contact is missing either
- * field, this surfaces a clear warning instead of a blank/silent gap.
+ * Property summary sourced from the linked contact — address, area, and sectional
+ * scheme are never re-entered on a lead, they always mirror the contact. Shown
+ * wherever a lead is created or displayed. If the contact is missing an address or
+ * area, this lets it be filled in right here (saved onto the CONTACT, not the lead,
+ * when the parent form submits) instead of just blocking with a dead-end warning —
+ * pass `areas` + `pendingAddress`/`pendingArea` + `onAddressChange`/`onAreaChange`
+ * to enable this; omit them to fall back to the old read-only warning.
  */
-export function PropertyFromContact({ contact, loading }) {
+export function PropertyFromContact({ contact, loading, areas, pendingAddress, pendingArea, onAddressChange, onAreaChange }) {
   if (loading) {
     return <div className="h-24 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />
   }
@@ -153,6 +156,9 @@ export function PropertyFromContact({ contact, loading }) {
   const area = (contact.area && typeof contact.area === 'object') ? contact.area : null
   const missingAddress = !contact.address
   const missingArea = !area
+  const editable = Boolean(onAddressChange || onAreaChange)
+  const stillMissingAddress = missingAddress && !pendingAddress
+  const stillMissingArea = missingArea && !pendingArea
 
   return (
     <div className="rounded-xl border border-[#8B5CF6]/20 bg-[#8B5CF6]/5 dark:bg-[#8B5CF6]/8 p-4 space-y-3">
@@ -163,18 +169,36 @@ export function PropertyFromContact({ contact, loading }) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
         <div className="col-span-2">
           <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Address</p>
-          {missingAddress ? (
-            <p className="text-sm font-semibold text-[#EF4444]">Not set on this contact</p>
-          ) : (
+          {!missingAddress ? (
             <p className="text-sm font-bold text-[#111111] dark:text-white">{contact.address}</p>
+          ) : onAddressChange ? (
+            <input
+              value={pendingAddress ?? ''}
+              onChange={(e) => onAddressChange(e.target.value)}
+              placeholder="Enter the property address"
+              className={inputCls(false) + ' mt-1'}
+            />
+          ) : (
+            <p className="text-sm font-semibold text-[#EF4444]">Not set on this contact</p>
           )}
         </div>
         <div>
           <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Area</p>
-          {missingArea ? (
-            <p className="text-sm font-semibold text-[#EF4444]">Not set</p>
-          ) : (
+          {!missingArea ? (
             <p className="text-sm font-bold text-[#111111] dark:text-white">{area.name}</p>
+          ) : onAreaChange ? (
+            <select
+              value={pendingArea ?? ''}
+              onChange={(e) => onAreaChange(e.target.value)}
+              className={inputCls(false) + ' mt-1'}
+            >
+              <option value="">Select area…</option>
+              {(areas ?? []).map((a) => (
+                <option key={a._id} value={a._id}>{a.name}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm font-semibold text-[#EF4444]">Not set</p>
           )}
         </div>
         {contact.sectionalScheme && (
@@ -197,12 +221,20 @@ export function PropertyFromContact({ contact, loading }) {
         )}
       </div>
 
-      {(missingAddress || missingArea) && (
+      {(stillMissingAddress || stillMissingArea) && (
         <div className="flex items-start gap-2 pt-2.5 border-t border-[#8B5CF6]/15">
           <AlertTriangle className="w-3.5 h-3.5 text-[#EF4444] flex-shrink-0 mt-0.5" strokeWidth={1.75} />
           <p className="text-xs text-[#EF4444] leading-relaxed">
-            This contact is missing {missingAddress && missingArea ? 'an address and area' : missingAddress ? 'an address' : 'an area'}.
-            Update the contact before creating a lead.
+            This contact is missing {stillMissingAddress && stillMissingArea ? 'an address and area' : stillMissingAddress ? 'an address' : 'an area'}.
+            {editable ? ' Fill it in above — it\'ll be saved to the contact when you create the lead.' : ' Update the contact before creating a lead.'}
+          </p>
+        </div>
+      )}
+      {editable && (missingAddress || missingArea) && !stillMissingAddress && !stillMissingArea && (
+        <div className="flex items-start gap-2 pt-2.5 border-t border-[#8B5CF6]/15">
+          <MapPin className="w-3.5 h-3.5 text-[#10B981] flex-shrink-0 mt-0.5" strokeWidth={1.75} />
+          <p className="text-xs text-[#10B981] leading-relaxed">
+            Ready — this will be saved to the contact when you create the lead.
           </p>
         </div>
       )}

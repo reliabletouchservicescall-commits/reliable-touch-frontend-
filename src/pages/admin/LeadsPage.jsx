@@ -11,6 +11,7 @@ import {
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
 import { usersApi } from '../../services/usersApi'
+import { areasApi } from '../../services/areasApi'
 import LeadAppointments from '../../components/appointments/LeadAppointments'
 import { ListingFields, ListingBadge, PropertyFromContact } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
@@ -269,9 +270,11 @@ function CallerStatsStrip({ callerFilter, onCallerChange }) {
 
 /* ─── Lead Form (shared for create + edit) ────────────────────────────────── */
 
-function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
+function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyInfoChange }) {
   const [form, setForm]   = useState(initial)
   const [errors, setErrors] = useState({})
+  const [pendingAddress, setPendingAddress] = useState('')
+  const [pendingArea, setPendingArea] = useState('')
 
   const { data: contactsData } = useQuery({
     queryKey: ['contacts-select'],
@@ -283,11 +286,30 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
     queryFn: () => usersApi.list({ role: 'agency', limit: 100 }).then((r) => r.data.data),
     staleTime: 60_000,
   })
+  const { data: areasData } = useQuery({
+    queryKey: ['areas-select'],
+    queryFn: () => areasApi.list({ limit: 200, isActive: true }).then((r) => r.data.data.areas),
+    staleTime: 60_000,
+  })
 
   const contacts = contactsData?.contacts ?? contactsData ?? []
   const agentsRaw = agentsData?.users     ?? agentsData   ?? []
   const agents   = Array.isArray(agentsRaw) ? agentsRaw : []
   const selectedContact = contacts.find((c) => c._id === form.contactId) ?? null
+
+  const missingAddress = Boolean(selectedContact) && !selectedContact.address && !pendingAddress
+  const missingArea = Boolean(selectedContact) && !(selectedContact.area && typeof selectedContact.area === 'object') && !pendingArea
+  const missingPropertyInfo = missingAddress || missingArea
+
+  useEffect(() => {
+    onMissingPropertyInfoChange?.(missingPropertyInfo)
+  }, [missingPropertyInfo]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A new contact selection invalidates whatever was typed in for the previous one.
+  useEffect(() => {
+    setPendingAddress('')
+    setPendingArea('')
+  }, [form.contactId])
 
   function setField(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -307,10 +329,27 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
     return errs
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
+    if (missingPropertyInfo) return
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
+
+    // Address/area live on the Contact, not the Lead — if either was filled in here
+    // (because the contact was missing them), save that to the contact first so the
+    // backend's own contact-derived address/area check on lead creation passes.
+    if (selectedContact && (pendingAddress || pendingArea)) {
+      try {
+        await contactsApi.update(selectedContact._id, {
+          ...(pendingAddress ? { address: pendingAddress } : {}),
+          ...(pendingArea ? { area: pendingArea } : {}),
+        })
+      } catch (err) {
+        toast.error(err.response?.data?.message ?? 'Failed to save the contact\'s address/area')
+        return
+      }
+    }
+
     const payload = {}
     Object.entries(form).forEach(([k, v]) => {
       payload[k] = v === '' ? null : v
@@ -333,7 +372,14 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
         <input value={form.landlordName} onChange={(e) => setField('landlordName', e.target.value)} placeholder="Full name" className={inputCls(errors.landlordName)} />
       </Field>
 
-      <PropertyFromContact contact={selectedContact} />
+      <PropertyFromContact
+        contact={selectedContact}
+        areas={areasData}
+        pendingAddress={pendingAddress}
+        pendingArea={pendingArea}
+        onAddressChange={setPendingAddress}
+        onAreaChange={setPendingArea}
+      />
 
       <ListingFields form={form} setField={setField} errors={errors} />
 
@@ -419,6 +465,7 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit }) {
 
 function CreateDrawer({ onClose, onSaved }) {
   const qc = useQueryClient()
+  const [missingPropertyInfo, setMissingPropertyInfo] = useState(false)
   const mut = useMutation({
     mutationFn: (data) => leadsApi.create(data),
     onSuccess: () => {
@@ -451,13 +498,19 @@ function CreateDrawer({ onClose, onSaved }) {
             onSubmit={(payload) => mut.mutate(payload)}
             isPending={mut.isPending}
             isEdit={false}
+            onMissingPropertyInfoChange={setMissingPropertyInfo}
           />
         </div>
         <div className="px-6 py-4 border-t border-[#E5E7EB] dark:border-[#2A2A2A] flex gap-3">
           <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
             Cancel
           </button>
-          <button type="submit" form="create-lead-form" disabled={mut.isPending} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <button
+            type="submit" form="create-lead-form"
+            disabled={mut.isPending || missingPropertyInfo}
+            title={missingPropertyInfo ? 'This contact needs an address and area set first' : undefined}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             Create Lead
           </button>
@@ -471,6 +524,7 @@ function CreateDrawer({ onClose, onSaved }) {
 
 function EditDrawer({ lead, onClose, onSaved }) {
   const qc = useQueryClient()
+  const [missingPropertyInfo, setMissingPropertyInfo] = useState(false)
   const mut = useMutation({
     mutationFn: (data) => leadsApi.update(lead._id, data),
     onSuccess: () => {
@@ -525,13 +579,19 @@ function EditDrawer({ lead, onClose, onSaved }) {
             onSubmit={(payload) => mut.mutate(payload)}
             isPending={mut.isPending}
             isEdit={true}
+            onMissingPropertyInfoChange={setMissingPropertyInfo}
           />
         </div>
         <div className="px-6 py-4 border-t border-[#E5E7EB] dark:border-[#2A2A2A] flex gap-3">
           <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
             Cancel
           </button>
-          <button type="submit" form="edit-lead-form" disabled={mut.isPending} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <button
+            type="submit" form="edit-lead-form"
+            disabled={mut.isPending || missingPropertyInfo}
+            title={missingPropertyInfo ? 'This contact needs an address and area set first' : undefined}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             Save Changes
           </button>

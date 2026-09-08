@@ -6,7 +6,10 @@ import { DateField, TimeField } from '../common/DateTimeFields'
  * CALLER_EDITABLE list in leads.service.js) — no assignment/status/admin fields.
  * Address/Area are never entered here — they always mirror the linked contact.
  */
-export default function LeadFormFields({ form, setField, errors, contact, contactLoading }) {
+export default function LeadFormFields({
+  form, setField, errors, contact, contactLoading,
+  areas, pendingAddress, pendingArea, onAddressChange, onAreaChange,
+}) {
   return (
     <div className="space-y-5">
       <Field label="Landlord Name" required error={errors.landlordName}>
@@ -18,7 +21,15 @@ export default function LeadFormFields({ form, setField, errors, contact, contac
         />
       </Field>
 
-      <PropertyFromContact contact={contact} loading={contactLoading} />
+      <PropertyFromContact
+        contact={contact}
+        loading={contactLoading}
+        areas={areas}
+        pendingAddress={pendingAddress}
+        pendingArea={pendingArea}
+        onAddressChange={onAddressChange}
+        onAreaChange={onAreaChange}
+      />
 
       <ListingFields form={form} setField={setField} errors={errors} />
 

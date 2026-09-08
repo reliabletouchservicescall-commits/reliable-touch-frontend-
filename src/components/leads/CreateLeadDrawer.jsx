@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { FileText, Loader2, PhoneCall, User } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
+import { contactsApi } from '../../services/contactsApi'
+import { areasApi } from '../../services/areasApi'
 import SidePanel from '../common/SidePanel'
 import LeadFormFields from './LeadFormFields'
 import { LeadTemperaturePicker } from './leadShared'
@@ -37,10 +39,32 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
     appointmentTime: '',
   })
 
-  const missingPropertyInfo = !contact.address || !(contact.area && typeof contact.area === 'object')
+  const [pendingAddress, setPendingAddress] = useState('')
+  const [pendingArea, setPendingArea] = useState('')
+
+  const missingAddress = !contact.address && !pendingAddress
+  const missingArea = !(contact.area && typeof contact.area === 'object') && !pendingArea
+  const missingPropertyInfo = missingAddress || missingArea
+
+  const { data: areasData } = useQuery({
+    queryKey: ['areas-select'],
+    queryFn: () => areasApi.list({ limit: 200, isActive: true }).then((r) => r.data.data.areas),
+    staleTime: 60_000,
+  })
 
   const mut = useMutation({
-    mutationFn: (payload) => leadsApi.create(payload),
+    mutationFn: async (payload) => {
+      // Address/area live on the Contact, not the Lead — if either was filled in here
+      // (because the contact was missing them), save that to the contact first so the
+      // backend's own contact-derived address/area check on lead creation passes.
+      if (pendingAddress || pendingArea) {
+        await contactsApi.update(contact._id, {
+          ...(pendingAddress ? { address: pendingAddress } : {}),
+          ...(pendingArea ? { area: pendingArea } : {}),
+        })
+      }
+      return leadsApi.create(payload)
+    },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['leads'] })
       qc.invalidateQueries({ queryKey: ['my-contacts'] })
@@ -126,7 +150,14 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
         <LeadTemperaturePicker value={status} onChange={setStatus} />
 
         <form id="create-lead-form" onSubmit={handleSubmit}>
-          <LeadFormFields form={form} setField={setField} errors={errors} contact={contact} />
+          <LeadFormFields
+            form={form} setField={setField} errors={errors} contact={contact}
+            areas={areasData}
+            pendingAddress={pendingAddress}
+            pendingArea={pendingArea}
+            onAddressChange={setPendingAddress}
+            onAreaChange={setPendingArea}
+          />
         </form>
       </div>
     </SidePanel>
