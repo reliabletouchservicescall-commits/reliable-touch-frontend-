@@ -288,7 +288,7 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
   })
   const { data: areasData } = useQuery({
     queryKey: ['areas-select'],
-    queryFn: () => areasApi.list({ limit: 200, isActive: true }).then((r) => r.data.data.areas),
+    queryFn: () => areasApi.list({ limit: 100, isActive: true }).then((r) => r.data.data.areas),
     staleTime: 60_000,
   })
 
