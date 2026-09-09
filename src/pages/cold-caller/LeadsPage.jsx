@@ -40,8 +40,11 @@ function ContactPickerPanel({ onClose, onPick }) {
   const debounced = useDebounce(search)
 
   const { data, isLoading } = useQuery({
+    // view: 'all' — the backend scopes contacts to this caller's own assignments
+    // regardless, but the default list also hides anything already called today;
+    // this picker needs to find ANY assigned contact, called or not.
     queryKey: ['contacts-for-lead', debounced],
-    queryFn: () => contactsApi.list({ search: debounced || undefined, limit: 50 }).then((r) => r.data.data),
+    queryFn: () => contactsApi.list({ search: debounced || undefined, limit: 50, view: 'all' }).then((r) => r.data.data),
     staleTime: 15_000,
   })
   const contacts = data?.contacts ?? []
