@@ -647,15 +647,23 @@ export default function MyContactsPage() {
   const total      = data?.total ?? 0
   const totalPages = data?.totalPages ?? 1
 
+  // The contact is threaded straight through the mutation's own variables — NOT
+  // re-derived from the `contacts` list afterward. Dialing out via `tel:` backgrounds
+  // the browser tab (the phone app takes over); React Query's default
+  // refetchOnWindowFocus then refetches `my-contacts` the moment she returns to the
+  // tab, and since a just-called contact now drops out of the "To Call" view (see the
+  // Called Today feature), that refetch can beat this mutation's own onSuccess and
+  // remove the contact from the array a `contacts.find()` lookup would have used —
+  // silently handing the outcome sheet `contact: undefined` and breaking it. Passing
+  // the contact by value sidesteps that race entirely.
   const initiateCallMut = useMutation({
-    mutationFn: ({ contactId }) =>
-      callLogsApi.create({ contactId, outcome: 'no_answer', calledAt: new Date().toISOString() }),
+    mutationFn: ({ contact }) =>
+      callLogsApi.create({ contactId: contact._id, outcome: 'no_answer', calledAt: new Date().toISOString() }),
     onSuccess: (res, vars) => {
-      const logId   = res.data?.data?.callLog?._id
-      const contact = contacts.find((c) => c._id === vars.contactId)
+      const logId = res.data?.data?.callLog?._id
       qc.invalidateQueries({ queryKey: ['my-contacts'] })
       qc.invalidateQueries({ queryKey: ['my-contacts-called-today-count'] })
-      setOutcomeState({ contact, logId })
+      setOutcomeState({ contact: vars.contact, logId })
     },
     onError: () => toast.error('Could not log call — check your connection'),
   })
@@ -663,8 +671,8 @@ export default function MyContactsPage() {
   const handleCallInitiated = useCallback((contact, mode) => {
     if (mode === 'history') { setHistoryContact(contact); return }
     window.location.href = `tel:${cleanPhone(contact.phone)}`
-    initiateCallMut.mutate({ contactId: contact._id })
-  }, [contacts])
+    initiateCallMut.mutate({ contact })
+  }, [])
 
   // Page-local approximation (only meaningful in the "To Call" view) — matches the
   // pre-existing limitation of this stat, not something this feature changes.
