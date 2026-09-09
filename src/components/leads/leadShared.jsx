@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle, Plus, Loader2, X } from 'lucide-react'
+import { Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle, Plus, Loader2, X, Search, ChevronDown } from 'lucide-react'
 import { areasApi } from '../../services/areasApi'
 
 export const LEAD_STATUS_META = {
@@ -137,6 +137,89 @@ export function ListingFields({ form, setField, errors }) {
 }
 
 /**
+ * Searchable area picker — a plain `<select>` gets unwieldy once there are more than a
+ * handful of areas, so this opens a small popover with a search box on top and a
+ * filtered, scrollable list below. Same value/onChange shape as a native select
+ * (area ID in, area ID out) so it drops straight into PropertyFromContact.
+ */
+function SearchableAreaSelect({ areas, value, onChange, placeholder = 'Select area…' }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const list = areas ?? []
+  const selected = list.find((a) => a._id === value)
+  const q = search.trim().toLowerCase()
+  const filtered = q
+    ? list.filter((a) => a.name.toLowerCase().includes(q) || (a.region ?? '').toLowerCase().includes(q))
+    : list
+
+  return (
+    <div className="relative flex-1" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`${inputCls(false)} flex items-center justify-between gap-2 text-left`}
+      >
+        <span className={`truncate ${selected ? 'text-[#111111] dark:text-white' : 'text-[#6B7280]/50 dark:text-[#A1A1AA]/40'}`}>
+          {selected ? selected.name : placeholder}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1.5 w-full bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-xl overflow-hidden">
+          <div className="relative p-2 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] pointer-events-none" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search area…"
+              className="w-full pl-8 pr-2 py-2 text-sm bg-[#F5F5F4] dark:bg-[#202020] rounded-lg outline-none ring-2 ring-transparent focus:ring-[#8B5CF6]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-4 text-xs text-[#6B7280] dark:text-[#A1A1AA] text-center">
+                No areas match "{search}"
+              </p>
+            ) : (
+              filtered.map((a) => (
+                <button
+                  key={a._id}
+                  type="button"
+                  onClick={() => { onChange(a._id); setOpen(false); setSearch('') }}
+                  className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
+                    value === a._id
+                      ? 'bg-[#8B5CF6]/8 text-[#8B5CF6] font-semibold'
+                      : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+                  }`}
+                >
+                  <span className="truncate">{a.name}</span>
+                  {a.region && <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0">{a.region}</span>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Compact inline "create a new area" card — shown when the area someone needs isn't in
  * the dropdown yet. Creates it via the API, refreshes the shared `['areas-select']`
  * query (used by every page that lists areas for a picker) so it shows up everywhere
@@ -262,16 +345,7 @@ export function PropertyFromContact({ contact, loading, areas, pendingAddress, p
             <p className="text-sm font-bold text-[#111111] dark:text-white">{area.name}</p>
           ) : onAreaChange ? (
             <div className="flex items-center gap-1.5 mt-1">
-              <select
-                value={pendingArea ?? ''}
-                onChange={(e) => onAreaChange(e.target.value)}
-                className={inputCls(false) + ' flex-1'}
-              >
-                <option value="">Select area…</option>
-                {(areas ?? []).map((a) => (
-                  <option key={a._id} value={a._id}>{a.name}</option>
-                ))}
-              </select>
+              <SearchableAreaSelect areas={areas} value={pendingArea} onChange={onAreaChange} />
               <button
                 type="button"
                 onClick={() => setAddingArea(true)}
