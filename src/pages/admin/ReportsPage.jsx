@@ -1,4 +1,3 @@
-import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -6,35 +5,12 @@ import {
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import {
-  BarChart2, Users, PhoneCall, TrendingUp, Download,
-  FileSpreadsheet, Calendar, Filter, X, CheckCircle2,
-  Clock, Activity, Building2, UserCheck, Target,
+  BarChart2, Users, PhoneCall, TrendingUp,
+  CheckCircle2, Clock, Building2, UserCheck, Target,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 
 const BRAND = '#F95C4B'
-
-// ── API helpers ───────────────────────────────────────────────────────────────
-
-function buildExportUrl(path, params = {}) {
-  const base = axiosClient.defaults.baseURL ?? ''
-  const url  = new URL(`${base}/reports/export/${path}`, window.location.origin)
-  Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v) })
-  return url.toString()
-}
-
-async function downloadExport(path, params) {
-  const token = JSON.parse(localStorage.getItem('rt-auth') ?? '{}')?.state?.accessToken ?? ''
-  const url   = buildExportUrl(path, params)
-  const res   = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-  if (!res.ok) throw new Error('Export failed')
-  const blob  = await res.blob()
-  const a     = document.createElement('a')
-  a.href      = URL.createObjectURL(blob)
-  a.download  = `${path}-export.xlsx`
-  a.click()
-  URL.revokeObjectURL(a.href)
-}
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 
@@ -94,173 +70,6 @@ function CustomTooltip({ active, payload, label }) {
           {p.name}: <span className="font-bold">{p.value?.toLocaleString()}</span>
         </p>
       ))}
-    </div>
-  )
-}
-
-// ── Export modal ──────────────────────────────────────────────────────────────
-
-const EXPORT_CONFIGS = {
-  contacts: {
-    label:   'Contacts',
-    path:    'contacts',
-    icon:    Users,
-    color:   '#3B82F6',
-    filters: [
-      { key: 'status', label: 'Status', type: 'select',
-        options: ['', 'unassigned', 'assigned', 'contacted', 'converted', 'dnc'],
-        labels:  ['All statuses', 'Unassigned', 'Assigned', 'Contacted', 'Converted', 'DNC'] },
-    ],
-  },
-  leads: {
-    label:   'Leads',
-    path:    'leads',
-    icon:    TrendingUp,
-    color:   '#10B981',
-    filters: [
-      { key: 'status', label: 'Status', type: 'select',
-        options: ['', 'cold', 'warm', 'hot', 'listed', 'rented_out', 'sold', 'lost'],
-        labels:  ['All statuses', 'Cold', 'Warm', 'Hot', 'Converted', 'Lost'] },
-    ],
-  },
-  'cold-callers': {
-    label:   'Cold Callers',
-    path:    'cold-callers',
-    icon:    PhoneCall,
-    color:   BRAND,
-    filters: [],
-  },
-  'call-logs': {
-    label:   'Call Logs',
-    path:    'call-logs',
-    icon:    Activity,
-    color:   '#8B5CF6',
-    filters: [
-      { key: 'outcome', label: 'Outcome', type: 'select',
-        options: ['', 'no_answer', 'wrong_number', 'remove_me', 'interested', 'callback_requested', 'voicemail', 'not_interested'],
-        labels:  ['All outcomes', 'No Answer', 'Wrong Number', 'Remove Me', 'Interested', 'Callback Requested', 'Voicemail', 'Not Interested'] },
-    ],
-  },
-}
-
-function ExportModal({ configKey, onClose }) {
-  const cfg = EXPORT_CONFIGS[configKey]
-  const Icon = cfg.icon
-  const [from, setFrom]     = useState('')
-  const [to, setTo]         = useState('')
-  const [extras, setExtras] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState(null)
-
-  async function handleExport() {
-    setLoading(true)
-    setError(null)
-    try {
-      await downloadExport(cfg.path, { from, to, ...extras })
-      onClose()
-    } catch {
-      setError('Export failed. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] w-full max-w-md shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${cfg.color}18` }}>
-            <Icon className="w-4 h-4" style={{ color: cfg.color }} strokeWidth={1.75} />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-[#111111] dark:text-white">Export {cfg.label}</p>
-            <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">Download as Excel (.xlsx)</p>
-          </div>
-          <button onClick={onClose} className="text-[#6B7280] hover:text-[#111111] dark:hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="px-5 py-4 space-y-4">
-          {/* Date range */}
-          <div>
-            <p className="text-[11px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA] mb-2">
-              Date Range <span className="normal-case font-normal">(optional)</span>
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mb-1 block">From</label>
-                <input
-                  type="date"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#202020] text-[#111111] dark:text-white focus:outline-none focus:border-[#F95C4B]"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mb-1 block">To</label>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#202020] text-[#111111] dark:text-white focus:outline-none focus:border-[#F95C4B]"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Extra filters */}
-          {cfg.filters.map((f) => (
-            <div key={f.key}>
-              <label className="text-[11px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA] mb-2 block">
-                {f.label}
-              </label>
-              {f.type === 'select' && (
-                <select
-                  value={extras[f.key] ?? ''}
-                  onChange={(e) => setExtras((p) => ({ ...p, [f.key]: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#202020] text-[#111111] dark:text-white focus:outline-none focus:border-[#F95C4B]"
-                >
-                  {f.options.map((opt, i) => (
-                    <option key={opt} value={opt}>{f.labels[i]}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-          ))}
-
-          {error && (
-            <p className="text-xs text-red-500 font-medium">{error}</p>
-          )}
-
-          <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-            Leave date range empty to export all records.
-          </p>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-3 px-5 pb-5">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={loading}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-            style={{ backgroundColor: cfg.color }}
-          >
-            {loading
-              ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              : <Download className="w-4 h-4" />}
-            {loading ? 'Exporting…' : 'Download Excel'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
@@ -435,16 +244,7 @@ function SystemGrowthChart({ data }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const EXPORT_BUTTONS = [
-  { key: 'contacts',     label: 'Contacts',     icon: Users,          color: '#3B82F6' },
-  { key: 'leads',        label: 'Leads',        icon: TrendingUp,     color: '#10B981' },
-  { key: 'cold-callers', label: 'Cold Callers', icon: PhoneCall,      color: BRAND },
-  { key: 'call-logs',    label: 'Call Logs',    icon: Activity,       color: '#8B5CF6' },
-]
-
 export default function ReportsPage() {
-  const [exportModal, setExportModal] = useState(null)
-
   const { data, isLoading } = useQuery({
     queryKey: ['reports', 'dashboard'],
     queryFn: () => axiosClient.get('/reports/dashboard').then((r) => r.data.data),
@@ -458,37 +258,13 @@ export default function ReportsPage() {
     <div className="p-5 sm:p-8 max-w-7xl mx-auto space-y-8">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#F95C4B]/10 flex items-center justify-center">
-            <BarChart2 className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">System Reports</h1>
-            <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">Live overview of activity across the entire CRM</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-2xl bg-[#F95C4B]/10 flex items-center justify-center">
+          <BarChart2 className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
         </div>
-
-        {/* Export toolbar */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1">
-            <FileSpreadsheet className="w-3.5 h-3.5" /> Export
-          </span>
-          {EXPORT_BUTTONS.map(({ key, label, icon: Icon, color }) => (
-            <button
-              key={key}
-              onClick={() => setExportModal(key)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:shadow-sm"
-              style={{
-                borderColor:      `${color}40`,
-                color,
-                backgroundColor:  `${color}08`,
-              }}
-            >
-              <Download className="w-3 h-3" />
-              {label}
-            </button>
-          ))}
+        <div>
+          <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">System Reports</h1>
+          <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">Live overview of activity across the entire CRM</p>
         </div>
       </div>
 
@@ -616,49 +392,6 @@ export default function ReportsPage() {
         </ChartCard>
       </div>
 
-      {/* Export section */}
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <FileSpreadsheet className="w-4 h-4 text-[#F95C4B]" strokeWidth={1.75} />
-          <span className="text-sm font-bold text-[#111111] dark:text-white">Data Exports</span>
-          <span className="ml-auto text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">Excel (.xlsx) format</span>
-        </div>
-        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {EXPORT_BUTTONS.map(({ key, label, icon: Icon, color }) => (
-            <button
-              key={key}
-              onClick={() => setExportModal(key)}
-              className="group flex flex-col items-start gap-3 p-4 rounded-xl border-2 transition-all hover:shadow-md text-left"
-              style={{ borderColor: `${color}25`, backgroundColor: `${color}06` }}
-            >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
-                <Icon className="w-5 h-5" style={{ color }} strokeWidth={1.75} />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-[#111111] dark:text-white">Export {label}</p>
-                <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
-                  {key === 'contacts'     && 'All contact records with status & assignment'}
-                  {key === 'leads'        && 'Leads with pipeline status & agent info'}
-                  {key === 'cold-callers' && 'Callers with call & lead stats'}
-                  {key === 'call-logs'    && 'Full call history with outcomes'}
-                </p>
-              </div>
-              <div
-                className="flex items-center gap-1.5 text-xs font-semibold mt-auto"
-                style={{ color }}
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download Excel
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Export modal */}
-      {exportModal && (
-        <ExportModal configKey={exportModal} onClose={() => setExportModal(null)} />
-      )}
     </div>
   )
 }

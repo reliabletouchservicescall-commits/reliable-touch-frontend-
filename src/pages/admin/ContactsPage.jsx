@@ -9,7 +9,7 @@ import {
   PhoneCall, CheckCircle2, UserCheck, PhoneOff, UserX, Filter,
   CheckSquare, Square, Users, UserPlus, ChevronDown, LayoutGrid,
   Upload, FileSpreadsheet, Building2, Ruler, CreditCard, Hash,
-  FolderOpen, Download, CloudUpload, RefreshCw, PhoneForwarded,
+  FolderOpen, CloudUpload, RefreshCw, PhoneForwarded,
   Layers, Target, Settings2, Bell, Clock, MessageSquare, RotateCcw,
 } from 'lucide-react'
 import { contactsApi }         from '../../services/contactsApi'
@@ -1207,10 +1207,6 @@ function FilesVaultModal({ onClose, onAssignFile }) {
                             Return
                           </button>
                         )}
-                        <a href={f.downloadUrl} target="_blank" rel="noreferrer"
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#10B981]/10 hover:text-[#10B981] transition-all flex-shrink-0">
-                          <Download className="w-3.5 h-3.5" />
-                        </a>
                       </div>
                       {expanded && <BatchStatsPanel batchId={f.batchId} />}
                     </li>

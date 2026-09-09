@@ -1,4 +1,8 @@
-import { Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle } from 'lucide-react'
+import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle, Plus, Loader2, X } from 'lucide-react'
+import { areasApi } from '../../services/areasApi'
 
 export const LEAD_STATUS_META = {
   cold:       { label: 'Cold',       color: '#6B7280', bg: '#6B728018' },
@@ -133,15 +137,85 @@ export function ListingFields({ form, setField, errors }) {
 }
 
 /**
+ * Compact inline "create a new area" card — shown when the area someone needs isn't in
+ * the dropdown yet. Creates it via the API, refreshes the shared `['areas-select']`
+ * query (used by every page that lists areas for a picker) so it shows up everywhere
+ * immediately, and selects it on the calling form via `onCreated`.
+ */
+function AddAreaInline({ onCreated, onCancel }) {
+  const qc = useQueryClient()
+  const [name, setName] = useState('')
+  const [region, setRegion] = useState('')
+
+  const mut = useMutation({
+    mutationFn: () => areasApi.create({ name: name.trim(), region: region.trim() || undefined }),
+    onSuccess: (res) => {
+      const area = res.data.data.area
+      qc.invalidateQueries({ queryKey: ['areas-select'] })
+      toast.success(`"${area.name}" added`)
+      onCreated(area)
+    },
+    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to add area'),
+  })
+
+  function handleSave() {
+    if (!name.trim()) { toast.error('Enter an area name'); return }
+    mut.mutate()
+  }
+
+  return (
+    <div className="col-span-2 rounded-xl border border-[#8B5CF6]/30 bg-white dark:bg-[#181818] p-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8B5CF6]">New Area</p>
+        <button type="button" onClick={onCancel} className="text-[#6B7280] hover:text-[#111111] dark:hover:text-white">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Area name*"
+          className={inputCls(false)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave() } }}
+        />
+        <input
+          value={region}
+          onChange={(e) => setRegion(e.target.value)}
+          placeholder="Region (optional)"
+          className={inputCls(false)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave() } }}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancel}
+          className="flex-1 py-2 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+          Cancel
+        </button>
+        <button type="button" onClick={handleSave} disabled={mut.isPending}
+          className="flex-1 py-2 rounded-lg text-xs font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 flex items-center justify-center gap-1.5">
+          {mut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          Add Area
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Property summary sourced from the linked contact — address, area, and sectional
  * scheme are never re-entered on a lead, they always mirror the contact. Shown
  * wherever a lead is created or displayed. If the contact is missing an address or
  * area, this lets it be filled in right here (saved onto the CONTACT, not the lead,
  * when the parent form submits) instead of just blocking with a dead-end warning —
  * pass `areas` + `pendingAddress`/`pendingArea` + `onAddressChange`/`onAreaChange`
- * to enable this; omit them to fall back to the old read-only warning.
+ * to enable this; omit them to fall back to the old read-only warning. When the area
+ * someone needs isn't in `areas` yet, a "+ Add new area" affordance lets them create
+ * one on the spot (see AddAreaInline) instead of having to leave the flow.
  */
 export function PropertyFromContact({ contact, loading, areas, pendingAddress, pendingArea, onAddressChange, onAreaChange }) {
+  const [addingArea, setAddingArea] = useState(false)
   if (loading) {
     return <div className="h-24 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />
   }
@@ -187,20 +261,36 @@ export function PropertyFromContact({ contact, loading, areas, pendingAddress, p
           {!missingArea ? (
             <p className="text-sm font-bold text-[#111111] dark:text-white">{area.name}</p>
           ) : onAreaChange ? (
-            <select
-              value={pendingArea ?? ''}
-              onChange={(e) => onAreaChange(e.target.value)}
-              className={inputCls(false) + ' mt-1'}
-            >
-              <option value="">Select area…</option>
-              {(areas ?? []).map((a) => (
-                <option key={a._id} value={a._id}>{a.name}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5 mt-1">
+              <select
+                value={pendingArea ?? ''}
+                onChange={(e) => onAreaChange(e.target.value)}
+                className={inputCls(false) + ' flex-1'}
+              >
+                <option value="">Select area…</option>
+                {(areas ?? []).map((a) => (
+                  <option key={a._id} value={a._id}>{a.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setAddingArea(true)}
+                title="Add a new area"
+                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-[#8B5CF6]/10 text-[#8B5CF6] hover:bg-[#8B5CF6]/20 transition-colors"
+              >
+                <Plus className="w-4 h-4" strokeWidth={2} />
+              </button>
+            </div>
           ) : (
             <p className="text-sm font-semibold text-[#EF4444]">Not set</p>
           )}
         </div>
+        {addingArea && onAreaChange && (
+          <AddAreaInline
+            onCreated={(newArea) => { onAreaChange(newArea._id); setAddingArea(false) }}
+            onCancel={() => setAddingArea(false)}
+          />
+        )}
         {contact.sectionalScheme && (
           <div>
             <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Scheme</p>
