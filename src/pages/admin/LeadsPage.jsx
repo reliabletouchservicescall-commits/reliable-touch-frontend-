@@ -13,7 +13,7 @@ import { contactsApi } from '../../services/contactsApi'
 import { usersApi } from '../../services/usersApi'
 import { areasApi } from '../../services/areasApi'
 import LeadAppointments from '../../components/appointments/LeadAppointments'
-import { ListingFields, ListingBadge, PropertyFromContact, SearchableContactSelect } from '../../components/leads/leadShared'
+import { ListingFields, ListingBadge, PropertyFromContact, SearchableContactSelect, getApiErrorMessage } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
@@ -350,7 +350,7 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
           ...(pendingArea ? { area: pendingArea } : {}),
         })
       } catch (err) {
-        toast.error(err.response?.data?.message ?? 'Failed to save the contact\'s address/area')
+        toast.error(getApiErrorMessage(err, "Failed to save the contact's address/area"))
         return
       }
     }
@@ -400,7 +400,7 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
           <input value={form.phone} onChange={(e) => setField('phone', e.target.value)} placeholder="+27831234567" className={inputCls(errors.phone)} />
         </Field>
         <Field label="Email">
-          <input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} placeholder="name@example.com" className={inputCls(false)} />
+          <input type="text" value={form.email} onChange={(e) => setField('email', e.target.value)} placeholder="name@example.com" className={inputCls(false)} />
         </Field>
       </div>
 
@@ -485,7 +485,7 @@ function CreateDrawer({ onClose, onSaved }) {
       toast.success('Lead created successfully')
       onSaved()
     },
-    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to create lead'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to create lead')),
   })
 
   return (
@@ -544,7 +544,7 @@ function EditDrawer({ lead, onClose, onSaved }) {
       toast.success('Lead updated successfully')
       onSaved()
     },
-    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to update lead'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to update lead')),
   })
 
   const initial = {
@@ -835,7 +835,7 @@ function DeleteDialog({ lead, onClose, onDeleted }) {
       toast.success('Lead deleted')
       onDeleted()
     },
-    onError: (err) => toast.error(err.response?.data?.message ?? 'Delete failed'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Delete failed')),
   })
 
   return (
@@ -888,7 +888,7 @@ function StatusChangeDialog({ lead, onClose, onUpdated }) {
       toast.success('Lead status updated')
       onUpdated(res.data?.data?.lead)
     },
-    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to update status'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to update status')),
   })
 
   function handleSubmit(e) {

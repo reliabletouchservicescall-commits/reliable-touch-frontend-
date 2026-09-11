@@ -7,7 +7,7 @@ import { contactsApi } from '../../services/contactsApi'
 import { areasApi } from '../../services/areasApi'
 import SidePanel from '../common/SidePanel'
 import LeadFormFields from './LeadFormFields'
-import { LeadTemperaturePicker } from './leadShared'
+import { LeadTemperaturePicker, getApiErrorMessage } from './leadShared'
 
 const OUTCOME_LABEL = {
   interested: 'Interested',
@@ -71,7 +71,7 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
       toast.success('Lead created — nice work!')
       onCreated?.(res.data?.data?.lead)
     },
-    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to create lead'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to create lead')),
   })
 
   function setField(k, v) {

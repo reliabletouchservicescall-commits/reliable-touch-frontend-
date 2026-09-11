@@ -6,7 +6,7 @@ import { Eye, Loader2, User, PhoneCall, History } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import SidePanel from '../common/SidePanel'
 import LeadFormFields from './LeadFormFields'
-import { LeadStatusBadge, ListingBadge } from './leadShared'
+import { LeadStatusBadge, ListingBadge, getApiErrorMessage } from './leadShared'
 import LeadAppointments from '../appointments/LeadAppointments'
 
 const OUTCOME_LABEL = {
@@ -51,7 +51,7 @@ export default function LeadDetailDrawer({ lead, onClose, onUpdated }) {
       toast.success('Lead updated')
       onUpdated?.()
     },
-    onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to update lead'),
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to update lead')),
   })
 
   function setField(k, v) {

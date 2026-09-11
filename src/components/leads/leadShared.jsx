@@ -68,6 +68,20 @@ export function LeadTemperaturePicker({ value, onChange }) {
   )
 }
 
+/**
+ * The backend's validate.middleware.js responds to a failed field validation with
+ * {message: 'Validation failed', errors: ['specific reason', ...]} — the top-level
+ * message alone tells the user nothing actionable, so prefer the specific per-field
+ * reasons whenever the backend sent any.
+ */
+export function getApiErrorMessage(err, fallback = 'Something went wrong') {
+  const data = err?.response?.data
+  if (Array.isArray(data?.errors) && data.errors.length) {
+    return data.errors.join(' · ')
+  }
+  return data?.message ?? fallback
+}
+
 export const LISTING_TYPE_META = {
   sale:   { label: 'For Sale',   icon: Home, color: '#8B5CF6' },
   rental: { label: 'For Rental', icon: Key,  color: '#3B82F6' },

@@ -38,7 +38,7 @@ export default function LeadFormFields({
           <input value={form.phone} onChange={(e) => setField('phone', e.target.value)} placeholder="+27831234567" className={inputCls(errors.phone)} />
         </Field>
         <Field label="Email">
-          <input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} placeholder="name@example.com" className={inputCls(false)} />
+          <input type="text" value={form.email} onChange={(e) => setField('email', e.target.value)} placeholder="name@example.com" className={inputCls(false)} />
         </Field>
       </div>
 
