@@ -34,7 +34,7 @@ export default function LeadFormFields({
       <ListingFields form={form} setField={setField} errors={errors} />
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Phone" required error={errors.phone}>
+        <Field label="Phone" error={errors.phone}>
           <input value={form.phone} onChange={(e) => setField('phone', e.target.value)} placeholder="+27831234567" className={inputCls(errors.phone)} />
         </Field>
         <Field label="Email">

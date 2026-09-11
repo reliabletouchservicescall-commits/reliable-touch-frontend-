@@ -82,13 +82,9 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
   function validate() {
     const errs = {}
     if (!form.landlordName.trim()) errs.landlordName = 'Landlord name is required'
-    if (!form.listingType) errs.listingType = 'Select sale or rental'
-    if (form.priceMin === '') errs.priceMin = 'Enter a minimum price'
-    if (form.priceMax === '') errs.priceMax = 'Enter a maximum price'
     if (form.priceMin !== '' && form.priceMax !== '' && Number(form.priceMax) < Number(form.priceMin)) {
       errs.priceMax = 'Max price must be at least the min price'
     }
-    if (!form.phone.trim()) errs.phone = 'Phone is required'
     return errs
   }
 

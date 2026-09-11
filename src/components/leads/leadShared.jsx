@@ -1,8 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle, Plus, Loader2, X, Search, ChevronDown } from 'lucide-react'
 import { areasApi } from '../../services/areasApi'
+import { contactsApi } from '../../services/contactsApi'
+
+function useDebounce(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
 
 export const LEAD_STATUS_META = {
   cold:       { label: 'Cold',       color: '#6B7280', bg: '#6B728018' },
@@ -87,11 +97,11 @@ export function ListingBadge({ listingType, priceMin, priceMax, size }) {
   )
 }
 
-/** Listing Type + Price Range fields — required on every lead, shared by every create/edit form. */
+/** Listing Type + Price Range fields — optional on every lead, shared by every create/edit form. */
 export function ListingFields({ form, setField, errors }) {
   return (
     <div className="space-y-4">
-      <Field label="Listing Type" required error={errors.listingType}>
+      <Field label="Listing Type" error={errors.listingType}>
         <div className="grid grid-cols-2 gap-2">
           {Object.entries(LISTING_TYPE_META).map(([value, meta]) => {
             const Icon = meta.icon
@@ -115,7 +125,7 @@ export function ListingFields({ form, setField, errors }) {
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Min Price (R)" required error={errors.priceMin}>
+        <Field label="Min Price (R)" error={errors.priceMin}>
           <input
             type="number" min="0" placeholder="e.g. 9500"
             value={form.priceMin}
@@ -123,7 +133,7 @@ export function ListingFields({ form, setField, errors }) {
             className={inputCls(errors.priceMin)}
           />
         </Field>
-        <Field label="Max Price (R)" required error={errors.priceMax}>
+        <Field label="Max Price (R)" error={errors.priceMax}>
           <input
             type="number" min="0" placeholder="e.g. 11000"
             value={form.priceMax}
@@ -209,6 +219,110 @@ function SearchableAreaSelect({ areas, value, onChange, placeholder = 'Select ar
                 >
                   <span className="truncate">{a.name}</span>
                   {a.region && <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0">{a.region}</span>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Searchable, server-backed contact picker for the "which contact is this lead for?"
+ * field. Unlike SearchableAreaSelect, this never pre-fetches the whole list — a
+ * caller/admin's contacts can run into the thousands — it searches the backend as you
+ * type (debounced) and resolves the current `value`'s label with its own lookup, so it
+ * still displays the right name even when that contact isn't in the latest search
+ * results (e.g. right after opening an existing lead to edit it).
+ */
+export function SearchableContactSelect({ value, onChange, placeholder = 'Select contact…' }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const debounced = useDebounce(search)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Independent of the search results below — guarantees the trigger button shows the
+  // right name even if the selected contact has scrolled out of / never been in view.
+  const { data: selectedContact } = useQuery({
+    queryKey: ['contact-select-value', value],
+    queryFn: () => contactsApi.getById(value).then((r) => r.data.data.contact),
+    enabled: Boolean(value),
+    staleTime: 60_000,
+  })
+
+  // view: 'all' — for a cold caller this bypasses the "already called today" exclusion
+  // (a caller must be able to find any of their contacts here); a no-op for admin, who
+  // already sees everything.
+  const { data: results, isFetching } = useQuery({
+    queryKey: ['contacts-search', debounced],
+    queryFn: () => contactsApi.list({ search: debounced || undefined, limit: 20, view: 'all' }).then((r) => r.data.data.contacts),
+    enabled: open,
+    staleTime: 15_000,
+  })
+
+  const list = results ?? []
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`${inputCls(false)} flex items-center justify-between gap-2 text-left`}
+      >
+        <span className={`truncate ${selectedContact ? 'text-[#111111] dark:text-white' : 'text-[#6B7280]/50 dark:text-[#A1A1AA]/40'}`}>
+          {selectedContact ? `${selectedContact.name} (${selectedContact.phone})` : placeholder}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1.5 w-full bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-xl overflow-hidden">
+          <div className="relative p-2 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] pointer-events-none" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or phone…"
+              className="w-full pl-8 pr-2 py-2 text-sm bg-[#F5F5F4] dark:bg-[#202020] rounded-lg outline-none ring-2 ring-transparent focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            {isFetching ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-4 h-4 animate-spin text-[#F95C4B]" />
+              </div>
+            ) : list.length === 0 ? (
+              <p className="px-4 py-4 text-xs text-[#6B7280] dark:text-[#A1A1AA] text-center">
+                {search ? `No contacts match "${search}"` : 'No contacts found'}
+              </p>
+            ) : (
+              list.map((c) => (
+                <button
+                  key={c._id}
+                  type="button"
+                  onClick={() => { onChange(c._id); setOpen(false); setSearch('') }}
+                  className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
+                    value === c._id
+                      ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
+                      : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+                  }`}
+                >
+                  <span className="truncate">{c.name}</span>
+                  <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-mono flex-shrink-0">{c.phone}</span>
                 </button>
               ))
             )}

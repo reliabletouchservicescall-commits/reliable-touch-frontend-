@@ -13,7 +13,7 @@ import { contactsApi } from '../../services/contactsApi'
 import { usersApi } from '../../services/usersApi'
 import { areasApi } from '../../services/areasApi'
 import LeadAppointments from '../../components/appointments/LeadAppointments'
-import { ListingFields, ListingBadge, PropertyFromContact } from '../../components/leads/leadShared'
+import { ListingFields, ListingBadge, PropertyFromContact, SearchableContactSelect } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
@@ -46,7 +46,7 @@ const SORT_OPTIONS = [
 ]
 
 const EMPTY_CREATE = {
-  contactId: '', landlordName: '', listingType: '', priceMin: '', priceMax: '',
+  contactId: '', createdBy: '', landlordName: '', listingType: '', priceMin: '', priceMax: '',
   phone: '', email: '', comments: '', availability: '', bestCallTime: '',
   followUpDate: '', appointmentDate: '', appointmentTime: '', assignedAgent: '',
 }
@@ -276,9 +276,18 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
   const [pendingAddress, setPendingAddress] = useState('')
   const [pendingArea, setPendingArea] = useState('')
 
-  const { data: contactsData } = useQuery({
-    queryKey: ['contacts-select'],
-    queryFn: () => contactsApi.list({ limit: 100 }).then((r) => r.data.data),
+  // Contacts can run into the thousands, so the picker searches the backend on demand
+  // (see SearchableContactSelect) rather than pre-fetching a list here — the currently
+  // selected one is still fetched directly, in full, for the property-details panel below.
+  const { data: selectedContact, isLoading: contactLoading } = useQuery({
+    queryKey: ['contact', form.contactId],
+    queryFn: () => contactsApi.getById(form.contactId).then((r) => r.data.data.contact),
+    enabled: Boolean(form.contactId),
+    staleTime: 30_000,
+  })
+  const { data: callersData } = useQuery({
+    queryKey: ['cold-callers-select'],
+    queryFn: () => usersApi.list({ role: 'cold_caller', limit: 100 }).then((r) => r.data.data),
     staleTime: 60_000,
   })
   const { data: agentsData } = useQuery({
@@ -292,10 +301,10 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
     staleTime: 60_000,
   })
 
-  const contacts = contactsData?.contacts ?? contactsData ?? []
+  const callersRaw = callersData?.users ?? callersData ?? []
+  const callers   = Array.isArray(callersRaw) ? callersRaw : []
   const agentsRaw = agentsData?.users     ?? agentsData   ?? []
   const agents   = Array.isArray(agentsRaw) ? agentsRaw : []
-  const selectedContact = contacts.find((c) => c._id === form.contactId) ?? null
 
   const missingAddress = Boolean(selectedContact) && !selectedContact.address && !pendingAddress
   const missingArea = Boolean(selectedContact) && !(selectedContact.area && typeof selectedContact.area === 'object') && !pendingArea
@@ -319,13 +328,9 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
   function validate() {
     const errs = {}
     if (!form.landlordName.trim())     errs.landlordName     = 'Landlord name is required'
-    if (!form.listingType)             errs.listingType      = 'Select sale or rental'
-    if (form.priceMin === '')          errs.priceMin         = 'Enter a minimum price'
-    if (form.priceMax === '')          errs.priceMax         = 'Enter a maximum price'
     if (form.priceMin !== '' && form.priceMax !== '' && Number(form.priceMax) < Number(form.priceMin)) {
       errs.priceMax = 'Max price must be at least the min price'
     }
-    if (!form.phone.trim())            errs.phone            = 'Phone is required'
     return errs
   }
 
@@ -360,13 +365,19 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
   return (
     <form id={id} onSubmit={handleSubmit} className="space-y-5">
       <Field label="Contact">
-        <select value={form.contactId} onChange={(e) => setField('contactId', e.target.value)} className={inputCls(false)}>
-          <option value="">-- Select contact --</option>
-          {Array.isArray(contacts) && contacts.map((c) => (
-            <option key={c._id} value={c._id}>{c.name} ({c.phone})</option>
-          ))}
-        </select>
+        <SearchableContactSelect value={form.contactId} onChange={(id) => setField('contactId', id)} />
       </Field>
+
+      {!isEdit && (
+        <Field label="Lead Owner" hint="Who this lead is attributed to — defaults to you">
+          <select value={form.createdBy} onChange={(e) => setField('createdBy', e.target.value)} className={inputCls(false)}>
+            <option value="">Me (Admin)</option>
+            {callers.map((c) => (
+              <option key={c._id} value={c._id}>{c.firstName} {c.lastName}</option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <Field label="Landlord Name" required error={errors.landlordName}>
         <input value={form.landlordName} onChange={(e) => setField('landlordName', e.target.value)} placeholder="Full name" className={inputCls(errors.landlordName)} />
@@ -374,6 +385,7 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
 
       <PropertyFromContact
         contact={selectedContact}
+        loading={contactLoading}
         areas={areasData}
         pendingAddress={pendingAddress}
         pendingArea={pendingArea}
@@ -384,7 +396,7 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
       <ListingFields form={form} setField={setField} errors={errors} />
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Phone" required error={errors.phone}>
+        <Field label="Phone" error={errors.phone}>
           <input value={form.phone} onChange={(e) => setField('phone', e.target.value)} placeholder="+27831234567" className={inputCls(errors.phone)} />
         </Field>
         <Field label="Email">
