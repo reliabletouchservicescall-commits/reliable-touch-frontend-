@@ -2074,11 +2074,16 @@ export default function ContactsPage() {
     setAssigning(true)
     const caller = callers.find((c) => c._id === callerId)
     try {
-      await Promise.all(ids.map((id) => contactsApi.update(id, { assignedTo: callerId, status: 'assigned' })))
+      // One bulk operation (not N individual PATCHes) — also resets each contact's
+      // lastCalledAt/callCount/lastCallOutcome, so a contact previously worked by someone
+      // else starts fresh for the new caller instead of silently vanishing from their
+      // "To Call" queue if it was called earlier the same day it's reassigned.
+      const { data } = await contactsApi.assignByIds({ ids, callerId })
+      const assigned = data?.data?.assigned ?? ids.length
       qc.invalidateQueries({ queryKey: ['contacts'] })
       qc.invalidateQueries({ queryKey: ['caller-counts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
-      toast.success(`${ids.length} contact${ids.length !== 1 ? 's' : ''} assigned to ${caller?.firstName} ${caller?.lastName}`)
+      toast.success(`${assigned} contact${assigned !== 1 ? 's' : ''} assigned to ${caller?.firstName} ${caller?.lastName}`)
       setSelected(new Set())
     } catch { toast.error('Some assignments failed.') } finally { setAssigning(false) }
   }

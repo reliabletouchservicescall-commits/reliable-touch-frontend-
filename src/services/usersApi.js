@@ -9,4 +9,5 @@ export const usersApi = {
   remove: (id) => axiosClient.delete(`/admin/users/${id}`),
   resetPassword: (id, password) => axiosClient.patch(`/admin/users/${id}/reset-password`, { password }),
   loginHistory: (id) => axiosClient.get(`/admin/users/${id}/login-history`),
+  activity: (id) => axiosClient.get(`/admin/users/${id}/activity`),
 }

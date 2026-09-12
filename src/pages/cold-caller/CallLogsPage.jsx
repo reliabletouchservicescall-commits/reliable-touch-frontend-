@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   PhoneCall,
   CheckCircle,
@@ -14,8 +15,12 @@ import {
   ChevronRight,
   Filter,
   X,
+  FileText,
+  Loader2,
 } from 'lucide-react'
 import { callLogsApi } from '../../services/callLogsApi'
+import { contactsApi } from '../../services/contactsApi'
+import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 
 const OUTCOMES = [
   { value: '',                   label: 'All Outcomes' },
@@ -78,11 +83,30 @@ function isToday(iso) {
 }
 
 export default function ColdCallerCallLogsPage() {
+  const qc = useQueryClient()
   const [page, setPage] = useState(1)
   const [outcome, setOutcome] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [fetchingLeadFor, setFetchingLeadFor] = useState(null)
+  const [leadDraft, setLeadDraft] = useState(null)
+
+  // The call log list only populates a handful of contact fields (name/phone/status) —
+  // CreateLeadDrawer needs the full contact (address, area, etc.) to know whether
+  // property info is already there, so fetch it fresh right before opening the drawer.
+  async function handleCreateLead(log) {
+    if (!log.contactId?._id) return
+    setFetchingLeadFor(log._id)
+    try {
+      const res = await contactsApi.getById(log.contactId._id)
+      setLeadDraft({ contact: res.data.data.contact, callLog: log })
+    } catch (err) {
+      toast.error(err.response?.data?.message ?? 'Could not load this contact')
+    } finally {
+      setFetchingLeadFor(null)
+    }
+  }
 
   const queryKey = ['cc-call-logs', { page, outcome, startDate, endDate }]
 
@@ -278,6 +302,30 @@ export default function ColdCallerCallLogsPage() {
                     {log.notes}
                   </p>
                 )}
+
+                {log.contactId && (
+                  <div className="mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020] flex justify-end">
+                    {log.leadId ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#10B981] bg-[#10B981]/10">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Lead Created
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleCreateLead(log)}
+                        disabled={fetchingLeadFor === log._id}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] active:scale-[0.97] disabled:opacity-60 transition-all"
+                      >
+                        {fetchingLeadFor === log._id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5" />
+                        )}
+                        Create Lead
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })
@@ -330,6 +378,18 @@ export default function ColdCallerCallLogsPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {leadDraft && (
+        <CreateLeadDrawer
+          contact={leadDraft.contact}
+          callLog={leadDraft.callLog}
+          onClose={() => setLeadDraft(null)}
+          onCreated={() => {
+            setLeadDraft(null)
+            qc.invalidateQueries({ queryKey: ['cc-call-logs'] })
+          }}
+        />
       )}
     </div>
   )

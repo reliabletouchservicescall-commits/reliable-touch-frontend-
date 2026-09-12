@@ -1,27 +1,30 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import {
   Plus, Search, X, Pencil, Trash2, Eye, AlertTriangle, Loader2,
-  Users, Mail, Phone, UserCheck, UserX, Eye as EyeOn, EyeOff,
-  Clock, ToggleLeft, ToggleRight, SlidersHorizontal, KeyRound,
+  Users, UserCheck, UserX, Eye as EyeOn, EyeOff,
+  ToggleLeft, ToggleRight, SlidersHorizontal, KeyRound,
 } from 'lucide-react'
 import { usersApi } from '../../services/usersApi'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
 const ROLE_TABS = [
-  { key: '',            label: 'All' },
-  { key: 'admin',       label: 'Admin' },
-  { key: 'cold_caller', label: 'Cold Caller' },
-  { key: 'agency',      label: 'Agency' },
+  { key: '',                  label: 'All' },
+  { key: 'admin',             label: 'Admin' },
+  { key: 'cold_caller',       label: 'Cold Caller' },
+  { key: 'agency',            label: 'Agency' },
+  { key: 'follow_up_manager', label: 'Follow Up Manager' },
 ]
 
 const ROLE_META = {
-  admin:       { label: 'Admin',       color: '#F95C4B', bg: '#F95C4B18' },
-  cold_caller: { label: 'Cold Caller', color: '#3B82F6', bg: '#3B82F618' },
-  agency:      { label: 'Agency',      color: '#10B981', bg: '#10B98118' },
+  admin:             { label: 'Admin',             color: '#F95C4B', bg: '#F95C4B18' },
+  cold_caller:       { label: 'Cold Caller',       color: '#3B82F6', bg: '#3B82F618' },
+  agency:            { label: 'Agency',            color: '#10B981', bg: '#10B98118' },
+  follow_up_manager: { label: 'Follow Up Manager', color: '#8B5CF6', bg: '#8B5CF618' },
 }
 
 const SORT_OPTIONS = [
@@ -35,7 +38,7 @@ const EMPTY_CREATE = {
   firstName: '', lastName: '', email: '', password: '', phone: '', role: 'cold_caller',
 }
 
-const ROLES_SELECT = ['admin', 'cold_caller', 'agency']
+const ROLES_SELECT = ['admin', 'cold_caller', 'agency', 'follow_up_manager']
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -382,107 +385,6 @@ function EditDrawer({ user, onClose, onSaved }) {
   )
 }
 
-/* ─── View Drawer ─────────────────────────────────────────────────────────── */
-
-function ViewDrawer({ user, onClose }) {
-  const { data: historyData, isLoading } = useQuery({
-    queryKey: ['user-login-history', user._id],
-    queryFn: () => usersApi.loginHistory(user._id).then((r) => r.data.data),
-    staleTime: 30_000,
-  })
-
-  const history = historyData?.loginHistory ?? historyData ?? []
-  const recent  = Array.isArray(history) ? history.slice(-5).reverse() : []
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-[480px] flex flex-col bg-white dark:bg-[#181818] shadow-2xl border-l border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
-              <Eye className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
-            </div>
-            <h2 className="text-sm font-bold text-[#111111] dark:text-white">User Details</h2>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-          {/* Info card */}
-          <div className="flex items-center gap-4">
-            <Avatar name={`${user.firstName} ${user.lastName}`} />
-            <div>
-              <h3 className="text-base font-bold text-[#111111] dark:text-white">{user.firstName} {user.lastName}</h3>
-              <div className="flex items-center gap-2 mt-1">
-                <RoleBadge role={user.role} />
-                <StatusChip isActive={user.isActive} />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A] overflow-hidden">
-            {[
-              { icon: Mail,  label: 'Email', value: user.email },
-              { icon: Phone, label: 'Phone', value: user.phone },
-              { icon: Clock, label: 'Last Login', value: user.lastLoginAt ? format(new Date(user.lastLoginAt), 'd MMM yyyy, HH:mm') : 'Never' },
-            ].map(({ icon: Icon, label, value }) => (
-              <div key={label} className="flex items-start gap-3 px-4 py-3 bg-white dark:bg-[#181818]">
-                <Icon className="w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 flex-shrink-0" strokeWidth={1.75} />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{label}</p>
-                  <p className="text-sm text-[#111111] dark:text-white">{value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Login history */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-3 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" /> Recent Login History
-            </p>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="w-5 h-5 animate-spin text-[#F95C4B]" />
-              </div>
-            ) : recent.length === 0 ? (
-              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No login history yet</p>
-            ) : (
-              <div className="space-y-2">
-                {recent.map((entry, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-                    <div>
-                      <p className="text-xs font-semibold text-[#111111] dark:text-white">
-                        {format(new Date(entry.loginAt), 'd MMM yyyy, HH:mm')}
-                      </p>
-                      {entry.ip && (
-                        <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">{entry.ip}</p>
-                      )}
-                    </div>
-                    {entry.logoutAt && (
-                      <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-                        out {format(new Date(entry.logoutAt), 'HH:mm')}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] space-y-1">
-            <p>Created: {format(new Date(user.createdAt), 'd MMM yyyy, HH:mm')}</p>
-            <p>Updated: {format(new Date(user.updatedAt), 'd MMM yyyy, HH:mm')}</p>
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
 /* ─── Delete Dialog ───────────────────────────────────────────────────────── */
 
 function DeleteDialog({ user, onClose, onDeleted }) {
@@ -673,7 +575,10 @@ function ResetPasswordDialog({ user, onClose, onSaved }) {
 function UserRow({ user, onView, onEdit, onDelete, onToggleActive, onResetPassword }) {
   const fullName = `${user.firstName} ${user.lastName}`
   return (
-    <tr className="group hover:bg-[#FAFAF9] dark:hover:bg-[#111111] transition-colors">
+    <tr
+      onClick={onView}
+      className="group hover:bg-[#FAFAF9] dark:hover:bg-[#111111] transition-colors cursor-pointer"
+    >
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
           <Avatar name={fullName} />
@@ -698,8 +603,11 @@ function UserRow({ user, onView, onEdit, onDelete, onToggleActive, onResetPasswo
         </span>
       </td>
       <td className="px-4 py-3.5">
-        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <ActionBtn icon={Eye}      title="View details"   onClick={onView} />
+        <div
+          className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ActionBtn icon={Eye}      title="View activity"  onClick={onView} />
           <ActionBtn icon={Pencil}   title="Edit user"      onClick={onEdit}          variant="blue" />
           <ActionBtn icon={KeyRound} title="Reset password" onClick={onResetPassword} variant="amber" />
           <ActionBtn
@@ -742,6 +650,7 @@ function EmptyState({ hasFilters, onAdd }) {
 /* ─── Main Page ───────────────────────────────────────────────────────────── */
 
 export default function UsersPage() {
+  const navigate = useNavigate()
   const [search,          setSearch]          = useState('')
   const [roleFilter,      setRole]            = useState('')
   const [sort,            setSort]            = useState('-createdAt')
@@ -895,7 +804,7 @@ export default function UsersPage() {
                     <UserRow
                       key={u._id}
                       user={u}
-                      onView={() => setDrawer({ mode: 'view', user: u })}
+                      onView={() => navigate(`/admin/users/${u._id}`)}
                       onEdit={() => setDrawer({ mode: 'edit', user: u })}
                       onDelete={() => setToDelete(u)}
                       onToggleActive={() => toggleActiveMut.mutate(u)}
@@ -915,9 +824,6 @@ export default function UsersPage() {
       )}
       {drawer?.mode === 'edit' && drawer.user && (
         <EditDrawer user={drawer.user} onClose={() => setDrawer(null)} onSaved={() => setDrawer(null)} />
-      )}
-      {drawer?.mode === 'view' && drawer.user && (
-        <ViewDrawer user={drawer.user} onClose={() => setDrawer(null)} />
       )}
 
       {/* ── Delete dialog ─────────────────────────────────────────────────── */}

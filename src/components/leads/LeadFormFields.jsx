@@ -8,7 +8,7 @@ import { DateField, TimeField } from '../common/DateTimeFields'
  */
 export default function LeadFormFields({
   form, setField, errors, contact, contactLoading,
-  areas, pendingAddress, pendingArea, onAddressChange, onAreaChange,
+  areas, pendingAddress, pendingArea, pendingScheme, onAddressChange, onAreaChange, onSchemeChange,
 }) {
   return (
     <div className="space-y-5">
@@ -27,8 +27,10 @@ export default function LeadFormFields({
         areas={areas}
         pendingAddress={pendingAddress}
         pendingArea={pendingArea}
+        pendingScheme={pendingScheme}
         onAddressChange={onAddressChange}
         onAreaChange={onAreaChange}
+        onSchemeChange={onSchemeChange}
       />
 
       <ListingFields form={form} setField={setField} errors={errors} />

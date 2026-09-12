@@ -6,8 +6,9 @@ import { Eye, Loader2, User, PhoneCall, History } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import SidePanel from '../common/SidePanel'
 import LeadFormFields from './LeadFormFields'
-import { LeadStatusBadge, ListingBadge, getApiErrorMessage } from './leadShared'
+import { LeadStatusBadge, ListingBadge, FollowUpComments, getApiErrorMessage } from './leadShared'
 import LeadAppointments from '../appointments/LeadAppointments'
+import { useAuthStore } from '../../store/authStore'
 
 const OUTCOME_LABEL = {
   no_answer: 'No Answer', voicemail: 'Voicemail', callback_requested: 'Callback Requested',
@@ -34,8 +35,10 @@ function fieldsFromLead(lead) {
 /** Read/edit side panel for a lead a cold caller created — scoped to the fields they own. */
 export default function LeadDetailDrawer({ lead, onClose, onUpdated }) {
   const qc = useQueryClient()
+  const { user } = useAuthStore()
   const [errors, setErrors] = useState({})
   const [form, setForm] = useState(() => fieldsFromLead(lead))
+  const [comments, setComments] = useState(lead.followUpComments ?? [])
 
   // lead.area is the contact's area as it stood when this lead was created — merge it in
   // since lead.contactId's own populate doesn't include area (leads never re-read it live).
@@ -171,6 +174,13 @@ export default function LeadDetailDrawer({ lead, onClose, onUpdated }) {
             </ul>
           </div>
         )}
+
+        <FollowUpComments
+          lead={{ ...lead, followUpComments: comments }}
+          currentUserId={user?._id}
+          canComment
+          onAdded={(updatedLead) => setComments(updatedLead.followUpComments ?? [])}
+        />
 
         <div className="h-px bg-[#E5E7EB] dark:bg-[#2A2A2A]" />
 

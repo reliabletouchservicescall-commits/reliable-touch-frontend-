@@ -13,8 +13,9 @@ import { contactsApi } from '../../services/contactsApi'
 import { usersApi } from '../../services/usersApi'
 import { areasApi } from '../../services/areasApi'
 import LeadAppointments from '../../components/appointments/LeadAppointments'
-import { ListingFields, ListingBadge, PropertyFromContact, SearchableContactSelect, getApiErrorMessage } from '../../components/leads/leadShared'
+import { ListingFields, ListingBadge, PropertyFromContact, SearchableContactSelect, FollowUpComments, getApiErrorMessage } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
+import { useAuthStore } from '../../store/authStore'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
@@ -275,6 +276,7 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
   const [errors, setErrors] = useState({})
   const [pendingAddress, setPendingAddress] = useState('')
   const [pendingArea, setPendingArea] = useState('')
+  const [pendingScheme, setPendingScheme] = useState('')
 
   // Contacts can run into the thousands, so the picker searches the backend on demand
   // (see SearchableContactSelect) rather than pre-fetching a list here — the currently
@@ -320,6 +322,13 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
     setPendingArea('')
   }, [form.contactId])
 
+  // Scheme isn't "missing data to fill in" like address/area — it pre-fills from
+  // whatever the contact already has (once loaded) but stays editable, since a landlord
+  // can own units across more than one sectional scheme.
+  useEffect(() => {
+    setPendingScheme(selectedContact?.sectionalScheme ?? '')
+  }, [selectedContact?._id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function setField(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
     if (errors[k]) setErrors((e) => ({ ...e, [k]: null }))
@@ -340,14 +349,17 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
 
-    // Address/area live on the Contact, not the Lead — if either was filled in here
-    // (because the contact was missing them), save that to the contact first so the
+    // Address/area/scheme live on the Contact, not the Lead — if any changed here
+    // (address/area because the contact was missing them, scheme because a landlord
+    // can own units across more than one), save that to the contact first so the
     // backend's own contact-derived address/area check on lead creation passes.
-    if (selectedContact && (pendingAddress || pendingArea)) {
+    const schemeChanged = selectedContact && pendingScheme.trim() !== (selectedContact.sectionalScheme ?? '').trim()
+    if (selectedContact && (pendingAddress || pendingArea || schemeChanged)) {
       try {
         await contactsApi.update(selectedContact._id, {
           ...(pendingAddress ? { address: pendingAddress } : {}),
           ...(pendingArea ? { area: pendingArea } : {}),
+          ...(schemeChanged ? { sectionalScheme: pendingScheme.trim() || null } : {}),
         })
       } catch (err) {
         toast.error(getApiErrorMessage(err, "Failed to save the contact's address/area"))
@@ -389,8 +401,10 @@ function LeadForm({ id, initial, onSubmit, isPending, isEdit, onMissingPropertyI
         areas={areasData}
         pendingAddress={pendingAddress}
         pendingArea={pendingArea}
+        pendingScheme={pendingScheme}
         onAddressChange={setPendingAddress}
         onAreaChange={setPendingArea}
+        onSchemeChange={setPendingScheme}
       />
 
       <ListingFields form={form} setField={setField} errors={errors} />
@@ -616,6 +630,8 @@ function EditDrawer({ lead, onClose, onSaved }) {
 /* ─── View Slide-over ─────────────────────────────────────────────────────── */
 
 function ViewPanel({ lead, onClose, onChangeStatus }) {
+  const { user } = useAuthStore()
+  const [comments, setComments] = useState(lead.followUpComments ?? [])
   const createdByUser  = resolveUser(lead.createdBy)
   const assignedUser   = resolveUser(lead.assignedAgent)
   const contactObj     = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
@@ -812,6 +828,14 @@ function ViewPanel({ lead, onClose, onChangeStatus }) {
               </ul>
             </div>
           )}
+
+          {/* Follow-Up Comments */}
+          <FollowUpComments
+            lead={{ ...lead, followUpComments: comments }}
+            currentUserId={user?._id}
+            canComment
+            onAdded={(updatedLead) => setComments(updatedLead.followUpComments ?? [])}
+          />
 
           {/* Timestamps */}
           <div className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] space-y-1">

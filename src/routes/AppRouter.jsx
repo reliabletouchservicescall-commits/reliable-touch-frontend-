@@ -9,11 +9,13 @@ import RegisterPage from '../pages/auth/RegisterPage'
 import AdminLayout from '../layouts/AdminLayout'
 import ColdCallerLayout from '../layouts/ColdCallerLayout'
 import AgencyLayout from '../layouts/AgencyLayout'
+import FollowUpManagerLayout from '../layouts/FollowUpManagerLayout'
 
 // Admin pages
 import AdminDashboard from '../pages/admin/DashboardPage'
 import ContactsPage from '../pages/admin/ContactsPage'
 import UsersPage from '../pages/admin/UsersPage'
+import UserDetailPage from '../pages/admin/UserDetailPage'
 import LeadsPage from '../pages/admin/LeadsPage'
 import CampaignsPage from '../pages/admin/CampaignsPage'
 import DncPage from '../pages/admin/DncPage'
@@ -41,6 +43,12 @@ import AgencyAppointmentsPage from '../pages/agency/AppointmentsPage'
 import AgencyLeaderboardPage from '../pages/agency/LeaderboardPage'
 import AgencyLeadsPage from '../pages/agency/LeadsPage'
 import AgencyNotificationsPage from '../pages/agency/NotificationsPage'
+
+// Follow Up Manager pages
+import FollowUpManagerDashboard from '../pages/follow-up-manager/DashboardPage'
+import FollowUpManagerLeadsPage from '../pages/follow-up-manager/LeadsPage'
+import FollowUpManagerAppointmentsPage from '../pages/follow-up-manager/AppointmentsPage'
+import FollowUpManagerNotificationsPage from '../pages/follow-up-manager/NotificationsPage'
 
 // Admin (additional)
 import AdminCallLogsPage from '../pages/admin/CallLogsPage'
@@ -91,6 +99,7 @@ export default function AppRouter() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="users/:id" element={<UserDetailPage />} />
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
@@ -146,6 +155,22 @@ export default function AppRouter() {
           <Route path="leads" element={<AgencyLeadsPage />} />
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
           <Route path="notifications" element={<AgencyNotificationsPage />} />
+          <Route path="chat" element={<UserChatPage />} />
+        </Route>
+
+        {/* ── Follow Up Manager ───────────────────────────────────────── */}
+        <Route
+          path="/follow-up-manager"
+          element={
+            <ProtectedRoute allowedRoles={['follow_up_manager']}>
+              <FollowUpManagerLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<FollowUpManagerDashboard />} />
+          <Route path="leads" element={<FollowUpManagerLeadsPage />} />
+          <Route path="appointments" element={<FollowUpManagerAppointmentsPage />} />
+          <Route path="notifications" element={<FollowUpManagerNotificationsPage />} />
           <Route path="chat" element={<UserChatPage />} />
         </Route>
 

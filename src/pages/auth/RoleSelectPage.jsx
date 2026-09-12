@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ShieldCheck, PhoneCall, Briefcase, ArrowRight, Check } from 'lucide-react'
+import { ShieldCheck, PhoneCall, Briefcase, Flame, ArrowRight, Check } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import AppHeader from '../../components/layout/AppHeader'
 
@@ -43,6 +43,19 @@ const roles = [
       'Commission visibility',
     ],
   },
+  {
+    key: 'follow_up_manager',
+    label: 'Follow Up Manager',
+    icon: Flame,
+    description:
+      'Owns the hot leads pipeline — follow up, assign an agency, and book appointments to close the deal.',
+    highlights: [
+      'Hot leads queue',
+      'Follow-up comment thread',
+      'Assign to an agency',
+      'Appointment scheduling',
+    ],
+  },
 ]
 
 export default function RoleSelectPage() {
@@ -82,7 +95,7 @@ export default function RoleSelectPage() {
         </div>
 
         {/* Role cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl animate-slide-up">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-6xl animate-slide-up">
           {roles.map((role) => {
             const Icon = role.icon
             return (

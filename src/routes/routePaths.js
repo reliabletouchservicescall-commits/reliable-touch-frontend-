@@ -23,6 +23,7 @@ export const PATHS = {
     REPORTS: '/admin/reports',
     AUDIT: '/admin/audit-trail',
     USERS: '/admin/users',
+    USER_DETAIL: '/admin/users/:id',
   },
 
   COLD_CALLER: {

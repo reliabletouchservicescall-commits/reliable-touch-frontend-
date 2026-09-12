@@ -41,6 +41,7 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
 
   const [pendingAddress, setPendingAddress] = useState('')
   const [pendingArea, setPendingArea] = useState('')
+  const [pendingScheme, setPendingScheme] = useState(contact.sectionalScheme ?? '')
 
   const missingAddress = !contact.address && !pendingAddress
   const missingArea = !(contact.area && typeof contact.area === 'object') && !pendingArea
@@ -52,15 +53,19 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
     staleTime: 60_000,
   })
 
+  const schemeChanged = pendingScheme.trim() !== (contact.sectionalScheme ?? '').trim()
+
   const mut = useMutation({
     mutationFn: async (payload) => {
-      // Address/area live on the Contact, not the Lead — if either was filled in here
-      // (because the contact was missing them), save that to the contact first so the
+      // Address/area/scheme live on the Contact, not the Lead — if any changed here
+      // (address/area because the contact was missing them, scheme because a landlord
+      // can own units across more than one), save that to the contact first so the
       // backend's own contact-derived address/area check on lead creation passes.
-      if (pendingAddress || pendingArea) {
+      if (pendingAddress || pendingArea || schemeChanged) {
         await contactsApi.update(contact._id, {
           ...(pendingAddress ? { address: pendingAddress } : {}),
           ...(pendingArea ? { area: pendingArea } : {}),
+          ...(schemeChanged ? { sectionalScheme: pendingScheme.trim() || null } : {}),
         })
       }
       return leadsApi.create(payload)
@@ -151,8 +156,10 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
             areas={areasData}
             pendingAddress={pendingAddress}
             pendingArea={pendingArea}
+            pendingScheme={pendingScheme}
             onAddressChange={setPendingAddress}
             onAreaChange={setPendingArea}
+            onSchemeChange={setPendingScheme}
           />
         </form>
       </div>

@@ -14,6 +14,7 @@ export const contactsApi = {
   assignByRange:  (data) => axiosClient.post('/contacts/assign-by-range', data),
   assignByScheme: (data) => axiosClient.post('/contacts/assign-by-scheme', data),
   assignByBatch:  (data) => axiosClient.post('/contacts/assign-by-batch', data),
+  assignByIds:    (data) => axiosClient.post('/contacts/assign-by-ids', data),
   assignPreview:  (data) => axiosClient.post('/contacts/assign-preview', data),
   resolveDuplicates: (data) => axiosClient.post('/contacts/resolve-duplicates', data),
   getBatchStats:  (batchId) => axiosClient.get(`/contacts/files/${batchId}/stats`),

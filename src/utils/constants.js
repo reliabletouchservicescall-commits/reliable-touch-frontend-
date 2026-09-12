@@ -1,4 +1,4 @@
-export const ROLES = ['admin', 'cold_caller', 'agency']
+export const ROLES = ['admin', 'cold_caller', 'agency', 'follow_up_manager']
 
 export const CALL_OUTCOMES = ['no_answer', 'wrong_number', 'remove_me', 'interested', 'callback_requested']
 
@@ -24,10 +24,12 @@ export const ROLE_LABELS = {
   admin: 'Administrator',
   cold_caller: 'Cold Caller',
   agency: 'Agency',
+  follow_up_manager: 'Follow Up Manager',
 }
 
 export const ROLE_HOME = {
   admin: '/admin',
   cold_caller: '/cold-caller',
   agency: '/agency',
+  follow_up_manager: '/follow-up-manager',
 }

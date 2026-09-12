@@ -1,9 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle, Plus, Loader2, X, Search, ChevronDown } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import {
+  Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle,
+  Plus, Loader2, X, Search, ChevronDown, MessageSquare, Send,
+} from 'lucide-react'
 import { areasApi } from '../../services/areasApi'
 import { contactsApi } from '../../services/contactsApi'
+import { leadsApi } from '../../services/leadsApi'
 
 function useDebounce(value, delay = 300) {
   const [debounced, setDebounced] = useState(value)
@@ -211,7 +216,7 @@ function SearchableAreaSelect({ areas, value, onChange, placeholder = 'Select ar
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search area…"
-              className="w-full pl-8 pr-2 py-2 text-sm bg-[#F5F5F4] dark:bg-[#202020] rounded-lg outline-none ring-2 ring-transparent focus:ring-[#8B5CF6]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40"
+              className="w-full pl-8 pr-2 py-2 text-sm bg-[#F5F5F4] dark:bg-[#202020] rounded-lg outline-none ring-2 ring-transparent focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40"
             />
           </div>
           <div className="max-h-48 overflow-y-auto">
@@ -227,7 +232,7 @@ function SearchableAreaSelect({ areas, value, onChange, placeholder = 'Select ar
                   onClick={() => { onChange(a._id); setOpen(false); setSearch('') }}
                   className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
                     value === a._id
-                      ? 'bg-[#8B5CF6]/8 text-[#8B5CF6] font-semibold'
+                      ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
                       : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
                   }`}
                 >
@@ -348,6 +353,67 @@ export function SearchableContactSelect({ value, onChange, placeholder = 'Select
 }
 
 /**
+ * Autopopulating scheme picker — a landlord can own units across more than one
+ * sectional scheme, so unlike area this is never locked once set: it's always
+ * editable. Schemes are free text on the Contact (no fixed Scheme entity to select
+ * from), so this is a combobox rather than a strict select — typing filters the list
+ * of existing scheme names fetched from the backend, clicking one fills it in, but
+ * typing a brand new name that isn't in the list yet is just as valid.
+ */
+function SearchableSchemeSelect({ value, onChange, placeholder = 'Select or type a scheme…' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const { data: schemesData } = useQuery({
+    queryKey: ['contact-schemes'],
+    queryFn: () => contactsApi.listSchemes().then((r) => r.data.data.schemes),
+    staleTime: 5 * 60_000,
+  })
+  const schemes = schemesData ?? []
+
+  const q = (value ?? '').trim().toLowerCase()
+  const filtered = q ? schemes.filter((s) => s.toLowerCase().includes(q)) : schemes
+
+  return (
+    <div className="relative flex-1" ref={ref}>
+      <input
+        value={value ?? ''}
+        onChange={(e) => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+        className={inputCls(false)}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-20 mt-1.5 w-full bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+          {filtered.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => { onChange(s); setOpen(false) }}
+              className={`w-full text-left px-4 py-2.5 text-sm truncate transition-colors ${
+                s === value
+                  ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
+                  : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Compact inline "create a new area" card — shown when the area someone needs isn't in
  * the dropdown yet. Creates it via the API, refreshes the shared `['areas-select']`
  * query (used by every page that lists areas for a picker) so it shows up everywhere
@@ -375,9 +441,9 @@ function AddAreaInline({ onCreated, onCancel }) {
   }
 
   return (
-    <div className="col-span-2 rounded-xl border border-[#8B5CF6]/30 bg-white dark:bg-[#181818] p-3 space-y-2.5">
+    <div className="col-span-2 rounded-xl border border-[#F95C4B]/30 bg-white dark:bg-[#181818] p-3 space-y-2.5">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8B5CF6]">New Area</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#F95C4B]">New Area</p>
         <button type="button" onClick={onCancel} className="text-[#6B7280] hover:text-[#111111] dark:hover:text-white">
           <X className="w-3.5 h-3.5" />
         </button>
@@ -405,7 +471,7 @@ function AddAreaInline({ onCreated, onCancel }) {
           Cancel
         </button>
         <button type="button" onClick={handleSave} disabled={mut.isPending}
-          className="flex-1 py-2 rounded-lg text-xs font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 flex items-center justify-center gap-1.5">
+          className="flex-1 py-2 rounded-lg text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 flex items-center justify-center gap-1.5">
           {mut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           Add Area
         </button>
@@ -425,7 +491,9 @@ function AddAreaInline({ onCreated, onCancel }) {
  * someone needs isn't in `areas` yet, a "+ Add new area" affordance lets them create
  * one on the spot (see AddAreaInline) instead of having to leave the flow.
  */
-export function PropertyFromContact({ contact, loading, areas, pendingAddress, pendingArea, onAddressChange, onAreaChange }) {
+export function PropertyFromContact({
+  contact, loading, areas, pendingAddress, pendingArea, pendingScheme, onAddressChange, onAreaChange, onSchemeChange,
+}) {
   const [addingArea, setAddingArea] = useState(false)
   if (loading) {
     return <div className="h-24 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />
@@ -446,8 +514,8 @@ export function PropertyFromContact({ contact, loading, areas, pendingAddress, p
   const stillMissingArea = missingArea && !pendingArea
 
   return (
-    <div className="rounded-xl border border-[#8B5CF6]/20 bg-[#8B5CF6]/5 dark:bg-[#8B5CF6]/8 p-4 space-y-3">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8B5CF6] flex items-center gap-1.5">
+    <div className="rounded-xl border border-[#F95C4B]/20 bg-[#F95C4B]/5 dark:bg-[#F95C4B]/8 p-4 space-y-3">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#F95C4B] flex items-center gap-1.5">
         <MapPin className="w-3.5 h-3.5" /> Property (from Contact)
       </p>
 
@@ -478,7 +546,7 @@ export function PropertyFromContact({ contact, loading, areas, pendingAddress, p
                 type="button"
                 onClick={() => setAddingArea(true)}
                 title="Add a new area"
-                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-[#8B5CF6]/10 text-[#8B5CF6] hover:bg-[#8B5CF6]/20 transition-colors"
+                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-[#F95C4B]/10 text-[#F95C4B] hover:bg-[#F95C4B]/20 transition-colors"
               >
                 <Plus className="w-4 h-4" strokeWidth={2} />
               </button>
@@ -493,10 +561,16 @@ export function PropertyFromContact({ contact, loading, areas, pendingAddress, p
             onCancel={() => setAddingArea(false)}
           />
         )}
-        {contact.sectionalScheme && (
-          <div>
+        {(contact.sectionalScheme || onSchemeChange) && (
+          <div className={onSchemeChange ? 'col-span-2' : undefined}>
             <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Scheme</p>
-            <p className="text-sm font-bold text-[#111111] dark:text-white">{contact.sectionalScheme}</p>
+            {onSchemeChange ? (
+              <div className="mt-1">
+                <SearchableSchemeSelect value={pendingScheme} onChange={onSchemeChange} />
+              </div>
+            ) : (
+              <p className="text-sm font-bold text-[#111111] dark:text-white">{contact.sectionalScheme}</p>
+            )}
           </div>
         )}
         {contact.unitNumber && (
@@ -514,7 +588,7 @@ export function PropertyFromContact({ contact, loading, areas, pendingAddress, p
       </div>
 
       {(stillMissingAddress || stillMissingArea) && (
-        <div className="flex items-start gap-2 pt-2.5 border-t border-[#8B5CF6]/15">
+        <div className="flex items-start gap-2 pt-2.5 border-t border-[#F95C4B]/15">
           <AlertTriangle className="w-3.5 h-3.5 text-[#EF4444] flex-shrink-0 mt-0.5" strokeWidth={1.75} />
           <p className="text-xs text-[#EF4444] leading-relaxed">
             This contact is missing {stillMissingAddress && stillMissingArea ? 'an address and area' : stillMissingAddress ? 'an address' : 'an area'}.
@@ -523,7 +597,7 @@ export function PropertyFromContact({ contact, loading, areas, pendingAddress, p
         </div>
       )}
       {editable && (missingAddress || missingArea) && !stillMissingAddress && !stillMissingArea && (
-        <div className="flex items-start gap-2 pt-2.5 border-t border-[#8B5CF6]/15">
+        <div className="flex items-start gap-2 pt-2.5 border-t border-[#F95C4B]/15">
           <MapPin className="w-3.5 h-3.5 text-[#10B981] flex-shrink-0 mt-0.5" strokeWidth={1.75} />
           <p className="text-xs text-[#10B981] leading-relaxed">
             Ready — this will be saved to the contact when you create the lead.
@@ -584,5 +658,118 @@ export function LeadStatusBadge({ status, size }) {
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: meta.color }} />
       {meta.label}
     </span>
+  )
+}
+
+const COMMENT_AUTHOR_META = {
+  admin:             { label: 'Admin',              color: '#F95C4B' },
+  cold_caller:       { label: 'Cold Caller',         color: '#3B82F6' },
+  follow_up_manager: { label: 'Follow Up Manager',   color: '#8B5CF6' },
+  agency:            { label: 'Agency',              color: '#10B981' },
+}
+
+/**
+ * Follow-up comment thread — one flat, timestamped feed shared by the cold caller who
+ * owns the lead, a follow-up manager working it (hot leads only), and admin (replying to
+ * either). Read-only when `canComment` is false/omitted (e.g. an agency viewing a lead
+ * has no stake in this internal conversation and isn't wired into the backend route at
+ * all, but the component itself stays purely presentational either way).
+ */
+export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
+  const [text, setText] = useState('')
+  const comments = lead.followUpComments ?? []
+
+  const mut = useMutation({
+    mutationFn: () => leadsApi.addComment(lead._id, text.trim()),
+    onSuccess: (res) => {
+      setText('')
+      onAdded?.(res.data.data.lead)
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to add comment')),
+  })
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!text.trim() || mut.isPending) return
+    mut.mutate()
+  }
+
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2 flex items-center gap-1.5">
+        <MessageSquare className="w-3.5 h-3.5" /> Follow-Up Comments
+      </p>
+
+      {comments.length === 0 ? (
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic text-center py-4 bg-[#F5F5F4] dark:bg-[#202020] rounded-xl">
+          No follow-up comments yet.
+        </p>
+      ) : (
+        <ul className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+          {[...comments].reverse().map((c, i) => {
+            const author = (c.authorId && typeof c.authorId === 'object') ? c.authorId : null
+            const meta = COMMENT_AUTHOR_META[c.authorRole] ?? { label: c.authorRole, color: '#6B7280' }
+            const isMine = author?._id === currentUserId
+            const initials = author
+              ? `${author.firstName?.[0] ?? ''}${author.lastName?.[0] ?? ''}`.toUpperCase()
+              : '?'
+            return (
+              <li key={c._id ?? i} className="flex items-start gap-2.5">
+                <div
+                  className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white mt-0.5"
+                  style={{ backgroundColor: meta.color }}
+                >
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0 bg-[#F5F5F4] dark:bg-[#202020] rounded-xl px-3.5 py-2.5">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="text-xs font-semibold text-[#111111] dark:text-white">
+                      {author ? `${author.firstName} ${author.lastName}` : 'Unknown'}
+                      {isMine && <span className="text-[#6B7280] dark:text-[#A1A1AA] font-normal"> (You)</span>}
+                    </span>
+                    <span
+                      className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                      style={{ color: meta.color, backgroundColor: `${meta.color}18` }}
+                    >
+                      {meta.label}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[#111111] dark:text-white leading-relaxed whitespace-pre-wrap break-words">
+                    {c.text}
+                  </p>
+                  {c.createdAt && (
+                    <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] mt-1">
+                      {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
+                    </p>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {canComment && (
+        <form onSubmit={handleSubmit} className="flex items-end gap-2 mt-3">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Add a follow-up comment…"
+            rows={2}
+            className={`${inputCls(false)} resize-none flex-1`}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e) }
+            }}
+          />
+          <button
+            type="submit"
+            disabled={mut.isPending || !text.trim()}
+            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-50 transition-colors"
+          >
+            {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </form>
+      )}
+    </div>
   )
 }
