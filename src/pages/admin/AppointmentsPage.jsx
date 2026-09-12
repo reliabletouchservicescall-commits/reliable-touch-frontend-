@@ -11,6 +11,7 @@ import {
 import { appointmentsApi } from '../../services/appointmentsApi'
 import { leadsApi }        from '../../services/leadsApi'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
+import { ListingTypeFilter, ListingBadge } from '../../components/leads/leadShared'
 
 const ROLE_LABEL = { admin: 'Admin', agency: 'Agency', cold_caller: 'Cold Caller' }
 
@@ -523,6 +524,7 @@ function ApptRow({ appt, onView, onEdit, onStatusChange, isChanging }) {
       <td className="px-4 py-3.5">
         <p className="text-sm font-semibold text-[#111111] dark:text-white truncate max-w-[180px]">{lead?.landlordName ?? '—'}</p>
         <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate max-w-[180px]">{lead?.propertyAddress}</p>
+        {lead?.listingType && <div className="mt-1"><ListingBadge listingType={lead.listingType} /></div>}
       </td>
       <td className="px-4 py-3.5">
         {agent ? (
@@ -573,6 +575,7 @@ function ApptRow({ appt, onView, onEdit, onStatusChange, isChanging }) {
 
 export default function AppointmentsPage() {
   const [statusFilter, setStatus]  = useState('')
+  const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [search,       setSearch]  = useState('')
   const [agentFilter,  setAgent]   = useState('')
   const [sort,         setSort]    = useState('scheduledDate')
@@ -583,15 +586,16 @@ export default function AppointmentsPage() {
   const debouncedSearch = useDebounce(search)
   const qc = useQueryClient()
 
-  useEffect(() => { setPage(1) }, [statusFilter, debouncedSearch, agentFilter, sort])
+  useEffect(() => { setPage(1) }, [statusFilter, listingTypeFilter, debouncedSearch, agentFilter, sort])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['appointments', { page, status: statusFilter, search: debouncedSearch, agentId: agentFilter, sort }],
+    queryKey: ['appointments', { page, status: statusFilter, listingType: listingTypeFilter, search: debouncedSearch, agentId: agentFilter, sort }],
     queryFn: () =>
       appointmentsApi.list({
         page, limit: 20,
-        status:  statusFilter   || undefined,
-        agentId: agentFilter    || undefined,
+        status:      statusFilter        || undefined,
+        listingType: listingTypeFilter   || undefined,
+        agentId:     agentFilter         || undefined,
         sort,
       }).then((r) => r.data.data),
     placeholderData: keepPreviousData,
@@ -614,7 +618,7 @@ export default function AppointmentsPage() {
   const totalPages   = data?.totalPages   ?? 1
   const assignees    = assigneesData ?? []
   const allAppts     = allData?.appointments ?? []
-  const hasFilters   = Boolean(statusFilter || debouncedSearch || agentFilter)
+  const hasFilters   = Boolean(statusFilter || listingTypeFilter || debouncedSearch || agentFilter)
 
   const stats = {
     total:     allData?.total ?? 0,
@@ -705,6 +709,8 @@ export default function AppointmentsPage() {
             className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 focus:border-[#F95C4B] focus:ring-2 focus:ring-[#F95C4B]/20 outline-none" />
           {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111] dark:hover:text-white"><X className="w-3.5 h-3.5" /></button>}
         </div>
+
+        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
 
         {/* Assignee filter */}
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] self-start">

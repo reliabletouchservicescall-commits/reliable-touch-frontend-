@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Flame,
   CalendarCheck,
+  Megaphone,
   Bell,
   MessageSquare,
   LogOut,
@@ -34,6 +35,7 @@ const NAV = [
     items: [
       { label: 'Hot Leads',     icon: Flame,         to: '/follow-up-manager/leads' },
       { label: 'Appointments',  icon: CalendarCheck, to: '/follow-up-manager/appointments' },
+      { label: 'Campaigns',     icon: Megaphone,     to: '/follow-up-manager/campaigns' },
     ],
   },
   {

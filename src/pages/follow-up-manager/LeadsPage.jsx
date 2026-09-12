@@ -9,7 +9,7 @@ import { leadsApi } from '../../services/leadsApi'
 import { appointmentsApi } from '../../services/appointmentsApi'
 import { useAuthStore } from '../../store/authStore'
 import {
-  ListingFields, ListingBadge, PropertyFromContact, LeadStatusBadge, FollowUpComments,
+  ListingFields, ListingBadge, ListingTypeFilter, PropertyFromContact, LeadStatusBadge, FollowUpComments,
   Field, inputCls, LEAD_STATUS_META, getApiErrorMessage,
 } from '../../components/leads/leadShared'
 import LeadAppointments from '../../components/appointments/LeadAppointments'
@@ -359,12 +359,17 @@ function EmptyState({ hasFilters }) {
 
 export default function FollowUpManagerLeadsPage() {
   const [search, setSearch] = useState('')
+  const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [activeLead, setActiveLead] = useState(null)
   const debouncedSearch = useDebounce(search)
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['fum-leads', { search: debouncedSearch }],
-    queryFn: () => leadsApi.list({ search: debouncedSearch || undefined, limit: 100 }).then((r) => r.data.data),
+    queryKey: ['fum-leads', { search: debouncedSearch, listingType: listingTypeFilter }],
+    queryFn: () => leadsApi.list({
+      search:      debouncedSearch    || undefined,
+      listingType: listingTypeFilter  || undefined,
+      limit: 100,
+    }).then((r) => r.data.data),
     placeholderData: keepPreviousData,
   })
 
@@ -404,8 +409,8 @@ export default function FollowUpManagerLeadsPage() {
         </div>
       </div>
 
-      <div className="px-5 sm:px-8 py-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="relative max-w-sm">
+      <div className="px-5 sm:px-8 py-3 flex flex-col sm:flex-row gap-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+        <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
           <input
             value={search}
@@ -419,6 +424,7 @@ export default function FollowUpManagerLeadsPage() {
             </button>
           )}
         </div>
+        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#8B5CF6" />
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 sm:px-8 py-5">
@@ -436,7 +442,7 @@ export default function FollowUpManagerLeadsPage() {
             ))}
           </div>
         ) : leads.length === 0 ? (
-          <EmptyState hasFilters={Boolean(search)} />
+          <EmptyState hasFilters={Boolean(search || listingTypeFilter)} />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {leads.map((lead) => (

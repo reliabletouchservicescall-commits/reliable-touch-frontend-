@@ -11,7 +11,7 @@ import { leadsApi } from '../../services/leadsApi'
 import { useAuthStore } from '../../store/authStore'
 import SidePanel from '../../components/common/SidePanel'
 import BookAppointmentDrawer from '../../components/appointments/BookAppointmentDrawer'
-import { Field, inputCls } from '../../components/leads/leadShared'
+import { Field, inputCls, ListingTypeFilter, ListingBadge } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -178,6 +178,7 @@ function AppointmentCard({ appt, selfId, onChangeStatus, onReschedule, isChangin
         <div className="min-w-0">
           <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{lead?.landlordName ?? 'Appointment'}</p>
           <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 truncate">{lead?.propertyAddress}</p>
+          {lead?.listingType && <div className="mt-1.5"><ListingBadge listingType={lead.listingType} /></div>}
         </div>
         <span className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold" style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
           <Icon className="w-3 h-3" strokeWidth={2} />
@@ -278,14 +279,19 @@ export default function ColdCallerAppointmentsPage() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
+  const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [picking, setPicking] = useState(false)
   const [bookingLead, setBookingLead] = useState(null)
   const [rescheduling, setRescheduling] = useState(null)
   const [changing, setChanging] = useState(null)
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['appointments', { mine: true, status: statusFilter }],
-    queryFn: () => appointmentsApi.list({ status: statusFilter || undefined, limit: 100 }).then((r) => r.data.data),
+    queryKey: ['appointments', { mine: true, status: statusFilter, listingType: listingTypeFilter }],
+    queryFn: () => appointmentsApi.list({
+      status:      statusFilter      || undefined,
+      listingType: listingTypeFilter || undefined,
+      limit: 100,
+    }).then((r) => r.data.data),
     staleTime: 15_000,
   })
   const appointments = data?.appointments ?? []
@@ -328,23 +334,26 @@ export default function ColdCallerAppointmentsPage() {
           </button>
         </div>
 
-        <div className="flex gap-0.5 overflow-x-auto pb-px">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              className={[
-                'flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap',
-                'border-b-2 transition-all rounded-t-lg',
-                statusFilter === tab.key
-                  ? 'border-[#3B82F6] text-[#3B82F6] bg-[#3B82F6]/5'
-                  : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
-              ].join(' ')}
-            >
-              {tab.key && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_META[tab.key]?.color }} />}
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center justify-between gap-3 flex-wrap pb-3">
+          <div className="flex gap-0.5 overflow-x-auto pb-px">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={[
+                  'flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap',
+                  'border-b-2 transition-all rounded-t-lg',
+                  statusFilter === tab.key
+                    ? 'border-[#3B82F6] text-[#3B82F6] bg-[#3B82F6]/5'
+                    : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
+                ].join(' ')}
+              >
+                {tab.key && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_META[tab.key]?.color }} />}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#3B82F6" />
         </div>
       </div>
 
@@ -364,7 +373,7 @@ export default function ColdCallerAppointmentsPage() {
             ))}
           </div>
         ) : appointments.length === 0 ? (
-          <EmptyState hasFilters={Boolean(statusFilter)} onAdd={() => setPicking(true)} />
+          <EmptyState hasFilters={Boolean(statusFilter || listingTypeFilter)} onAdd={() => setPicking(true)} />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {appointments.map((appt) => (

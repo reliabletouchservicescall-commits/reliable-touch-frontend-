@@ -11,7 +11,7 @@ import { format } from 'date-fns'
 import { appointmentsApi } from '../../services/appointmentsApi'
 import { agentsApi } from '../../services/agentsApi'
 import SidePanel from '../../components/common/SidePanel'
-import { ListingBadge } from '../../components/leads/leadShared'
+import { ListingBadge, ListingTypeFilter } from '../../components/leads/leadShared'
 
 /* ─── Constants ─────────────────────────────────────────────────────────── */
 
@@ -694,15 +694,20 @@ function RecordOutcomePanel({ appointment, onClose, onSuccess }) {
 export default function AgencyAppointmentsPage() {
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
+  const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [search, setSearch] = useState('')
   const [selected, setSelected]   = useState(null)
   const [showOutcome, setShowOutcome] = useState(false)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['agency-appointments', statusFilter],
+    queryKey: ['agency-appointments', statusFilter, listingTypeFilter],
     queryFn: () =>
       appointmentsApi
-        .list({ limit: 100, ...(statusFilter ? { status: statusFilter } : {}) })
+        .list({
+          limit: 100,
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(listingTypeFilter ? { listingType: listingTypeFilter } : {}),
+        })
         .then((r) => r.data?.data?.appointments ?? []),
     staleTime: 30_000,
   })
@@ -805,6 +810,7 @@ export default function AgencyAppointmentsPage() {
               <option key={key} value={key}>{meta.label}</option>
             ))}
           </select>
+          <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
         </div>
 
         {/* Results count */}

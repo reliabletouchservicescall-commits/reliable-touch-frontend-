@@ -49,6 +49,9 @@ import FollowUpManagerDashboard from '../pages/follow-up-manager/DashboardPage'
 import FollowUpManagerLeadsPage from '../pages/follow-up-manager/LeadsPage'
 import FollowUpManagerAppointmentsPage from '../pages/follow-up-manager/AppointmentsPage'
 import FollowUpManagerNotificationsPage from '../pages/follow-up-manager/NotificationsPage'
+// Campaigns is a purely read-only, role-agnostic list (no cold-caller-specific logic or
+// copy) — reused as-is (see ColdCallerCampaignsPage import above) rather than cloning
+// a near-duplicate file.
 
 // Admin (additional)
 import AdminCallLogsPage from '../pages/admin/CallLogsPage'
@@ -170,6 +173,7 @@ export default function AppRouter() {
           <Route index element={<FollowUpManagerDashboard />} />
           <Route path="leads" element={<FollowUpManagerLeadsPage />} />
           <Route path="appointments" element={<FollowUpManagerAppointmentsPage />} />
+          <Route path="campaigns" element={<ColdCallerCampaignsPage />} />
           <Route path="notifications" element={<FollowUpManagerNotificationsPage />} />
           <Route path="chat" element={<UserChatPage />} />
         </Route>

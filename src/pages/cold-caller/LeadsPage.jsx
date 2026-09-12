@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
-import { LEAD_STATUS_META, LeadStatusBadge, FollowUpChip } from '../../components/leads/leadShared'
+import { LEAD_STATUS_META, LeadStatusBadge, FollowUpChip, ListingTypeFilter, ListingBadge } from '../../components/leads/leadShared'
 import SidePanel from '../../components/common/SidePanel'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import LeadDetailDrawer from '../../components/leads/LeadDetailDrawer'
@@ -119,6 +119,8 @@ function LeadCard({ lead, onOpen }) {
         <LeadStatusBadge status={lead.status} />
       </div>
 
+      {lead.listingType && <div className="mt-2"><ListingBadge listingType={lead.listingType} /></div>}
+
       <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 mt-3">
         <span className="flex items-center gap-1 text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
           <Phone className="w-3 h-3 flex-shrink-0" />
@@ -180,6 +182,7 @@ export default function ColdCallerLeadsPage() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [createContact, setCreateContact] = useState(null)
   const [activeLead, setActiveLead] = useState(null)
@@ -197,17 +200,22 @@ export default function ColdCallerLeadsPage() {
   }, [deepLinkContact])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, mine: true }],
+    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, mine: true }],
     queryFn: () =>
       leadsApi
-        .list({ search: debouncedSearch || undefined, status: statusFilter || undefined, limit: 100 })
+        .list({
+          search:      debouncedSearch    || undefined,
+          status:      statusFilter       || undefined,
+          listingType: listingTypeFilter  || undefined,
+          limit: 100,
+        })
         .then((r) => r.data.data),
     placeholderData: keepPreviousData,
   })
 
   const leads = data?.leads ?? []
   const total = leads.length
-  const hasFilters = Boolean(search || statusFilter)
+  const hasFilters = Boolean(search || statusFilter || listingTypeFilter)
 
   const counts = STATUS_TABS.reduce((acc, t) => {
     if (!t.key) return acc
@@ -268,8 +276,8 @@ export default function ColdCallerLeadsPage() {
       </div>
 
       {/* ── Search ───────────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 py-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="relative max-w-sm">
+      <div className="px-5 sm:px-8 py-3 flex flex-col sm:flex-row gap-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+        <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
           <input
             value={search}
@@ -283,6 +291,7 @@ export default function ColdCallerLeadsPage() {
             </button>
           )}
         </div>
+        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
       </div>
 
       {/* ── List ─────────────────────────────────────────────────────────── */}

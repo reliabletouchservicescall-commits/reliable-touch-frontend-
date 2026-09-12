@@ -116,6 +116,41 @@ export function ListingBadge({ listingType, priceMin, priceMax, size }) {
   )
 }
 
+/**
+ * Compact "All / For Sale / For Rental" segmented filter — shared by every leads and
+ * appointments list page (a landlord's lead is always one or the other, and an
+ * appointment inherits it from the lead it's booked against). `accent` lets each page
+ * match its own role's brand color for the active pill; the per-type colors/icons in
+ * LISTING_TYPE_META are deliberately NOT used here — this is a page-level filter
+ * control, not a badge, so it should read as "this page's accent," not "sale=purple."
+ */
+export function ListingTypeFilter({ value, onChange, accent = '#F95C4B' }) {
+  const options = [
+    { key: '', label: 'All' },
+    { key: 'sale', label: 'For Sale' },
+    { key: 'rental', label: 'For Rental' },
+  ]
+  return (
+    <div className="flex items-center gap-1 p-1 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] flex-shrink-0">
+      {options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => onChange(o.key)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+            value === o.key
+              ? 'text-white shadow-sm'
+              : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
+          }`}
+          style={value === o.key ? { backgroundColor: accent } : undefined}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** Listing Type + Price Range fields — optional on every lead, shared by every create/edit form. */
 export function ListingFields({ form, setField, errors }) {
   return (

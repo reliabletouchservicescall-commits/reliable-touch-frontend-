@@ -10,7 +10,7 @@ import { agentsApi } from '../../services/agentsApi'
 import { leadsApi } from '../../services/leadsApi'
 import SidePanel from '../../components/common/SidePanel'
 import LeadAppointments from '../../components/appointments/LeadAppointments'
-import { ListingBadge, inputCls, Field } from '../../components/leads/leadShared'
+import { ListingBadge, inputCls, Field, ListingTypeFilter } from '../../components/leads/leadShared'
 
 const STATUS_META = {
   cold:       { label: 'Cold',       color: '#6B7280', bg: '#6B728018' },
@@ -265,11 +265,16 @@ function LeadDetailPanel({ lead, onClose, onSaved }) {
 
 export default function AgencyLeadsPage() {
   const [status, setStatus] = useState('')
+  const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState(null)
 
-  const params = { page, limit: 20, ...(status ? { status } : {}) }
+  const params = {
+    page, limit: 20,
+    ...(status ? { status } : {}),
+    ...(listingTypeFilter ? { listingType: listingTypeFilter } : {}),
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['agent-leads', params],
@@ -295,6 +300,11 @@ export default function AgencyLeadsPage() {
 
   function handleTabChange(key) {
     setStatus(key)
+    setPage(1)
+  }
+
+  function handleListingTypeChange(key) {
+    setListingTypeFilter(key)
     setPage(1)
   }
 
@@ -329,20 +339,23 @@ export default function AgencyLeadsPage() {
       </div>
 
       {/* Status tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {STATUS_TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => handleTabChange(t.key)}
-            className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              status === t.key
-                ? 'bg-[#3B82F6] text-white shadow-sm'
-                : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#3B82F6]/40 hover:text-[#3B82F6]'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {STATUS_TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => handleTabChange(t.key)}
+              className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                status === t.key
+                  ? 'bg-[#3B82F6] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#3B82F6]/40 hover:text-[#3B82F6]'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <ListingTypeFilter value={listingTypeFilter} onChange={handleListingTypeChange} accent="#3B82F6" />
       </div>
 
       {/* Content */}

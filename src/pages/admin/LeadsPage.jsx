@@ -13,7 +13,7 @@ import { contactsApi } from '../../services/contactsApi'
 import { usersApi } from '../../services/usersApi'
 import { areasApi } from '../../services/areasApi'
 import LeadAppointments from '../../components/appointments/LeadAppointments'
-import { ListingFields, ListingBadge, PropertyFromContact, SearchableContactSelect, FollowUpComments, getApiErrorMessage } from '../../components/leads/leadShared'
+import { ListingFields, ListingBadge, ListingTypeFilter, PropertyFromContact, SearchableContactSelect, FollowUpComments, getApiErrorMessage } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 import { useAuthStore } from '../../store/authStore'
 
@@ -1070,6 +1070,7 @@ function EmptyState({ hasFilters, onAdd }) {
 export default function LeadsPage() {
   const [search,        setSearch]      = useState('')
   const [statusFilter,  setStatus]      = useState('')
+  const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [callerFilter,  setCallerFilter] = useState('')
   const [sort,          setSort]        = useState('-createdAt')
   const [drawer,        setDrawer]      = useState(null)
@@ -1078,16 +1079,17 @@ export default function LeadsPage() {
 
   const debouncedSearch = useDebounce(search)
 
-  useEffect(() => { /* reset page if needed */ }, [debouncedSearch, statusFilter, callerFilter, sort])
+  useEffect(() => { /* reset page if needed */ }, [debouncedSearch, statusFilter, listingTypeFilter, callerFilter, sort])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, createdBy: callerFilter, sort }],
+    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, createdBy: callerFilter, sort }],
     queryFn: () =>
       leadsApi
         .list({
-          search:    debouncedSearch || undefined,
-          status:    statusFilter    || undefined,
-          createdBy: callerFilter    || undefined,
+          search:      debouncedSearch     || undefined,
+          status:      statusFilter        || undefined,
+          listingType: listingTypeFilter   || undefined,
+          createdBy:   callerFilter        || undefined,
           sort,
           limit: 100,
         })
@@ -1097,7 +1099,7 @@ export default function LeadsPage() {
 
   const leads = data?.leads ?? data ?? []
   const total = Array.isArray(leads) ? leads.length : 0
-  const hasFilters = Boolean(search || statusFilter || callerFilter)
+  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || callerFilter)
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -1168,6 +1170,8 @@ export default function LeadsPage() {
             </button>
           )}
         </div>
+
+        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
 
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] self-start">
           <SlidersHorizontal className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" />
