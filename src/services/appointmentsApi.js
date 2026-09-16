@@ -8,4 +8,5 @@ export const appointmentsApi = {
   getById:   (id)     => axiosClient.get(`/appointments/${id}`),
   create:    (data)   => axiosClient.post('/appointments', data),
   update:    (id, data) => axiosClient.patch(`/appointments/${id}`, data),
+  remove:    (id)     => axiosClient.delete(`/appointments/${id}`),
 }

@@ -28,6 +28,7 @@ import {
   Trophy,
   BarChart2,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuthStore } from '../store/authStore'
@@ -79,6 +80,7 @@ const NAV = [
       { label: 'Areas', icon: MapPin, to: '/admin/areas' },
       { label: 'Notifications', icon: Bell, to: '/admin/notifications' },
       { label: 'Messages', icon: MessageSquare, to: '/admin/chat', hasBadge: true },
+      { label: 'Bin', icon: Trash2, to: '/admin/bin' },
     ],
   },
 ]

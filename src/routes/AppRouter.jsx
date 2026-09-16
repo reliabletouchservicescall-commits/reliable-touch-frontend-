@@ -65,6 +65,7 @@ import AgentsPerformancePage from '../pages/admin/AgentsPerformancePage'
 import ReportsPage from '../pages/admin/ReportsPage'
 import LoginActivityPage from '../pages/admin/LoginActivityPage'
 import AdminNotificationsPage from '../pages/admin/NotificationsPage'
+import BinPage from '../pages/admin/BinPage'
 
 // Shared
 import UserChatPage from '../pages/shared/UserChatPage'
@@ -125,6 +126,7 @@ export default function AppRouter() {
           <Route path="login-activity" element={<LoginActivityPage />} />
           <Route path="notifications" element={<AdminNotificationsPage />} />
           <Route path="chat" element={<AdminChatPage />} />
+          <Route path="bin" element={<BinPage />} />
         </Route>
 
         {/* ── Cold Caller ──────────────────────────────────────────── */}

@@ -948,17 +948,17 @@ function ImportModal({ onClose, onDone, onViewMissingPhone, onReviewDuplicates }
                   <div>
                     <p className="text-[11px] font-semibold text-[#111111] dark:text-white">Deeds office owner report</p>
                     <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed">
-                      <strong>UNIT</strong> · <strong>SIZE</strong> · <strong>SECTIONAL SCHEME</strong> · <strong>NAME</strong> · <strong>IDENTIFIER</strong> (ID number) · <strong>Column1</strong> (phone / DO NOT CONTACT / COMPANY / etc.)
+                      <strong>UNIT</strong> · <strong>SIZE</strong> · <strong>SECTIONAL SCHEME</strong> · <strong>NAME</strong> · <strong>IDENTIFIER</strong> (ID number) · last column (phone / DO NOT CONTACT / COMPANY / etc.) — the last column may be named <strong>Column1</strong> or <strong>CONTACTS</strong>, and numbers may be separated with "/" or "\".
                     </p>
                   </div>
                   <div>
                     <p className="text-[11px] font-semibold text-[#111111] dark:text-white">Scheme / Units workbook</p>
                     <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed">
-                      A workbook with a <strong>Units</strong> sheet — <strong>Unit Number</strong> · <strong>Current Owners Names</strong> · <strong>Current Owners IDs</strong> · <strong>Size (m²)</strong> · <strong>Phone Numbers</strong>. Co-owned units (multiple names) are split into one contact per owner, matched to their own number where labeled.
+                      A workbook with a <strong>Units</strong> sheet — <strong>Unit Number</strong> · <strong>Current Owners Names</strong> · <strong>Current Owners IDs</strong> · <strong>Size (m²)</strong> · a phone column, labeled <strong>Phone Numbers</strong> or left unlabeled as the sheet's last column. Extra columns (e.g. Transfer/Sale Date) are ignored. Co-owned units (multiple names) are split into one contact per owner, matched to their own number where labeled.
                     </p>
                   </div>
-                  <p className="text-[11px] text-[#EF4444]">
-                    "DO NOT CONTACT" entries are automatically added to the Do Not Call list.
+                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
+                    Rows without a usable phone number are still imported with no phone (so the property/owner stays on record) — "DO NOT CONTACT" rows are marked with a Do Not Call status, and "COMPANY" / incomplete-ID / no-results rows are noted accordingly.
                   </p>
                 </div>
 

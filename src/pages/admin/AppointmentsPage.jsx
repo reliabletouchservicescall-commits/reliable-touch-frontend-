@@ -6,7 +6,7 @@ import {
   Calendar, Plus, Search, X, Pencil, Eye, AlertTriangle, Loader2,
   Clock, CheckCircle2, XCircle, UserX, ChevronLeft, ChevronRight,
   SlidersHorizontal, MapPin, User, Phone, FileText, CalendarCheck,
-  CalendarClock, Hourglass, Ban, Users,
+  CalendarClock, Hourglass, Ban, Users, Trash2,
 } from 'lucide-react'
 import { appointmentsApi } from '../../services/appointmentsApi'
 import { leadsApi }        from '../../services/leadsApi'
@@ -514,7 +514,7 @@ function EmptyState({ hasFilters, onAdd }) {
 
 /* ─── Appointment Row ─────────────────────────────────────────────────────── */
 
-function ApptRow({ appt, onView, onEdit, onStatusChange, isChanging }) {
+function ApptRow({ appt, onView, onEdit, onStatusChange, onDelete, isChanging }) {
   const lead  = resolveLead(appt.leadId)
   const agent = resolveUser(appt.agentId)
   const d     = new Date(appt.scheduledDate)
@@ -565,9 +565,63 @@ function ApptRow({ appt, onView, onEdit, onStatusChange, isChanging }) {
               Confirm
             </button>
           )}
+          <button title="Delete" onClick={(e) => { e.stopPropagation(); onDelete() }} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-all">
+            <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+          </button>
         </div>
       </td>
     </tr>
+  )
+}
+
+/* ─── Delete Dialog ───────────────────────────────────────────────────────── */
+
+function DeleteDialog({ appt, onClose, onDeleted }) {
+  const qc  = useQueryClient()
+  const lead = resolveLead(appt?.leadId)
+  const mut = useMutation({
+    mutationFn: () => appointmentsApi.remove(appt._id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointments'] })
+      qc.invalidateQueries({ queryKey: ['appointments-all'] })
+      toast.success('Appointment moved to Bin')
+      onDeleted()
+    },
+    onError: (err) => toast.error(err.response?.data?.message ?? 'Delete failed'),
+  })
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#EF4444]/10 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-[#EF4444]" />
+            </div>
+            <h3 className="font-bold text-[#111111] dark:text-white">Delete Appointment</h3>
+          </div>
+          <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mb-6">
+            Are you sure you want to delete this appointment
+            {lead?.landlordName ? <> for <span className="font-semibold text-[#111111] dark:text-white">{lead.landlordName}</span></> : null}?{' '}
+            It will be moved to the Bin and can be restored later.
+          </p>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+              Cancel
+            </button>
+            <button
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -582,6 +636,7 @@ export default function AppointmentsPage() {
   const [page,         setPage]    = useState(1)
   const [panel,        setPanel]   = useState(null)
   const [changing,     setChanging] = useState(null)
+  const [toDelete,     setToDelete] = useState(null)
 
   const debouncedSearch = useDebounce(search)
   const qc = useQueryClient()
@@ -759,6 +814,7 @@ export default function AppointmentsPage() {
                       onView={() => setPanel({ mode: 'view', appt: a })}
                       onEdit={() => setPanel({ mode: 'edit', appt: a })}
                       onStatusChange={handleStatusChange}
+                      onDelete={() => setToDelete(a)}
                       isChanging={changing === a._id}
                     />
                   ))}
@@ -787,6 +843,11 @@ export default function AppointmentsPage() {
       {panel?.mode === 'create' && <CreateDrawer onClose={() => setPanel(null)} onSaved={() => setPanel(null)} />}
       {panel?.mode === 'edit'   && panel.appt && <EditDrawer appt={panel.appt} onClose={() => setPanel(null)} onSaved={() => setPanel(null)} />}
       {panel?.mode === 'view'   && panel.appt && <ViewPanel appt={panel.appt} onClose={() => setPanel(null)} onEdit={() => setPanel({ mode: 'edit', appt: panel.appt })} />}
+
+      {/* Delete dialog */}
+      {toDelete && (
+        <DeleteDialog appt={toDelete} onClose={() => setToDelete(null)} onDeleted={() => setToDelete(null)} />
+      )}
     </div>
   )
 }
