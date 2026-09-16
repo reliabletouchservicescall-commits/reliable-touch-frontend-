@@ -17,6 +17,7 @@ import ContactsPage from '../pages/admin/ContactsPage'
 import UsersPage from '../pages/admin/UsersPage'
 import UserDetailPage from '../pages/admin/UserDetailPage'
 import LeadsPage from '../pages/admin/LeadsPage'
+import AdminLeadDetailPage from '../pages/admin/LeadDetailPage'
 import CampaignsPage from '../pages/admin/CampaignsPage'
 import DncPage from '../pages/admin/DncPage'
 import AppointmentsPage from '../pages/admin/AppointmentsPage'
@@ -31,6 +32,7 @@ import ColdCallerDashboard from '../pages/cold-caller/DashboardPage'
 import MyContactsPage from '../pages/cold-caller/MyContactsPage'
 import ColdCallerCallLogsPage from '../pages/cold-caller/CallLogsPage'
 import ColdCallerLeadsPage from '../pages/cold-caller/LeadsPage'
+import ColdCallerLeadDetailPage from '../pages/cold-caller/LeadDetailPage'
 import ColdCallerAppointmentsPage from '../pages/cold-caller/AppointmentsPage'
 import ColdCallerDncPage from '../pages/cold-caller/DncPage'
 import ColdCallerCampaignsPage from '../pages/cold-caller/CampaignsPage'
@@ -42,11 +44,13 @@ import AgencyDashboard from '../pages/agency/DashboardPage'
 import AgencyAppointmentsPage from '../pages/agency/AppointmentsPage'
 import AgencyLeaderboardPage from '../pages/agency/LeaderboardPage'
 import AgencyLeadsPage from '../pages/agency/LeadsPage'
+import AgencyLeadDetailPage from '../pages/agency/LeadDetailPage'
 import AgencyNotificationsPage from '../pages/agency/NotificationsPage'
 
 // Follow Up Manager pages
 import FollowUpManagerDashboard from '../pages/follow-up-manager/DashboardPage'
 import FollowUpManagerLeadsPage from '../pages/follow-up-manager/LeadsPage'
+import FollowUpManagerLeadDetailPage from '../pages/follow-up-manager/LeadDetailPage'
 import FollowUpManagerAppointmentsPage from '../pages/follow-up-manager/AppointmentsPage'
 import FollowUpManagerNotificationsPage from '../pages/follow-up-manager/NotificationsPage'
 // Campaigns is a purely read-only, role-agnostic list (no cold-caller-specific logic or
@@ -105,6 +109,7 @@ export default function AppRouter() {
           <Route path="users/:id" element={<UserDetailPage />} />
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="leads" element={<LeadsPage />} />
+          <Route path="leads/:id" element={<AdminLeadDetailPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="call-logs" element={<AdminCallLogsPage />} />
           <Route path="dnc" element={<DncPage />} />
@@ -135,6 +140,7 @@ export default function AppRouter() {
           <Route path="contacts" element={<MyContactsPage />} />
           <Route path="leads" element={<ColdCallerLeadsPage />} />
           <Route path="leads/new/:contactId" element={<ColdCallerLeadsPage />} />
+          <Route path="leads/:id" element={<ColdCallerLeadDetailPage />} />
           <Route path="call-logs" element={<ColdCallerCallLogsPage />} />
           <Route path="appointments" element={<ColdCallerAppointmentsPage />} />
           <Route path="dnc" element={<ColdCallerDncPage />} />
@@ -156,6 +162,7 @@ export default function AppRouter() {
           <Route index element={<AgencyDashboard />} />
           <Route path="appointments" element={<AgencyAppointmentsPage />} />
           <Route path="leads" element={<AgencyLeadsPage />} />
+          <Route path="leads/:id" element={<AgencyLeadDetailPage />} />
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
           <Route path="notifications" element={<AgencyNotificationsPage />} />
           <Route path="chat" element={<UserChatPage />} />
@@ -172,6 +179,7 @@ export default function AppRouter() {
         >
           <Route index element={<FollowUpManagerDashboard />} />
           <Route path="leads" element={<FollowUpManagerLeadsPage />} />
+          <Route path="leads/:id" element={<FollowUpManagerLeadDetailPage />} />
           <Route path="appointments" element={<FollowUpManagerAppointmentsPage />} />
           <Route path="campaigns" element={<ColdCallerCampaignsPage />} />
           <Route path="notifications" element={<FollowUpManagerNotificationsPage />} />

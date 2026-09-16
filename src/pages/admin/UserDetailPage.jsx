@@ -1,16 +1,18 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
   ArrowLeft, Phone, Mail, Calendar, Clock, Flame, PhoneCall, Users,
   CheckCircle2, Home, FileText, CalendarCheck, Activity, ShieldCheck,
   PhoneMissed, AlertTriangle, MapPin, Briefcase, Database, UserCog, Loader2,
+  Trophy, Star, TrendingUp, RotateCcw,
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, PieChart, Pie, Cell, Legend,
+  Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line,
 } from 'recharts'
 import { usersApi } from '../../services/usersApi'
+import axiosClient from '../../lib/axios'
 
 /* ─── Shared color conventions (match the rest of the app) ──────────────── */
 
@@ -92,11 +94,21 @@ function TrendTooltip({ active, payload, label }) {
   )
 }
 
-function EmptyChart({ label }) {
+function EmptyChart({ label, onRetry, retrying }) {
   return (
-    <div className="h-[220px] flex flex-col items-center justify-center gap-2 text-center">
+    <div className="h-[220px] flex flex-col items-center justify-center gap-2.5 text-center">
       <Activity className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
       <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{label}</p>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={retrying}
+          className="flex items-center gap-1.5 text-xs font-semibold text-[#F95C4B] hover:underline disabled:opacity-50"
+        >
+          <RotateCcw className={`w-3 h-3 ${retrying ? 'animate-spin' : ''}`} /> {retrying ? 'Retrying…' : 'Retry'}
+        </button>
+      )}
     </div>
   )
 }
@@ -157,6 +169,12 @@ function RecentListCard({ icon: Icon, title, items, renderItem, emptyLabel, dela
 export default function UserDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Arrived by clicking a row on the Performance leaderboard? Send them back there
+  // instead of the generic Users list — see PerformancePage.jsx's navigate() calls.
+  const cameFromPerformance = location.state?.from === 'performance'
+  const backTo = cameFromPerformance ? '/admin/performance' : '/admin/users'
+  const backLabel = cameFromPerformance ? 'Back to Performance' : 'Back to Users'
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['user-activity', id],
@@ -169,6 +187,26 @@ export default function UserDetailPage() {
     staleTime: 30_000,
   })
   const recentSessions = (loginData?.loginHistory ?? []).slice(-6).reverse()
+
+  // Only relevant for cold callers — the leaderboard/score system doesn't apply to
+  // other roles. Both queries stay disabled until we know the role, so admin browsing
+  // a non-caller's page never fires them.
+  const isColdCaller = data?.user?.role === 'cold_caller'
+  const { data: monthBoard, isLoading: monthBoardLoading } = useQuery({
+    queryKey: ['performance', 'leaderboard', 'month-for-user', id],
+    queryFn: () => axiosClient.get('/performance/leaderboard', { params: { period: 'month' } }).then((r) => r.data.data.leaderboard ?? []),
+    enabled: isColdCaller,
+    staleTime: 30_000,
+  })
+  const {
+    data: dailyScoresData, isLoading: dailyScoresLoading, isError: dailyScoresError,
+    refetch: refetchDailyScores, isFetching: dailyScoresFetching,
+  } = useQuery({
+    queryKey: ['performance', 'daily-scores-for-user', 30],
+    queryFn: () => axiosClient.get('/performance/daily-scores', { params: { days: 30 } }).then((r) => r.data.data),
+    enabled: isColdCaller,
+    staleTime: 60_000,
+  })
 
   if (isLoading) {
     return (
@@ -212,14 +250,24 @@ export default function UserDetailPage() {
     { name: 'Call Logs', value: systemTotals.totalCallLogs, fill: '#F59E0B' },
   ] : []
 
+  // Performance (cold callers only) — this month's score/rank snapshot plus the daily
+  // points/rank series filtered down from the same 30-day multi-caller dataset the
+  // Performance/Leaderboard pages chart in full (see DailyScoresChart).
+  const myBoardEntry = (monthBoard ?? []).find((r) => r.userId?.toString() === id)
+  const teamSize = dailyScoresData?.callers?.length ?? monthBoard?.length ?? 0
+  const myDailySeries = (dailyScoresData?.series ?? []).map((day) => {
+    const mine = day.callers.find((c) => c.userId === id)
+    return { date: day.date, score: mine?.score ?? 0, rank: mine?.rank ?? null }
+  })
+
   return (
     <div className="p-5 sm:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
       {/* Back */}
       <button
-        onClick={() => navigate('/admin/users')}
+        onClick={() => navigate(backTo)}
         className="flex items-center gap-1.5 text-xs font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B] dark:hover:text-[#F95C4B] transition-colors"
       >
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to Users
+        <ArrowLeft className="w-3.5 h-3.5" /> {backLabel}
       </button>
 
       {/* Profile header */}
@@ -263,6 +311,80 @@ export default function UserDetailPage() {
       {/* ── COLD CALLER ─────────────────────────────────────────────────── */}
       {user.role === 'cold_caller' && contacts && (
         <>
+          <section>
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
+              Performance
+            </h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <StatCard icon={Star} label="Score (This Month)" value={myBoardEntry?.score ?? 0} color="#F95C4B" delay={0} />
+              <StatCard
+                icon={Trophy}
+                label="Team Rank"
+                value={myBoardEntry?.rank ? `#${myBoardEntry.rank}` : '—'}
+                sub={teamSize ? `of ${teamSize} cold callers` : undefined}
+                color="#F59E0B"
+                delay={40}
+              />
+              <StatCard icon={Phone} label="Calls (This Month)" value={myBoardEntry?.totalCalls ?? 0} color="#3B82F6" delay={80} />
+              <StatCard icon={TrendingUp} label="Leads Closed (This Month)" value={myBoardEntry?.leadsClosed ?? 0} color="#8B5CF6" delay={120} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ChartCard icon={Activity} title="Daily Points — Last 30 Days" delay={0}>
+                {dailyScoresLoading ? (
+                  <div className="h-[220px] flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-[#F95C4B]" />
+                  </div>
+                ) : dailyScoresError ? (
+                  <EmptyChart label="Couldn't load daily points." onRetry={refetchDailyScores} retrying={dailyScoresFetching} />
+                ) : myDailySeries.every((d) => d.score === 0) ? (
+                  <EmptyChart label="No points scored in the last 30 days" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={myDailySeries} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                      <XAxis dataKey="date" tickFormatter={(d) => format(new Date(d), 'd MMM')} tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} minTickGap={24} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<TrendTooltip />} />
+                      <Line type="monotone" dataKey="score" name="Points" stroke="#F95C4B" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} isAnimationActive animationDuration={900} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+
+              <ChartCard icon={Trophy} title="Daily Team Rank — Last 30 Days" delay={60}>
+                {dailyScoresLoading || monthBoardLoading ? (
+                  <div className="h-[220px] flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-[#F95C4B]" />
+                  </div>
+                ) : dailyScoresError ? (
+                  <EmptyChart label="Couldn't load daily rank." onRetry={refetchDailyScores} retrying={dailyScoresFetching} />
+                ) : !teamSize ? (
+                  <EmptyChart label="No team data yet" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={myDailySeries} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                      <XAxis dataKey="date" tickFormatter={(d) => format(new Date(d), 'd MMM')} tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} minTickGap={24} />
+                      <YAxis
+                        dataKey="rank"
+                        reversed
+                        domain={[1, teamSize]}
+                        allowDecimals={false}
+                        tickFormatter={(v) => `#${v}`}
+                        tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip content={<TrendTooltip />} />
+                      <Line type="monotone" dataKey="rank" name="Rank" stroke="#8B5CF6" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} isAnimationActive animationDuration={900} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+            </div>
+          </section>
+
           <section>
             <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
               Contact Queue

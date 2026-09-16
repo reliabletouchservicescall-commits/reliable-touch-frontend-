@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { formatDistanceToNow } from 'date-fns'
+import { format, formatDistanceToNow, isToday, isThisWeek } from 'date-fns'
 import {
   Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle,
-  Plus, Loader2, X, Search, ChevronDown, MessageSquare, Send,
+  Plus, Loader2, X, Search, ChevronDown, MessageSquare, Send, CheckCircle2,
 } from 'lucide-react'
 import { areasApi } from '../../services/areasApi'
 import { contactsApi } from '../../services/contactsApi'
@@ -696,7 +696,103 @@ export function LeadStatusBadge({ status, size }) {
   )
 }
 
-const COMMENT_AUTHOR_META = {
+// Shared by both list pages' row-highlight logic, so "today" and "mine" are computed
+// identically wherever a lead row decides how to glow.
+export function isLeadFollowedUpToday(lead) {
+  return Boolean(lead.lastFollowUpAt) && isToday(new Date(lead.lastFollowUpAt))
+}
+
+export function isLeadFollowedUpByMeToday(lead, currentUserId) {
+  if (!isLeadFollowedUpToday(lead) || !currentUserId) return false
+  const authorId = (lead.lastFollowUpBy && typeof lead.lastFollowUpBy === 'object') ? lead.lastFollowUpBy._id : lead.lastFollowUpBy
+  return authorId === currentUserId
+}
+
+// "Followed up today/this week" — the badge that lets an admin or follow-up manager
+// scanning a shared queue tell at a glance that a lead has already been worked, so they
+// don't duplicate someone else's outreach. Backed by the lead's denormalized
+// lastFollowUpAt (see Lead.model.js) rather than scanning the comment thread.
+//
+// `isMine` marks the case that actually matters most to the viewer — "I already did
+// this one today" — with a live breathing glow + ping dot instead of the plain static
+// pill everyone else's today-follow-ups get, so it reads as a reactive confirmation of
+// your own recent action rather than just another status label.
+export function FollowedUpTodayBadge({ lastFollowUpAt, isMine }) {
+  if (!lastFollowUpAt) return null
+  const d = new Date(lastFollowUpAt)
+  if (isToday(d)) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#10B981]/12 text-[#10B981] whitespace-nowrap ${isMine ? 'animate-glow-pulse ring-1 ring-[#10B981]/30' : ''}`}
+      >
+        {isMine ? (
+          <span className="relative flex w-1.5 h-1.5 flex-shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10B981] opacity-75" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#10B981]" />
+          </span>
+        ) : (
+          <CheckCircle2 className="w-2.5 h-2.5 flex-shrink-0" strokeWidth={2.5} />
+        )}
+        {isMine ? 'You followed up today' : 'Followed up today'}
+      </span>
+    )
+  }
+  if (isThisWeek(d, { weekStartsOn: 1 })) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#3B82F6]/12 text-[#3B82F6] whitespace-nowrap">
+        <CheckCircle2 className="w-2.5 h-2.5" strokeWidth={2.5} /> Followed up this week
+      </span>
+    )
+  }
+  return null
+}
+
+// Table-cell version of the last follow-up comment — the quoted text plus the
+// today/this-week badge. Pairs with LastFollowUpByCell below (kept as two cells since
+// admin/follow-up-manager tables show "what was said" and "who said it" as separate
+// columns). Pass currentUserId so the badge can tell "you" apart from a colleague.
+export function LastFollowUpCommentCell({ lead, currentUserId }) {
+  if (!lead.lastFollowUpAt) {
+    return <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No follow-up yet</span>
+  }
+  const authorId = (lead.lastFollowUpBy && typeof lead.lastFollowUpBy === 'object') ? lead.lastFollowUpBy._id : lead.lastFollowUpBy
+  const isMine = Boolean(currentUserId) && authorId === currentUserId
+  return (
+    <div className="space-y-1 max-w-[220px]">
+      <FollowedUpTodayBadge lastFollowUpAt={lead.lastFollowUpAt} isMine={isMine} />
+      {lead.lastFollowUpText && (
+        <p className="text-xs text-[#111111] dark:text-white truncate" title={lead.lastFollowUpText}>
+          "{lead.lastFollowUpText}"
+        </p>
+      )}
+    </div>
+  )
+}
+
+export function LastFollowUpByCell({ lead }) {
+  if (!lead.lastFollowUpAt) {
+    return <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">—</span>
+  }
+  const author = (lead.lastFollowUpBy && typeof lead.lastFollowUpBy === 'object') ? lead.lastFollowUpBy : null
+  const meta = author ? (COMMENT_AUTHOR_META[author.role] ?? { label: author.role, color: '#6B7280' }) : null
+  return (
+    <div>
+      <p className="text-sm text-[#111111] dark:text-white truncate max-w-[140px]">
+        {author ? `${author.firstName} ${author.lastName}` : 'Unknown'}
+      </p>
+      <div className="flex items-center gap-1 flex-wrap">
+        {meta && (
+          <span className="text-[9px] font-bold" style={{ color: meta.color }}>{meta.label}</span>
+        )}
+        <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
+          · {formatDistanceToNow(new Date(lead.lastFollowUpAt), { addSuffix: true })}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+export const COMMENT_AUTHOR_META = {
   admin:             { label: 'Admin',              color: '#F95C4B' },
   cold_caller:       { label: 'Cold Caller',         color: '#3B82F6' },
   follow_up_manager: { label: 'Follow Up Manager',   color: '#8B5CF6' },
@@ -704,63 +800,134 @@ const COMMENT_AUTHOR_META = {
 }
 
 /**
- * Follow-up comment thread — one flat, timestamped feed shared by the cold caller who
- * owns the lead, a follow-up manager working it (hot leads only), and admin (replying to
- * either). Read-only when `canComment` is false/omitted (e.g. an agency viewing a lead
- * has no stake in this internal conversation and isn't wired into the backend route at
- * all, but the component itself stays purely presentational either way).
+ * Follow-up comment thread, styled as a chat — one flat, timestamped conversation
+ * visible to everyone who can see the lead (cold caller, agency, follow-up manager,
+ * admin), but only admin and a follow-up manager may post to it (enforced server-side;
+ * `canComment` just hides the composer for everyone else). Own messages align right in
+ * the brand orange; everyone else's align left in a neutral bubble, name-tagged by role
+ * so a multi-party thread stays easy to follow.
+ *
+ * The thread fetches and polls its own data (`GET /leads/:id/comments`) instead of
+ * trusting the `lead` prop's snapshot — the parent screen only re-syncs that prop from
+ * its own edits, so without an independent live fetch here, comments posted by anyone
+ * else (or even your own, after navigating away and back within the lead query's cache
+ * window) would silently fail to appear until a hard refresh.
  */
 export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
+  const qc = useQueryClient()
   const [text, setText] = useState('')
-  const comments = lead.followUpComments ?? []
+  const scrollRef = useRef(null)
+  const wasAtBottomRef = useRef(true)
+
+  const commentsQueryKey = ['lead-comments', lead._id]
+
+  const { data: comments = [], isLoading, isError, refetch } = useQuery({
+    queryKey: commentsQueryKey,
+    queryFn: () => leadsApi.getComments(lead._id).then((r) => r.data.data.comments ?? []),
+    initialData: lead.followUpComments ?? undefined,
+    staleTime: 4_000,
+    refetchInterval: 8_000,
+    refetchOnWindowFocus: true,
+  })
+  const sorted = [...comments].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
 
   const mut = useMutation({
     mutationFn: () => leadsApi.addComment(lead._id, text.trim()),
     onSuccess: (res) => {
       setText('')
-      onAdded?.(res.data.data.lead)
+      const updatedLead = res.data.data.lead
+      qc.setQueryData(commentsQueryKey, updatedLead.followUpComments ?? [])
+      onAdded?.(updatedLead)
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to add comment')),
   })
 
+  // Track whether the reader was scrolled to (near) the bottom right before new
+  // messages land — only then do we auto-scroll, so someone reading back through
+  // older messages isn't yanked down every 8s by the background poll.
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
+
+  useEffect(() => {
+    if (scrollRef.current && wasAtBottomRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [sorted.length])
+
   function handleSubmit(e) {
     e.preventDefault()
     if (!text.trim() || mut.isPending) return
+    wasAtBottomRef.current = true
     mut.mutate()
   }
 
   return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2 flex items-center gap-1.5">
-        <MessageSquare className="w-3.5 h-3.5" /> Follow-Up Comments
-      </p>
+    <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between gap-2.5 px-4 py-3.5 border-b border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
+            <MessageSquare className="w-4 h-4 text-[#F95C4B]" strokeWidth={1.75} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#111111] dark:text-white">Follow-Up Chat</p>
+            <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
+              {isLoading ? 'Loading…' : `${sorted.length} message${sorted.length !== 1 ? 's' : ''}`}
+            </p>
+          </div>
+        </div>
+        {isError && (
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="text-[10px] font-semibold text-[#EF4444] hover:underline flex-shrink-0"
+          >
+            Retry
+          </button>
+        )}
+      </div>
 
-      {comments.length === 0 ? (
-        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic text-center py-4 bg-[#F5F5F4] dark:bg-[#202020] rounded-xl">
-          No follow-up comments yet.
-        </p>
-      ) : (
-        <ul className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-          {[...comments].reverse().map((c, i) => {
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-[220px] max-h-[520px]">
+        {isLoading ? (
+          <div className="h-full min-h-[180px] flex items-center justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-[#6B7280] dark:text-[#A1A1AA]" />
+          </div>
+        ) : isError ? (
+          <div className="h-full min-h-[180px] flex flex-col items-center justify-center gap-2 text-center">
+            <AlertTriangle className="w-8 h-8 text-[#EF4444]/40" strokeWidth={1.5} />
+            <p className="text-xs text-[#EF4444]">Couldn't load messages — check your connection and retry.</p>
+          </div>
+        ) : sorted.length === 0 ? (
+          <div className="h-full min-h-[180px] flex flex-col items-center justify-center gap-2 text-center">
+            <MessageSquare className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+              No messages yet{canComment ? ' — start the conversation' : ''}.
+            </p>
+          </div>
+        ) : (
+          sorted.map((c, i) => {
             const author = (c.authorId && typeof c.authorId === 'object') ? c.authorId : null
-            const meta = COMMENT_AUTHOR_META[c.authorRole] ?? { label: c.authorRole, color: '#6B7280' }
-            const isMine = author?._id === currentUserId
-            const initials = author
+            const meta = COMMENT_AUTHOR_META[c.authorRole] ?? { label: c.authorRole ?? 'Unknown', color: '#6B7280' }
+            const isMine = Boolean(author?._id) && author._id === currentUserId
+            const fullName = author ? `${author.firstName ?? ''} ${author.lastName ?? ''}`.trim() || 'Unknown' : 'Unknown'
+            const initials = author && (author.firstName || author.lastName)
               ? `${author.firstName?.[0] ?? ''}${author.lastName?.[0] ?? ''}`.toUpperCase()
               : '?'
             return (
-              <li key={c._id ?? i} className="flex items-start gap-2.5">
+              <div key={c._id ?? i} className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : ''}`}>
                 <div
-                  className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white mt-0.5"
+                  className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
                   style={{ backgroundColor: meta.color }}
+                  title={fullName}
                 >
                   {initials}
                 </div>
-                <div className="flex-1 min-w-0 bg-[#F5F5F4] dark:bg-[#202020] rounded-xl px-3.5 py-2.5">
-                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className="text-xs font-semibold text-[#111111] dark:text-white">
-                      {author ? `${author.firstName} ${author.lastName}` : 'Unknown'}
-                      {isMine && <span className="text-[#6B7280] dark:text-[#A1A1AA] font-normal"> (You)</span>}
+                <div className={`max-w-[75%] flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                  <div className={`flex items-center gap-1.5 mb-1 px-1 flex-wrap ${isMine ? 'flex-row-reverse' : ''}`}>
+                    <span className="text-[10px] font-semibold text-[#111111] dark:text-white">
+                      {fullName}{isMine && <span className="text-[#6B7280] dark:text-[#A1A1AA] font-normal"> (You)</span>}
                     </span>
                     <span
                       className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
@@ -769,29 +936,38 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
                       {meta.label}
                     </span>
                   </div>
-                  <p className="text-sm text-[#111111] dark:text-white leading-relaxed whitespace-pre-wrap break-words">
+                  <div
+                    className={`px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
+                      isMine
+                        ? 'bg-[#F95C4B] text-white rounded-2xl rounded-tr-sm'
+                        : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white rounded-2xl rounded-tl-sm'
+                    }`}
+                  >
                     {c.text}
-                  </p>
+                  </div>
                   {c.createdAt && (
-                    <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] mt-1">
-                      {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
+                    <p
+                      className="text-[9px] text-[#6B7280] dark:text-[#A1A1AA] mt-1 px-1"
+                      title={formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
+                    >
+                      {format(new Date(c.createdAt), 'd MMM yyyy, HH:mm')}
                     </p>
                   )}
                 </div>
-              </li>
+              </div>
             )
-          })}
-        </ul>
-      )}
+          })
+        )}
+      </div>
 
-      {canComment && (
-        <form onSubmit={handleSubmit} className="flex items-end gap-2 mt-3">
+      {canComment ? (
+        <form onSubmit={handleSubmit} className="flex items-end gap-2 p-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] flex-shrink-0">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Add a follow-up comment…"
-            rows={2}
-            className={`${inputCls(false)} resize-none flex-1`}
+            placeholder="Type a message…"
+            rows={1}
+            className="flex-1 px-4 py-2.5 rounded-full text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] resize-none outline-none focus:border-[#F95C4B] focus:ring-2 focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40 max-h-24"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e) }
             }}
@@ -799,11 +975,15 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
           <button
             type="submit"
             disabled={mut.isPending || !text.trim()}
-            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-50 transition-colors"
+            className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-50 transition-colors"
           >
             {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </form>
+      ) : (
+        <div className="px-4 py-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] text-center flex-shrink-0">
+          <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">Only admin and the follow-up manager can post here</p>
+        </div>
       )}
     </div>
   )

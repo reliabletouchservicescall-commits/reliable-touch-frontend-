@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Trophy, Phone, TrendingUp, CheckCircle2,
-  Medal, Star, Crown, BarChart2,
+  Medal, Star, Crown, BarChart2, CalendarRange,
   ThermometerSnowflake, ThermometerSun, Flame, Sparkles,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
+import DailyScoresChart from '../../components/performance/DailyScoresChart'
 
 const LEAD_STATUS_STAT = [
   { key: 'coldCount',      label: 'Cold',       icon: ThermometerSnowflake, color: '#6B7280', weight: '×1' },
@@ -121,7 +122,7 @@ function RankBadge({ rank, total }) {
 
 export default function LeaderboardPage() {
   const { user } = useAuthStore()
-  const [period, setPeriod] = useState('week')
+  const [period, setPeriod] = useState('day')
 
   const { data: board = [], isLoading: boardLoading } = useQuery({
     queryKey: ['performance', 'caller-board', period],
@@ -355,6 +356,18 @@ export default function LeaderboardPage() {
             })}
           </div>
         )}
+      </div>
+
+      {/* Daily performance — last 30 days, one line per cold caller */}
+      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <CalendarRange className="w-4 h-4 text-[#F95C4B]" />
+          <span className="text-sm font-bold text-[#111111] dark:text-white">Daily Performance — Last 30 Days</span>
+        </div>
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mb-4">
+          Your line is highlighted in orange. Click a name below the chart to isolate it.
+        </p>
+        <DailyScoresChart days={30} currentUserId={user?._id} />
       </div>
 
       {/* Scoring info */}

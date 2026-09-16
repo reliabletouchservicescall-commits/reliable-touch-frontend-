@@ -34,6 +34,10 @@ export default {
         'fade-in': 'fadeIn 0.4s ease-out',
         'slide-up': 'slideUp 0.4s ease-out',
         'slide-in-right': 'slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        // "This one's mine, and it's done today" — a soft breathing glow, not a flash, so
+        // it reads as alive/reassuring across a whole table of rows rather than nagging.
+        'glow-pulse': 'glowPulse 2.4s ease-in-out infinite',
+        'glow-pulse-ring': 'glowPulseRing 2.4s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -47,6 +51,14 @@ export default {
         slideInRight: {
           '0%': { transform: 'translateX(100%)' },
           '100%': { transform: 'translateX(0)' },
+        },
+        glowPulse: {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(16,185,129,0.45)' },
+          '50%': { boxShadow: '0 0 0 5px rgba(16,185,129,0)' },
+        },
+        glowPulseRing: {
+          '0%, 100%': { boxShadow: 'inset 3px 0 0 0 rgba(16,185,129,0.9), inset 0 0 14px 0 rgba(16,185,129,0.08)' },
+          '50%': { boxShadow: 'inset 3px 0 0 0 rgba(16,185,129,0.5), inset 0 0 14px 0 rgba(16,185,129,0.02)' },
         },
       },
       boxShadow: {

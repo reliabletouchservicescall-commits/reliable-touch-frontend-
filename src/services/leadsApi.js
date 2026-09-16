@@ -8,4 +8,6 @@ export const leadsApi = {
   updateStatus: (id, data) => axiosClient.patch(`/leads/${id}/status`, data),
   remove: (id) => axiosClient.delete(`/leads/${id}`),
   addComment: (id, text) => axiosClient.post(`/leads/${id}/comments`, { text }),
+  getComments: (id) => axiosClient.get(`/leads/${id}/comments`),
+  followUpManagers: () => axiosClient.get('/leads/follow-up-managers'),
 }

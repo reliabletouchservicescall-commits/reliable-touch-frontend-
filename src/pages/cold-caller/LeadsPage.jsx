@@ -11,7 +11,6 @@ import { contactsApi } from '../../services/contactsApi'
 import { LEAD_STATUS_META, LeadStatusBadge, FollowUpChip, ListingTypeFilter, ListingBadge } from '../../components/leads/leadShared'
 import SidePanel from '../../components/common/SidePanel'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
-import LeadDetailDrawer from '../../components/leads/LeadDetailDrawer'
 
 const STATUS_TABS = [
   { key: '',           label: 'All' },
@@ -185,7 +184,6 @@ export default function ColdCallerLeadsPage() {
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [createContact, setCreateContact] = useState(null)
-  const [activeLead, setActiveLead] = useState(null)
 
   const debouncedSearch = useDebounce(search)
 
@@ -314,7 +312,7 @@ export default function ColdCallerLeadsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {leads.map((lead) => (
-              <LeadCard key={lead._id} lead={lead} onOpen={() => setActiveLead(lead)} />
+              <LeadCard key={lead._id} lead={lead} onOpen={() => navigate(`/cold-caller/leads/${lead._id}`)} />
             ))}
           </div>
         )}
@@ -333,14 +331,6 @@ export default function ColdCallerLeadsPage() {
           contact={createContact}
           onClose={closeCreateFlow}
           onCreated={closeCreateFlow}
-        />
-      )}
-
-      {activeLead && (
-        <LeadDetailDrawer
-          lead={activeLead}
-          onClose={() => setActiveLead(null)}
-          onUpdated={() => setActiveLead(null)}
         />
       )}
     </div>

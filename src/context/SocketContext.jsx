@@ -86,18 +86,21 @@ export function SocketProvider({ children }) {
       qc.invalidateQueries({ queryKey: ['performance'] })
     })
 
-    // Someone else just took #1 on the leaderboard this month.
-    socket.on('leaderboard_leader_changed', ({ newLeaderName }) => {
-      toast(`${newLeaderName} is now #1 on the leaderboard!`, {
+    // Someone else just took #1 — for today's leaderboard or this month's, checked
+    // independently server-side (see performance.service.js checkColdCallerChampion).
+    socket.on('leaderboard_leader_changed', ({ newLeaderName, period }) => {
+      const scope = period === 'day' ? "today's leaderboard" : 'the leaderboard this month'
+      toast(`${newLeaderName} is now #1 on ${scope}!`, {
         icon: <Trophy className="w-4 h-4 text-[#F59E0B]" />,
       })
       qc.invalidateQueries({ queryKey: ['performance'] })
     })
 
     // You just became #1 — fireworks on your own screen.
-    socket.on('you_are_leader', () => {
+    socket.on('you_are_leader', ({ period } = {}) => {
       setShowFireworks(true)
-      toast.success("You're now #1 on the leaderboard!", {
+      const scope = period === 'day' ? "today's leaderboard" : 'the leaderboard this month'
+      toast.success(`You're now #1 on ${scope}!`, {
         icon: <Trophy className="w-4 h-4" />,
       })
       qc.invalidateQueries({ queryKey: ['performance'] })

@@ -1,14 +1,16 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
   Trophy, Phone, TrendingUp, CheckCircle2,
   Star, BarChart2, Users, LineChart,
-  ThermometerSnowflake, ThermometerSun, Flame,
+  ThermometerSnowflake, ThermometerSun, Flame, CalendarRange,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import PeriodPicker from '../../components/performance/PeriodPicker'
 import LeaderboardChart from '../../components/performance/LeaderboardChart'
+import DailyScoresChart from '../../components/performance/DailyScoresChart'
 
 /* ─── API ─────────────────────────────────────────────────────────── */
 
@@ -65,13 +67,16 @@ function Avatar({ name, rank, size = 'md' }) {
 
 /* ─── Podium card (top 3) ─────────────────────────────────────────── */
 
-function PodiumCard({ entry, maxScore }) {
+function PodiumCard({ entry, maxScore, onClick }) {
   if (!entry) return <div className="flex-1" />
   const medal = MEDAL[entry.rank]
   const heights = { 1: 'pt-0', 2: 'pt-6', 3: 'pt-10' }
 
   return (
-    <div className={`flex-1 flex flex-col items-center gap-3 ${heights[entry.rank] ?? 'pt-10'}`}>
+    <div
+      onClick={onClick}
+      className={`flex-1 flex flex-col items-center gap-3 cursor-pointer transition-transform hover:-translate-y-1 ${heights[entry.rank] ?? 'pt-10'}`}
+    >
       {/* Crown for #1 */}
       {entry.rank === 1 && (
         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#F59E0B]/15 mb-0">
@@ -144,7 +149,8 @@ function StatPill({ icon: Icon, value, color }) {
 /* ─── Main ────────────────────────────────────────────────────────── */
 
 export default function PerformancePage() {
-  const [period, setPeriod] = useState('week')
+  const navigate = useNavigate()
+  const [period, setPeriod] = useState('day')
   const [month, setMonth]   = useState('') // "YYYY-MM" — overrides period when set
 
   const [year, monthNum] = month ? month.split('-').map(Number) : [undefined, undefined]
@@ -223,9 +229,9 @@ export default function PerformancePage() {
             <span className="text-sm font-bold text-[#111111] dark:text-white">Top Performers</span>
           </div>
           <div className="flex items-end gap-3 justify-center">
-            <PodiumCard entry={second} maxScore={maxScore} />
-            <PodiumCard entry={first}  maxScore={maxScore} />
-            <PodiumCard entry={third}  maxScore={maxScore} />
+            <PodiumCard entry={second} maxScore={maxScore} onClick={() => second && navigate(`/admin/users/${second.userId}`, { state: { from: 'performance' } })} />
+            <PodiumCard entry={first}  maxScore={maxScore} onClick={() => first  && navigate(`/admin/users/${first.userId}`, { state: { from: 'performance' } })} />
+            <PodiumCard entry={third}  maxScore={maxScore} onClick={() => third  && navigate(`/admin/users/${third.userId}`, { state: { from: 'performance' } })} />
           </div>
         </div>
       )}
@@ -240,6 +246,18 @@ export default function PerformancePage() {
           <LeaderboardChart board={board} dataKey="score" name="Score" color="#F95C4B" />
         </div>
       )}
+
+      {/* Daily performance — last 30 days, one line per cold caller */}
+      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <CalendarRange className="w-4 h-4 text-[#F95C4B]" />
+          <span className="text-sm font-bold text-[#111111] dark:text-white">Daily Performance — Last 30 Days</span>
+        </div>
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mb-4">
+          Each line is one cold caller's daily score. Click a name below the chart to isolate it.
+        </p>
+        <DailyScoresChart days={30} />
+      </div>
 
       {/* Full table */}
       <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
@@ -285,7 +303,8 @@ export default function PerformancePage() {
               return (
                 <div
                   key={entry.userId}
-                  className={`flex sm:grid sm:grid-cols-[2.5rem_1fr_5rem_5rem_5rem_5rem_6rem_8rem] items-center gap-3 px-5 py-3.5 hover:bg-[#FAFAF9] dark:hover:bg-[#111111] transition-colors ${
+                  onClick={() => navigate(`/admin/users/${entry.userId}`, { state: { from: 'performance' } })}
+                  className={`flex sm:grid sm:grid-cols-[2.5rem_1fr_5rem_5rem_5rem_5rem_6rem_8rem] items-center gap-3 px-5 py-3.5 hover:bg-[#FAFAF9] dark:hover:bg-[#111111] transition-colors cursor-pointer ${
                     entry.rank <= 3 ? 'bg-gradient-to-r from-white dark:from-[#181818]' : ''
                   }`}
                   style={entry.rank <= 3 ? { backgroundImage: `linear-gradient(90deg, ${medal.bg} 0%, transparent 20%)` } : {}}

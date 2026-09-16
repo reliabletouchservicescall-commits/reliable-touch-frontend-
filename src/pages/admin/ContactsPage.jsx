@@ -7,7 +7,7 @@ import {
   Phone, Mail, MapPin, User, BookUser, AlertTriangle, Loader2,
   ArrowUpDown, ArrowUp, ArrowDown, SlidersHorizontal, FileText,
   PhoneCall, CheckCircle2, UserCheck, PhoneOff, UserX, Filter,
-  CheckSquare, Square, Users, UserPlus, ChevronDown, LayoutGrid,
+  CheckSquare, Square, Users, UserPlus, ChevronDown,
   Upload, FileSpreadsheet, Building2, Ruler, CreditCard, Hash,
   FolderOpen, CloudUpload, RefreshCw, PhoneForwarded,
   Layers, Target, Settings2, Bell, Clock, MessageSquare, RotateCcw,
@@ -130,117 +130,343 @@ function Field({ label, required, error, hint, children }) {
   )
 }
 
-/* ─── Section Scheme Strip ───────────────────────────────────────────── */
+/* ─── Searchable Select (generic, popover-with-search-box) ──────────────── */
 
-function SchemeStrip({ schemes, active, onSelect }) {
-  if (!schemes?.length) return null
+function SearchableSelect({ options, value, onChange, placeholder = 'Select…', searchPlaceholder = 'Search…', emptyText }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const list = options ?? []
+  const selected = list.find((o) => o.value === value)
+  const q = search.trim().toLowerCase()
+  const filtered = q
+    ? list.filter((o) => o.label.toLowerCase().includes(q) || (o.sublabel ?? '').toLowerCase().includes(q))
+    : list
+
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+    <div className="relative" ref={ref}>
       <button
-        onClick={() => onSelect('')}
-        className={[
-          'flex-shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all whitespace-nowrap',
-          active === '' ? 'border-[#F95C4B] bg-[#F95C4B]/8 text-[#F95C4B] dark:bg-[#F95C4B]/12' : 'border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40',
-        ].join(' ')}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`${inputCls(false)} flex items-center justify-between gap-2 text-left`}
       >
-        <LayoutGrid className="w-3.5 h-3.5" /> All Schemes
+        <span className={`truncate ${selected ? 'text-[#111111] dark:text-white' : 'text-[#6B7280]/50 dark:text-[#A1A1AA]/40'}`}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {schemes.map((s) => (
-        <button key={s}
-          onClick={() => onSelect(s)}
-          className={[
-            'flex-shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all whitespace-nowrap',
-            active === s ? 'border-[#8B5CF6] bg-[#8B5CF6]/8 text-[#8B5CF6] dark:bg-[#8B5CF6]/12' : 'border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#8B5CF6]/40',
-          ].join(' ')}>
-          <Building2 className="w-3.5 h-3.5" /> {s}
-        </button>
-      ))}
+
+      {open && (
+        <div className="absolute z-20 mt-1.5 w-full bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-xl overflow-hidden">
+          <div className="relative p-2 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] pointer-events-none" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="w-full pl-8 pr-2 py-2 text-sm bg-[#F5F5F4] dark:bg-[#202020] rounded-lg outline-none ring-2 ring-transparent focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-4 text-xs text-[#6B7280] dark:text-[#A1A1AA] text-center">
+                {emptyText ?? `No matches for "${search}"`}
+              </p>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => { onChange(o.value); setOpen(false); setSearch('') }}
+                  className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
+                    value === o.value
+                      ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
+                      : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+                  }`}
+                >
+                  <span className="truncate">{o.label}</span>
+                  {o.sublabel && <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0">{o.sublabel}</span>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-/* ─── Uploaded File Strip ────────────────────────────────────────────── */
+/* ─── Cold Caller filter dropdown — searchable, avatar + live count ─────── */
 
-function FileStrip({ files, active, onSelect }) {
-  if (!files?.length) return null
+function CallerFilterDropdown({ callers, activeCaller, onSelect, totalCount, totalUnassigned }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setSearch('') }
+    }
+    function handleEscape(e) { if (e.key === 'Escape') { setOpen(false); setSearch('') } }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
+  const selectedCaller = callers.find((c) => c._id === activeCaller)
+  const isUnassigned = activeCaller === 'unassigned'
+  const q = search.trim().toLowerCase()
+  const filtered = q ? callers.filter((c) => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q)) : callers
+
+  const triggerColor = selectedCaller ? callerColor(selectedCaller._id) : (isUnassigned ? '#6B7280' : null)
+  const triggerLabel = selectedCaller ? `${selectedCaller.firstName} ${selectedCaller.lastName}` : isUnassigned ? 'Unassigned' : 'Cold Caller'
+  const triggerCount = selectedCaller ? (selectedCaller.contactCount ?? 0) : isUnassigned ? (totalUnassigned ?? 0) : totalCount
+
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+    <div className="relative flex-shrink-0" ref={ref}>
       <button
-        onClick={() => onSelect('')}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
         className={[
-          'flex-shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all whitespace-nowrap',
-          active === '' ? 'border-[#F95C4B] bg-[#F95C4B]/8 text-[#F95C4B] dark:bg-[#F95C4B]/12' : 'border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40',
+          'flex items-center gap-2 pl-2.5 pr-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border',
+          triggerColor
+            ? 'border-transparent text-white shadow-sm'
+            : 'bg-white dark:bg-[#181818] border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:border-[#F95C4B]/40',
         ].join(' ')}
+        style={triggerColor ? { backgroundColor: triggerColor } : undefined}
       >
-        <LayoutGrid className="w-3.5 h-3.5" /> All Files
-      </button>
-      {files.map((f) => (
-        <button key={f.batchId ?? f.name}
-          onClick={() => onSelect(f.batchId)}
-          title={f.displayName}
+        <span
+          className="w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center flex-shrink-0"
+          style={{
+            backgroundColor: triggerColor ? 'rgba(255,255,255,0.25)' : '#F5F5F4',
+            color: triggerColor ? 'white' : '#6B7280',
+          }}
+        >
+          {selectedCaller
+            ? `${selectedCaller.firstName?.[0] ?? ''}${selectedCaller.lastName?.[0] ?? ''}`.toUpperCase()
+            : isUnassigned ? <UserX className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+        </span>
+        <span className="max-w-[130px] truncate">{triggerLabel}</span>
+        <span
           className={[
-            'flex-shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all whitespace-nowrap max-w-[220px]',
-            active === f.batchId ? 'border-[#3B82F6] bg-[#3B82F6]/8 text-[#3B82F6] dark:bg-[#3B82F6]/12' : 'border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#3B82F6]/40',
-          ].join(' ')}>
-          <FileSpreadsheet className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="truncate">{f.displayName}</span>
-        </button>
-      ))}
+            'text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center flex-shrink-0',
+            triggerColor ? 'bg-white/20 text-white' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white',
+          ].join(' ')}
+        >
+          {triggerCount}
+        </span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''} ${triggerColor ? 'text-white' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1.5 w-72 bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-xl overflow-hidden">
+          <div className="relative p-2 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] pointer-events-none" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search cold callers…"
+              className="w-full pl-8 pr-2 py-2 text-sm bg-[#F5F5F4] dark:bg-[#202020] rounded-lg outline-none ring-2 ring-transparent focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40"
+            />
+          </div>
+          <div className="max-h-80 overflow-y-auto py-1">
+            {!q && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { onSelect(''); setOpen(false); setSearch('') }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors ${
+                    activeCaller === ''
+                      ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
+                      : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+                  }`}
+                >
+                  <span className="w-6 h-6 rounded-full bg-[#111111] dark:bg-white flex items-center justify-center flex-shrink-0">
+                    <Users className="w-3 h-3 text-white dark:text-[#111111]" />
+                  </span>
+                  <span className="flex-1 truncate">All Contacts</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white min-w-[20px] text-center">
+                    {totalCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { onSelect('unassigned'); setOpen(false); setSearch('') }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors ${
+                    isUnassigned
+                      ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
+                      : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+                  }`}
+                >
+                  <span className="w-6 h-6 rounded-full bg-[#6B7280]/15 flex items-center justify-center flex-shrink-0">
+                    <UserX className="w-3 h-3 text-[#6B7280] dark:text-[#A1A1AA]" />
+                  </span>
+                  <span className="flex-1 truncate">Unassigned</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white min-w-[20px] text-center">
+                    {totalUnassigned ?? 0}
+                  </span>
+                </button>
+                <div className="my-1 border-t border-[#E5E7EB] dark:border-[#2A2A2A]" />
+              </>
+            )}
+            {filtered.length === 0 ? (
+              <p className="px-4 py-6 text-xs text-[#6B7280] dark:text-[#A1A1AA] text-center">
+                No cold callers match "{search}"
+              </p>
+            ) : (
+              filtered.map((c) => {
+                const color = callerColor(c._id)
+                const isActive = activeCaller === c._id
+                const initials = `${c.firstName?.[0] ?? ''}${c.lastName?.[0] ?? ''}`.toUpperCase()
+                return (
+                  <button
+                    key={c._id}
+                    type="button"
+                    onClick={() => { onSelect(isActive ? '' : c._id); setOpen(false); setSearch('') }}
+                    className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors ${
+                      isActive
+                        ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
+                        : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+                    }`}
+                  >
+                    <span
+                      className="w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${color}20`, color }}
+                    >
+                      {initials}
+                    </span>
+                    <span className="flex-1 truncate">{c.firstName} {c.lastName}</span>
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
+                      style={{ backgroundColor: `${color}20`, color }}
+                    >
+                      {c.contactCount ?? 0}
+                    </span>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-/* ─── Cold Caller Strip ──────────────────────────────────────────────── */
+/* ─── Generic searchable filter dropdown — Scheme / Uploaded File ───────── */
 
-function CallerStrip({ callers, activeCaller, onSelect, totalUnassigned }) {
+function GroupFilterDropdown({ icon: Icon, placeholder, allLabel, value, options, onChange, searchPlaceholder, accentColor = '#F95C4B' }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setSearch('') }
+    }
+    function handleEscape(e) { if (e.key === 'Escape') { setOpen(false); setSearch('') } }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
+  const selected = options.find((o) => o.value === value)
+  const q = search.trim().toLowerCase()
+  const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options
+
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-      <button onClick={() => onSelect('')}
-        className={['flex-shrink-0 flex flex-col items-start gap-1 px-4 py-3 rounded-xl border transition-all min-w-[110px]',
-          activeCaller === '' ? 'border-[#F95C4B] bg-[#F95C4B]/8 dark:bg-[#F95C4B]/12'
-            : 'border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] hover:border-[#F95C4B]/40'].join(' ')}>
-        <div className="w-7 h-7 rounded-full bg-[#F95C4B]/15 flex items-center justify-center">
-          <LayoutGrid className="w-3.5 h-3.5 text-[#F95C4B]" />
-        </div>
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">All</p>
-          <p className="text-base font-bold text-[#111111] dark:text-white leading-tight">All contacts</p>
-        </div>
+    <div className="relative flex-shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={[
+          'flex items-center gap-2 pl-3 pr-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border',
+          value
+            ? 'text-white border-transparent shadow-sm'
+            : 'bg-white dark:bg-[#181818] border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:border-[#F95C4B]/40',
+        ].join(' ')}
+        style={value ? { backgroundColor: accentColor } : undefined}
+      >
+        <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${value ? 'text-white' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`} />
+        <span className="max-w-[150px] truncate">{selected ? selected.label : placeholder}</span>
+        <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''} ${value ? 'text-white' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`} />
       </button>
 
-      <button onClick={() => onSelect('unassigned')}
-        className={['flex-shrink-0 flex flex-col items-start gap-1 px-4 py-3 rounded-xl border transition-all min-w-[130px]',
-          activeCaller === 'unassigned' ? 'border-[#6B7280] bg-[#6B7280]/8 dark:bg-[#6B7280]/12'
-            : 'border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] hover:border-[#6B7280]/40'].join(' ')}>
-        <div className="w-7 h-7 rounded-full bg-[#6B7280]/15 flex items-center justify-center">
-          <UserX className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA]" />
+      {open && (
+        <div className="absolute z-20 mt-1.5 w-72 bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-xl overflow-hidden">
+          <div className="relative p-2 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] pointer-events-none" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="w-full pl-8 pr-2 py-2 text-sm bg-[#F5F5F4] dark:bg-[#202020] rounded-lg outline-none ring-2 ring-transparent focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40"
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto py-1">
+            {!q && (
+              <button
+                type="button"
+                onClick={() => { onChange(''); setOpen(false); setSearch('') }}
+                className={`w-full flex items-center px-4 py-2.5 text-sm text-left transition-colors ${
+                  value === ''
+                    ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
+                    : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+                }`}
+              >
+                {allLabel}
+              </button>
+            )}
+            {filtered.length === 0 ? (
+              <p className="px-4 py-6 text-xs text-[#6B7280] dark:text-[#A1A1AA] text-center">
+                No matches for "{search}"
+              </p>
+            ) : (
+              filtered.map((o) => {
+                const isActive = o.value === value
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    title={o.label}
+                    onClick={() => { onChange(isActive ? '' : o.value); setOpen(false); setSearch('') }}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm text-left truncate transition-colors ${
+                      isActive
+                        ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
+                        : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                )
+              })
+            )}
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Unassigned</p>
-          <p className="text-base font-bold text-[#111111] dark:text-white leading-tight">{totalUnassigned ?? '—'}</p>
-        </div>
-      </button>
-
-      {callers.map((c) => {
-        const color    = callerColor(c._id)
-        const isActive = activeCaller === c._id
-        return (
-          <button key={c._id} onClick={() => onSelect(c._id)}
-            className={['flex-shrink-0 flex flex-col items-start gap-1.5 px-4 py-3 rounded-xl border transition-all min-w-[140px]',
-              isActive ? 'border-current' : 'border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] hover:border-current/40'].join(' ')}
-            style={isActive ? { borderColor: color, backgroundColor: `${color}12` } : {}}>
-            <div className="flex items-center gap-2">
-              <Avatar name={`${c.firstName} ${c.lastName}`} color={color} size={7} />
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                style={{ color, backgroundColor: `${color}20` }}>{c.contactCount ?? 0}</span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Cold Caller</p>
-              <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{c.firstName} {c.lastName}</p>
-            </div>
-          </button>
-        )
-      })}
+      )}
     </div>
   )
 }
@@ -503,20 +729,26 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
 
             {/* Cold Caller picker */}
             <Field label="Assign to Cold Caller" required>
-              <select value={callerId} onChange={(e) => setCaller(e.target.value)} className={inputCls(!callerId && false)}>
-                <option value="">Select cold caller…</option>
-                {callers.map((c) => (
-                  <option key={c._id} value={c._id}>{c.firstName} {c.lastName}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={callerId}
+                onChange={setCaller}
+                placeholder="Select cold caller…"
+                searchPlaceholder="Search cold callers…"
+                emptyText="No cold callers match your search"
+                options={callers.map((c) => ({ value: c._id, label: `${c.firstName} ${c.lastName}` }))}
+              />
             </Field>
 
             {mode === 'scheme' ? (
               <Field label="Sectional Scheme" required>
-                <select value={scheme} onChange={(e) => setScheme(e.target.value)} className={inputCls(false)}>
-                  <option value="">Select scheme…</option>
-                  {schemes.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <SearchableSelect
+                  value={scheme}
+                  onChange={setScheme}
+                  placeholder="Select scheme…"
+                  searchPlaceholder="Search schemes…"
+                  emptyText="No schemes match your search"
+                  options={schemes.map((s) => ({ value: s, label: s }))}
+                />
               </Field>
             ) : mode === 'file' ? (
               <Field
@@ -528,12 +760,14 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
                     : "The whole file's contacts will be assigned in one action."
                 }
               >
-                <select value={fileBatchId} onChange={(e) => setFileBatchId(e.target.value)} className={inputCls(false)}>
-                  <option value="">Select file…</option>
-                  {files.map((f) => (
-                    <option key={f.batchId ?? f.name} value={f.batchId ?? ''}>{f.displayName}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={fileBatchId}
+                  onChange={setFileBatchId}
+                  placeholder="Select file…"
+                  searchPlaceholder="Search files by name…"
+                  emptyText="No files match your search"
+                  options={files.map((f) => ({ value: f.batchId ?? '', label: f.displayName }))}
+                />
                 {files.length > 0 && (filesData?.length ?? 0) > files.length && (
                   <p className="mt-1.5 text-xs text-[#8B5CF6]">
                     {(filesData.length - files.length)} file{filesData.length - files.length !== 1 ? 's' : ''} currently assigned and hidden — see Files Vault.
@@ -1480,12 +1714,17 @@ function ContactDrawer({ mode, contact, callers, onClose, onSaved }) {
               </div>
 
               <Field label="Assign to Cold Caller">
-                <select value={form.assignedTo ?? ''} onChange={(e) => setField('assignedTo', e.target.value)} className={inputCls(false)}>
-                  <option value="">Unassigned</option>
-                  {callers.map((c) => (
-                    <option key={c._id} value={c._id}>{c.firstName} {c.lastName}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={form.assignedTo ?? ''}
+                  onChange={(v) => setField('assignedTo', v)}
+                  placeholder="Unassigned"
+                  searchPlaceholder="Search cold callers…"
+                  emptyText="No cold callers match your search"
+                  options={[
+                    { value: '', label: 'Unassigned' },
+                    ...callers.map((c) => ({ value: c._id, label: `${c.firstName} ${c.lastName}` })),
+                  ]}
+                />
               </Field>
 
               <Field label="Notes">
@@ -1897,7 +2136,6 @@ export default function ContactsPage() {
   const [statusFilter, setStatus]     = useState('')
   const [callerFilter, setCaller]     = useState('')
   const [schemeFilter, setScheme]     = useState('')
-  const [groupFilterMode, setGroupFilterMode] = useState('scheme') // 'scheme' | 'file'
   const [missingPhoneFilter, setMissingPhoneFilter] = useState(false)
   const [unreachableFilter, setUnreachableFilter] = useState(false)
   const [batchFilter,  setBatchFilter] = useState('')
@@ -1940,13 +2178,17 @@ export default function ContactsPage() {
     setStatus(''); setCaller(''); setScheme('')
     setSearch('')
     setBatchFilter(newBatchId)
-    setGroupFilterMode('file')
     setMissingPhoneFilter(true)
   }
 
-  function clearBatchFilter() {
+  function clearAllFilters() {
+    setSearch('')
+    setStatus('')
+    setCaller('')
+    setScheme('')
     setBatchFilter('')
     setMissingPhoneFilter(false)
+    setUnreachableFilter(false)
   }
 
   const { data: countData } = useQuery({
@@ -2212,74 +2454,9 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* ── Group filter: by Scheme or by Uploaded File ──────────────────── */}
-      {(schemes.length > 0 || filesForFilter.length > 0) && (
-        <div className="px-5 sm:px-8 py-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <div className="flex items-center gap-3 mb-2.5">
-            <Layers className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" />
-            <div className="flex rounded-lg bg-[#F5F5F4] dark:bg-[#202020] p-0.5 gap-0.5">
-              <button onClick={() => setGroupFilterMode('scheme')}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-all ${
-                  groupFilterMode === 'scheme'
-                    ? 'bg-white dark:bg-[#111111] text-[#8B5CF6] shadow-sm'
-                    : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
-                }`}>
-                By Scheme
-              </button>
-              <button onClick={() => setGroupFilterMode('file')}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-all ${
-                  groupFilterMode === 'file'
-                    ? 'bg-white dark:bg-[#111111] text-[#3B82F6] shadow-sm'
-                    : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
-                }`}>
-                By File
-              </button>
-            </div>
-            {(schemeFilter || batchFilter) && (
-              <button onClick={() => { setScheme(''); setBatchFilter('') }} className="ml-auto flex items-center gap-1 text-[10px] text-[#F95C4B] font-semibold hover:underline flex-shrink-0">
-                <X className="w-3 h-3" /> Clear
-              </button>
-            )}
-          </div>
-          {groupFilterMode === 'scheme' ? (
-            schemes.length > 0 ? (
-              <SchemeStrip schemes={schemes} active={schemeFilter} onSelect={(s) => { setScheme((prev) => prev === s ? '' : s); setBatchFilter('') }} />
-            ) : (
-              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">
-                No usable sectional scheme names found — try "By File" instead.
-              </p>
-            )
-          ) : (
-            filesForFilter.length > 0 ? (
-              <FileStrip files={filesForFilter} active={batchFilter} onSelect={(b) => { setBatchFilter((prev) => prev === b ? '' : b); setScheme('') }} />
-            ) : (
-              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No uploaded files yet.</p>
-            )
-          )}
-        </div>
-      )}
-
-      {/* ── Cold Caller strip ──────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 py-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="flex items-center gap-2 mb-2.5">
-          <Users className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA]" />
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">
-            Filter by Cold Caller
-          </p>
-          {callerFilter && (
-            <button onClick={() => setCaller('')} className="ml-auto flex items-center gap-1 text-[10px] text-[#F95C4B] font-semibold hover:underline">
-              <X className="w-3 h-3" /> Clear
-            </button>
-          )}
-        </div>
-        <CallerStrip callers={callers} activeCaller={callerFilter}
-          onSelect={(id) => setCaller((prev) => prev === id ? '' : id)}
-          totalUnassigned={unassignedData?.total} />
-      </div>
-
       {/* ── Toolbar ───────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 py-3 flex flex-col sm:flex-row gap-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="relative flex-1 max-w-sm">
+      <div className="px-5 sm:px-8 py-3.5 flex flex-col gap-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, phone, unit, scheme, ID…"
@@ -2292,55 +2469,90 @@ export default function ContactsPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] self-start">
-          <SlidersHorizontal className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" />
-          <select value={sort} onChange={(e) => setSort(e.target.value)} className="bg-transparent text-[#111111] dark:text-white text-sm outline-none cursor-pointer">
-            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <CallerFilterDropdown
+            callers={callers}
+            activeCaller={callerFilter}
+            onSelect={(id) => setCaller((prev) => prev === id ? '' : id)}
+            totalCount={countData?.total ?? 0}
+            totalUnassigned={unassignedData?.total}
+          />
+
+          {schemes.length > 0 && (
+            <GroupFilterDropdown
+              icon={Building2}
+              placeholder="Scheme"
+              allLabel="All Schemes"
+              searchPlaceholder="Search schemes…"
+              accentColor="#8B5CF6"
+              value={schemeFilter}
+              options={schemes.map((s) => ({ value: s, label: s }))}
+              onChange={(v) => { setScheme(v); if (v) setBatchFilter('') }}
+            />
+          )}
+
+          {filesForFilter.length > 0 && (
+            <GroupFilterDropdown
+              icon={FileSpreadsheet}
+              placeholder="Uploaded File"
+              allLabel="All Files"
+              searchPlaceholder="Search files by name…"
+              accentColor="#3B82F6"
+              value={batchFilter}
+              options={filesForFilter.map((f) => ({ value: f.batchId, label: f.displayName }))}
+              onChange={(v) => { setBatchFilter(v); if (v) setScheme('') }}
+            />
+          )}
+
+          <button
+            onClick={() => setMissingPhoneFilter((v) => !v)}
+            className={[
+              'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+              missingPhoneFilter
+                ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30'
+                : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F59E0B]/40 hover:text-[#F59E0B]',
+            ].join(' ')}
+          >
+            <PhoneOff className="w-3.5 h-3.5" />
+            Missing Phone
+          </button>
+
+          <button
+            onClick={() => setUnreachableFilter((v) => !v)}
+            className={[
+              'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+              unreachableFilter
+                ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/30'
+                : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#8B5CF6]/40 hover:text-[#8B5CF6]',
+            ].join(' ')}
+          >
+            <PhoneCall className="w-3.5 h-3.5" />
+            Unreachable
+          </button>
+
+          {hasFilters && (
+            <button onClick={clearAllFilters}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#F95C4B] hover:bg-[#F95C4B]/8 transition-all">
+              <X className="w-3.5 h-3.5" />
+              Clear all filters
+            </button>
+          )}
+
+          {selected.size > 0 && (
+            <button onClick={() => setSelected(new Set())}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#F95C4B]/10 text-[#F95C4B] border border-[#F95C4B]/20 hover:bg-[#F95C4B]/15">
+              <CheckSquare className="w-3.5 h-3.5" />
+              {selected.size} selected <X className="w-3 h-3" />
+            </button>
+          )}
+
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] ml-auto">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" />
+            <select value={sort} onChange={(e) => setSort(e.target.value)} className="bg-transparent text-[#111111] dark:text-white text-sm outline-none cursor-pointer">
+              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
         </div>
-
-        <button
-          onClick={() => setMissingPhoneFilter((v) => !v)}
-          className={[
-            'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all self-start',
-            missingPhoneFilter
-              ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30'
-              : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F59E0B]/40 hover:text-[#F59E0B]',
-          ].join(' ')}
-        >
-          <PhoneOff className="w-3.5 h-3.5" />
-          Missing Phone
-        </button>
-
-        <button
-          onClick={() => setUnreachableFilter((v) => !v)}
-          className={[
-            'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all self-start',
-            unreachableFilter
-              ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/30'
-              : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#8B5CF6]/40 hover:text-[#8B5CF6]',
-          ].join(' ')}
-        >
-          <PhoneCall className="w-3.5 h-3.5" />
-          Unreachable
-        </button>
-
-        {batchFilter && (
-          <button onClick={clearBatchFilter}
-            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/25 hover:bg-[#3B82F6]/15 self-start">
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            This import only
-            <X className="w-3 h-3" />
-          </button>
-        )}
-
-        {selected.size > 0 && (
-          <button onClick={() => setSelected(new Set())}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#F95C4B]/10 text-[#F95C4B] border border-[#F95C4B]/20 hover:bg-[#F95C4B]/15">
-            <CheckSquare className="w-3.5 h-3.5" />
-            {selected.size} selected <X className="w-3 h-3" />
-          </button>
-        )}
       </div>
 
       {/* ── Table ─────────────────────────────────────────────────────── */}
