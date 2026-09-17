@@ -14,6 +14,7 @@ import { areasApi } from '../../services/areasApi'
 import {
   ListingFields, ListingBadge, ListingTypeFilter, PropertyFromContact, SearchableContactSelect, getApiErrorMessage,
   LastFollowUpCommentCell, LastFollowUpByCell, isLeadFollowedUpToday, isLeadFollowedUpByMeToday,
+  FollowUpActivityFilters,
 } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 import { useAuthStore } from '../../store/authStore'
@@ -766,16 +767,18 @@ export default function LeadsPage() {
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [callerFilter,  setCallerFilter] = useState('')
   const [followedUpFilter, setFollowedUpFilter] = useState('')
+  const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
+  const [hasCommentFilter, setHasCommentFilter] = useState(false)
   const [sort,          setSort]        = useState('-createdAt')
   const [drawer,        setDrawer]      = useState(null)
   const [toDelete,      setToDelete]    = useState(null)
 
   const debouncedSearch = useDebounce(search)
 
-  useEffect(() => { /* reset page if needed */ }, [debouncedSearch, statusFilter, listingTypeFilter, callerFilter, followedUpFilter, sort])
+  useEffect(() => { /* reset page if needed */ }, [debouncedSearch, statusFilter, listingTypeFilter, callerFilter, followedUpFilter, hasFollowUpFilter, hasCommentFilter, sort])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, createdBy: callerFilter, followedUpWithin: followedUpFilter, sort }],
+    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, createdBy: callerFilter, followedUpWithin: followedUpFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter, sort }],
     queryFn: () =>
       leadsApi
         .list({
@@ -783,6 +786,8 @@ export default function LeadsPage() {
           status:      statusFilter        || undefined,
           listingType: listingTypeFilter   || undefined,
           followedUpWithin: followedUpFilter || undefined,
+          hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
+          hasComment:  hasCommentFilter  ? 'true' : undefined,
           createdBy:   callerFilter        || undefined,
           sort,
           limit: 100,
@@ -793,7 +798,7 @@ export default function LeadsPage() {
 
   const leads = data?.leads ?? data ?? []
   const total = Array.isArray(leads) ? leads.length : 0
-  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || callerFilter || followedUpFilter)
+  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || callerFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter)
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -884,6 +889,13 @@ export default function LeadsPage() {
               ))}
             </select>
           </div>
+
+          <FollowUpActivityFilters
+            hasFollowUp={hasFollowUpFilter}
+            onHasFollowUpChange={setHasFollowUpFilter}
+            hasComment={hasCommentFilter}
+            onHasCommentChange={setHasCommentFilter}
+          />
 
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] ml-auto">
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" />

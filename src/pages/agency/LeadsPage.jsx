@@ -7,7 +7,8 @@ import {
   MapPin, Phone, User, Clock, Home, AlertCircle,
 } from 'lucide-react'
 import { agentsApi } from '../../services/agentsApi'
-import { ListingBadge, ListingTypeFilter } from '../../components/leads/leadShared'
+import { ListingBadge, ListingTypeFilter, LastFollowUpCommentCell, FollowUpActivityFilters } from '../../components/leads/leadShared'
+import { useAuthStore } from '../../store/authStore'
 
 const STATUS_META = {
   cold:       { label: 'Cold',       color: '#6B7280', bg: '#6B728018' },
@@ -47,7 +48,7 @@ function fmtDate(d) {
   return format(new Date(d), 'd MMM yyyy')
 }
 
-function LeadCard({ lead, onClick }) {
+function LeadCard({ lead, onClick, currentUserId }) {
   return (
     <button
       onClick={onClick}
@@ -104,11 +105,9 @@ function LeadCard({ lead, onClick }) {
         </div>
       </div>
 
-      {lead.notes && (
-        <p className="mt-3 text-xs text-[#6B7280] dark:text-[#A1A1AA] italic line-clamp-2 border-t border-[#E5E7EB] dark:border-[#2A2A2A] pt-3">
-          {lead.notes}
-        </p>
-      )}
+      <div className="mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A]">
+        <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} maxWidthClass="max-w-full" />
+      </div>
 
       <div className="flex items-center justify-end mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
         <span className="flex items-center gap-1 text-[11px] font-semibold text-[#3B82F6] group-hover:gap-1.5 transition-all">
@@ -121,8 +120,11 @@ function LeadCard({ lead, onClick }) {
 
 export default function AgencyLeadsPage() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [status, setStatus] = useState('')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
+  const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
+  const [hasCommentFilter, setHasCommentFilter] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
 
@@ -130,6 +132,8 @@ export default function AgencyLeadsPage() {
     page, limit: 20,
     ...(status ? { status } : {}),
     ...(listingTypeFilter ? { listingType: listingTypeFilter } : {}),
+    ...(hasFollowUpFilter ? { hasFollowUp: 'true' } : {}),
+    ...(hasCommentFilter ? { hasComment: 'true' } : {}),
   }
 
   const { data, isLoading, isError } = useQuery({
@@ -161,6 +165,16 @@ export default function AgencyLeadsPage() {
 
   function handleListingTypeChange(key) {
     setListingTypeFilter(key)
+    setPage(1)
+  }
+
+  function handleHasFollowUpChange(value) {
+    setHasFollowUpFilter(value)
+    setPage(1)
+  }
+
+  function handleHasCommentChange(value) {
+    setHasCommentFilter(value)
     setPage(1)
   }
 
@@ -211,7 +225,15 @@ export default function AgencyLeadsPage() {
             </button>
           ))}
         </div>
-        <ListingTypeFilter value={listingTypeFilter} onChange={handleListingTypeChange} accent="#3B82F6" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <ListingTypeFilter value={listingTypeFilter} onChange={handleListingTypeChange} accent="#3B82F6" />
+          <FollowUpActivityFilters
+            hasFollowUp={hasFollowUpFilter}
+            onHasFollowUpChange={handleHasFollowUpChange}
+            hasComment={hasCommentFilter}
+            onHasCommentChange={handleHasCommentChange}
+          />
+        </div>
       </div>
 
       {/* Content */}
@@ -242,7 +264,7 @@ export default function AgencyLeadsPage() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((lead) => (
-              <LeadCard key={lead._id} lead={lead} onClick={() => navigate(`/agency/leads/${lead._id}`)} />
+              <LeadCard key={lead._id} lead={lead} onClick={() => navigate(`/agency/leads/${lead._id}`)} currentUserId={user?._id} />
             ))}
           </div>
 

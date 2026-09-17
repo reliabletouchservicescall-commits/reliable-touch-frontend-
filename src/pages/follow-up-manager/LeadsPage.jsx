@@ -10,6 +10,7 @@ import { leadsApi } from '../../services/leadsApi'
 import {
   ListingBadge, ListingTypeFilter, LeadStatusBadge, FollowUpChip,
   LastFollowUpCommentCell, LastFollowUpByCell, isLeadFollowedUpToday, isLeadFollowedUpByMeToday,
+  FollowUpActivityFilters,
 } from '../../components/leads/leadShared'
 import { useAuthStore } from '../../store/authStore'
 
@@ -235,16 +236,20 @@ export default function FollowUpManagerLeadsPage() {
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [fumFilter, setFumFilter] = useState('')
   const [followedUpFilter, setFollowedUpFilter] = useState('')
+  const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
+  const [hasCommentFilter, setHasCommentFilter] = useState(false)
   const [fumFilterCollapsed, setFumFilterCollapsed] = useState(false)
   const debouncedSearch = useDebounce(search)
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['fum-leads', { search: debouncedSearch, listingType: listingTypeFilter, lastFollowUpBy: fumFilter, followedUpWithin: followedUpFilter }],
+    queryKey: ['fum-leads', { search: debouncedSearch, listingType: listingTypeFilter, lastFollowUpBy: fumFilter, followedUpWithin: followedUpFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter }],
     queryFn: () => leadsApi.list({
       search:      debouncedSearch    || undefined,
       listingType: listingTypeFilter  || undefined,
       lastFollowUpBy: fumFilter       || undefined,
       followedUpWithin: followedUpFilter || undefined,
+      hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
+      hasComment:  hasCommentFilter  ? 'true' : undefined,
       limit: 100,
     }).then((r) => r.data.data),
     placeholderData: keepPreviousData,
@@ -254,7 +259,7 @@ export default function FollowUpManagerLeadsPage() {
   const total = leads.length
   const unassignedCount = leads.filter((l) => !l.assignedAgent).length
   const overdueCount = leads.filter((l) => l.followUpDate && isPast(new Date(l.followUpDate))).length
-  const hasFilters = Boolean(search || listingTypeFilter || fumFilter || followedUpFilter)
+  const hasFilters = Boolean(search || listingTypeFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter)
 
   // A dedicated count, not leads.filter(...) on the loaded page — the hot-leads queue can
   // exceed the 100-lead page size, and this stat is exactly the "has anyone already
@@ -345,6 +350,13 @@ export default function FollowUpManagerLeadsPage() {
             ))}
           </select>
         </div>
+
+        <FollowUpActivityFilters
+          hasFollowUp={hasFollowUpFilter}
+          onHasFollowUpChange={setHasFollowUpFilter}
+          hasComment={hasCommentFilter}
+          onHasCommentChange={setHasCommentFilter}
+        />
       </div>
 
       <div className="flex-1 overflow-auto px-5 sm:px-8 py-5">

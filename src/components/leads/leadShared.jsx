@@ -751,22 +751,40 @@ export function FollowedUpTodayBadge({ lastFollowUpAt, isMine }) {
 // today/this-week badge. Pairs with LastFollowUpByCell below (kept as two cells since
 // admin/follow-up-manager tables show "what was said" and "who said it" as separate
 // columns). Pass currentUserId so the badge can tell "you" apart from a colleague.
-export function LastFollowUpCommentCell({ lead, currentUserId }) {
-  if (!lead.lastFollowUpAt) {
-    return <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No follow-up yet</span>
+export function LastFollowUpCommentCell({ lead, currentUserId, maxWidthClass = 'max-w-[220px]' }) {
+  if (lead.lastFollowUpAt) {
+    const authorId = (lead.lastFollowUpBy && typeof lead.lastFollowUpBy === 'object') ? lead.lastFollowUpBy._id : lead.lastFollowUpBy
+    const isMine = Boolean(currentUserId) && authorId === currentUserId
+    return (
+      <div className={`space-y-1 ${maxWidthClass}`}>
+        <FollowedUpTodayBadge lastFollowUpAt={lead.lastFollowUpAt} isMine={isMine} />
+        {lead.lastFollowUpText && (
+          <p className="text-xs text-[#111111] dark:text-white truncate" title={lead.lastFollowUpText}>
+            "{lead.lastFollowUpText}"
+          </p>
+        )}
+      </div>
+    )
   }
-  const authorId = (lead.lastFollowUpBy && typeof lead.lastFollowUpBy === 'object') ? lead.lastFollowUpBy._id : lead.lastFollowUpBy
-  const isMine = Boolean(currentUserId) && authorId === currentUserId
-  return (
-    <div className="space-y-1 max-w-[220px]">
-      <FollowedUpTodayBadge lastFollowUpAt={lead.lastFollowUpAt} isMine={isMine} />
-      {lead.lastFollowUpText && (
-        <p className="text-xs text-[#111111] dark:text-white truncate" title={lead.lastFollowUpText}>
-          "{lead.lastFollowUpText}"
+
+  // No follow-up logged yet, but the lead still carries its own note (set at creation,
+  // usually by the cold caller) — surface that instead of a flat "No follow-up yet" so
+  // it isn't lost, tagged clearly as a lead comment so nobody mistakes it for an actual
+  // follow-up (LastFollowUpByCell correctly stays "—" here — nobody has followed up).
+  if (lead.comments) {
+    return (
+      <div className={`space-y-1 ${maxWidthClass}`}>
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#F59E0B]/12 text-[#F59E0B] whitespace-nowrap">
+          <MessageSquare className="w-2.5 h-2.5" strokeWidth={2.5} /> Lead Comment
+        </span>
+        <p className="text-xs text-[#111111] dark:text-white truncate" title={lead.comments}>
+          "{lead.comments}"
         </p>
-      )}
-    </div>
-  )
+      </div>
+    )
+  }
+
+  return <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No follow-up yet</span>
 }
 
 export function LastFollowUpByCell({ lead }) {
@@ -789,6 +807,42 @@ export function LastFollowUpByCell({ lead }) {
         </span>
       </div>
     </div>
+  )
+}
+
+// Two independent, combinable toggles — "Has Follow-Up" (an actual logged follow-up
+// exists) and "Lead Comment" (the general note is set, whether or not it's been followed
+// up on yet). Shared so every role's Leads screen offers the exact same filtering.
+export function FollowUpActivityFilters({ hasFollowUp, onHasFollowUpChange, hasComment, onHasCommentChange }) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => onHasFollowUpChange(!hasFollowUp)}
+        className={[
+          'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all flex-shrink-0',
+          hasFollowUp
+            ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30'
+            : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#10B981]/40 hover:text-[#10B981]',
+        ].join(' ')}
+      >
+        <CheckCircle2 className="w-3.5 h-3.5" />
+        Has Follow-Up
+      </button>
+      <button
+        type="button"
+        onClick={() => onHasCommentChange(!hasComment)}
+        className={[
+          'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all flex-shrink-0',
+          hasComment
+            ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30'
+            : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F59E0B]/40 hover:text-[#F59E0B]',
+        ].join(' ')}
+      >
+        <MessageSquare className="w-3.5 h-3.5" />
+        Lead Comment
+      </button>
+    </>
   )
 }
 

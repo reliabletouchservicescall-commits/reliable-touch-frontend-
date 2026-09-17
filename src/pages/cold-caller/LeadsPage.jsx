@@ -8,9 +8,13 @@ import {
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
-import { LEAD_STATUS_META, LeadStatusBadge, FollowUpChip, ListingTypeFilter, ListingBadge } from '../../components/leads/leadShared'
+import {
+  LEAD_STATUS_META, LeadStatusBadge, FollowUpChip, ListingTypeFilter, ListingBadge,
+  LastFollowUpCommentCell, FollowUpActivityFilters,
+} from '../../components/leads/leadShared'
 import SidePanel from '../../components/common/SidePanel'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
+import { useAuthStore } from '../../store/authStore'
 
 const STATUS_TABS = [
   { key: '',           label: 'All' },
@@ -103,7 +107,7 @@ function ContactPickerPanel({ onClose, onPick }) {
 
 /* ─── Lead Card ──────────────────────────────────────────────────────────── */
 
-function LeadCard({ lead, onOpen }) {
+function LeadCard({ lead, onOpen, currentUserId }) {
   const areaObj = (lead.area && typeof lead.area === 'object') ? lead.area : null
   return (
     <button
@@ -137,7 +141,11 @@ function LeadCard({ lead, onOpen }) {
         </span>
       </div>
 
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
+      <div className="mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
+        <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} maxWidthClass="max-w-full" />
+      </div>
+
+      <div className="flex items-center justify-between mt-3">
         <FollowUpChip date={lead.followUpDate} />
         <span className="flex items-center gap-1 text-[11px] font-semibold text-[#3B82F6]">
           View details <ChevronRight className="w-3 h-3" />
@@ -178,10 +186,13 @@ function EmptyState({ hasFilters, onAdd }) {
 export default function ColdCallerLeadsPage() {
   const { contactId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuthStore()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
+  const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
+  const [hasCommentFilter, setHasCommentFilter] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [createContact, setCreateContact] = useState(null)
 
@@ -198,13 +209,15 @@ export default function ColdCallerLeadsPage() {
   }, [deepLinkContact])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, mine: true }],
+    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter, mine: true }],
     queryFn: () =>
       leadsApi
         .list({
           search:      debouncedSearch    || undefined,
           status:      statusFilter       || undefined,
           listingType: listingTypeFilter  || undefined,
+          hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
+          hasComment:  hasCommentFilter  ? 'true' : undefined,
           limit: 100,
         })
         .then((r) => r.data.data),
@@ -213,7 +226,7 @@ export default function ColdCallerLeadsPage() {
 
   const leads = data?.leads ?? []
   const total = leads.length
-  const hasFilters = Boolean(search || statusFilter || listingTypeFilter)
+  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter)
 
   const counts = STATUS_TABS.reduce((acc, t) => {
     if (!t.key) return acc
@@ -290,6 +303,13 @@ export default function ColdCallerLeadsPage() {
           )}
         </div>
         <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
+
+        <FollowUpActivityFilters
+          hasFollowUp={hasFollowUpFilter}
+          onHasFollowUpChange={setHasFollowUpFilter}
+          hasComment={hasCommentFilter}
+          onHasCommentChange={setHasCommentFilter}
+        />
       </div>
 
       {/* ── List ─────────────────────────────────────────────────────────── */}
@@ -312,7 +332,7 @@ export default function ColdCallerLeadsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {leads.map((lead) => (
-              <LeadCard key={lead._id} lead={lead} onOpen={() => navigate(`/cold-caller/leads/${lead._id}`)} />
+              <LeadCard key={lead._id} lead={lead} onOpen={() => navigate(`/cold-caller/leads/${lead._id}`)} currentUserId={user?._id} />
             ))}
           </div>
         )}
