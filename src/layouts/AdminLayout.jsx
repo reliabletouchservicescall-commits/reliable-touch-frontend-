@@ -51,6 +51,7 @@ const NAV = [
       { label: 'Leads', icon: TrendingUp, to: '/admin/leads' },
       { label: 'Campaigns', icon: Megaphone, to: '/admin/campaigns' },
       { label: 'Call Logs', icon: PhoneCall, to: '/admin/call-logs' },
+      { label: 'Caller Workload', icon: Users, to: '/admin/caller-workload' },
       { label: 'Do Not Call', icon: PhoneOff, to: '/admin/dnc' },
     ],
   },

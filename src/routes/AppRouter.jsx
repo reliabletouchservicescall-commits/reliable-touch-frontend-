@@ -14,6 +14,7 @@ import FollowUpManagerLayout from '../layouts/FollowUpManagerLayout'
 // Admin pages
 import AdminDashboard from '../pages/admin/DashboardPage'
 import ContactsPage from '../pages/admin/ContactsPage'
+import CallerWorkloadPage from '../pages/admin/CallerWorkloadPage'
 import UsersPage from '../pages/admin/UsersPage'
 import UserDetailPage from '../pages/admin/UserDetailPage'
 import LeadsPage from '../pages/admin/LeadsPage'
@@ -109,6 +110,7 @@ export default function AppRouter() {
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailPage />} />
           <Route path="contacts" element={<ContactsPage />} />
+          <Route path="caller-workload" element={<CallerWorkloadPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="leads/:id" element={<AdminLeadDetailPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />

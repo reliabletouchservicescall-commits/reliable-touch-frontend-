@@ -19,4 +19,5 @@ export const contactsApi = {
   resolveDuplicates: (data) => axiosClient.post('/contacts/resolve-duplicates', data),
   getBatchStats:  (batchId) => axiosClient.get(`/contacts/files/${batchId}/stats`),
   returnFileToPool: (batchId) => axiosClient.post(`/contacts/files/${batchId}/return`),
+  callerWorkload: () => axiosClient.get('/contacts/caller-workload'),
 }

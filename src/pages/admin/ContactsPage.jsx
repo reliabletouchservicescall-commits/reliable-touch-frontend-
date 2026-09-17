@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -554,10 +555,11 @@ function BulkAssignBar({ count, callers, onAssign, onClear, busy }) {
 // Builds a toast message explaining any gap between the file/scheme/range's total row
 // count and how many actually got assigned — e.g. an admin assigning a whole Excel file
 // shouldn't be left wondering why "assigned" is much smaller than the file's row count.
-function buildAssignToast({ assigned, totalMatched, skippedNoPhone, skippedDnc }, callerName) {
+function buildAssignToast({ assigned, totalMatched, skippedNoPhone, skippedDnc, alreadyAssignedToOthers }, callerName) {
   const parts = []
   if (skippedNoPhone > 0) parts.push(`${skippedNoPhone} have no phone number`)
   if (skippedDnc > 0) parts.push(`${skippedDnc} are on the Do Not Call list`)
+  if (alreadyAssignedToOthers > 0) parts.push(`${alreadyAssignedToOthers} were moved from another caller's queue`)
   const base = `${assigned} of ${totalMatched} contact${totalMatched !== 1 ? 's' : ''} assigned to ${callerName}.`
   return parts.length ? `${base} ${parts.join(', ')}.` : base
 }
@@ -645,9 +647,9 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
   const caller = callers.find((c) => c._id === callerId)
 
   function currentFilters() {
-    if (mode === 'scheme') return { sectionalScheme: scheme }
-    if (mode === 'file')   return { uploadBatchId: fileBatchId }
-    return { fromIndex: parseInt(fromIdx), toIndex: parseInt(toIdx), uploadBatchId: batchId || undefined }
+    if (mode === 'scheme') return { sectionalScheme: scheme, callerId }
+    if (mode === 'file')   return { uploadBatchId: fileBatchId, callerId }
+    return { fromIndex: parseInt(fromIdx), toIndex: parseInt(toIdx), uploadBatchId: batchId || undefined, callerId }
   }
 
   function runAssignment() {
@@ -670,12 +672,15 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
     if (mode === 'range') {
       if (!fromIdx || !toIdx) { toast.error('Enter both from and to index'); return }
       if (parseInt(fromIdx) > parseInt(toIdx)) { toast.error('From index must be ≤ To index'); return }
+      // Row position only means anything within one uploaded file — leaving this blank
+      // used to silently span every file ever uploaded.
+      if (!batchId) { toast.error('Upload Batch ID is required for range assignment'); return }
     }
 
     if (!confirmedRecent) {
       try {
         const preview = await previewMut.mutateAsync(currentFilters())
-        if (preview.recentlyCalledCount > 0) {
+        if (preview.recentlyCalledCount > 0 || preview.alreadyAssignedToOthers > 0) {
           setRecentWarning(preview)
           return
         }
@@ -786,15 +791,30 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
                       placeholder="e.g. 120" className={inputCls(false)} />
                   </Field>
                 </div>
-                <Field label="Upload Batch ID (optional)">
-                  <input value={batchId} onChange={(e) => setBatchId(e.target.value)}
-                    placeholder="Leave blank to apply across all imports"
-                    className={inputCls(false)} />
+                <Field
+                  label="Uploaded File"
+                  required
+                  hint="Row numbers only mean something within one file, so pick which upload these rows belong to."
+                >
+                  <SearchableSelect
+                    value={batchId}
+                    onChange={setBatchId}
+                    placeholder="Select file…"
+                    searchPlaceholder="Search files by name…"
+                    emptyText="No uploaded files found"
+                    options={(filesData ?? []).map((f) => ({
+                      value: f.batchId ?? '',
+                      // Unlike "By File" mode, a range can deliberately pull rows from an
+                      // already-assigned file (e.g. reassigning part of it) — surfaced here
+                      // instead of hiding those files, so the admin sees it coming.
+                      label: f.assignment ? `${f.displayName} — assigned to ${f.assignment.assignedToName}` : f.displayName,
+                    }))}
+                  />
                 </Field>
                 <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#3B82F6]/8 border border-[#3B82F6]/20">
                   <AlertTriangle className="w-4 h-4 text-[#3B82F6] mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-[#3B82F6]">
-                    Assigns contacts at import rows {fromIdx || '…'} – {toIdx || '…'}.
+                    Assigns contacts at rows {fromIdx || '…'} – {toIdx || '…'} of that file.
                     Only contacts with a phone number will be assigned.
                   </p>
                 </div>
@@ -804,11 +824,18 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
             {recentWarning ? (
               <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/30">
                 <AlertTriangle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-xs text-[#F59E0B] font-semibold">
-                    {recentWarning.recentlyCalledCount} of {recentWarning.totalMatched} matching contact{recentWarning.totalMatched !== 1 ? 's' : ''} {recentWarning.recentlyCalledCount !== 1 ? 'were' : 'was'} called in the past {recentWarning.windowDays} days.
-                  </p>
-                  <p className="text-xs text-[#F59E0B]/80 mt-1">Proceed with reassigning them anyway?</p>
+                <div className="flex-1 space-y-1">
+                  {recentWarning.recentlyCalledCount > 0 && (
+                    <p className="text-xs text-[#F59E0B] font-semibold">
+                      {recentWarning.recentlyCalledCount} of {recentWarning.totalMatched} matching contact{recentWarning.totalMatched !== 1 ? 's' : ''} {recentWarning.recentlyCalledCount !== 1 ? 'were' : 'was'} called in the past {recentWarning.windowDays} days.
+                    </p>
+                  )}
+                  {recentWarning.alreadyAssignedToOthers > 0 && (
+                    <p className="text-xs text-[#F59E0B] font-semibold">
+                      {recentWarning.alreadyAssignedToOthers} of {recentWarning.totalMatched} matching contact{recentWarning.totalMatched !== 1 ? 's are' : ' is'} currently assigned to a different caller and will be moved.
+                    </p>
+                  )}
+                  <p className="text-xs text-[#F59E0B]/80 mt-1">Proceed anyway?</p>
                   <div className="flex gap-2 mt-2.5">
                     <button type="button" onClick={() => setRecentWarning(null)}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#F59E0B]/30 text-[#F59E0B] hover:bg-[#F59E0B]/10">
@@ -1926,7 +1953,7 @@ function DeleteDialog({ contact, onClose, onDeleted }) {
 
 /* ─── Recently-called preflight confirm (checkbox bulk-assign) ──────────── */
 
-function RecentlyCalledConfirmModal({ totalMatched, recentlyCalledCount, windowDays, onCancel, onConfirm }) {
+function RecentlyCalledConfirmModal({ totalMatched, recentlyCalledCount, windowDays, alreadyAssignedToOthers, onCancel, onConfirm }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onCancel} />
@@ -1936,13 +1963,25 @@ function RecentlyCalledConfirmModal({ totalMatched, recentlyCalledCount, windowD
             <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center">
               <AlertTriangle className="w-5 h-5 text-[#F59E0B]" />
             </div>
-            <h3 className="font-bold text-[#111111] dark:text-white">Recently Called</h3>
+            <h3 className="font-bold text-[#111111] dark:text-white">Confirm Assignment</h3>
           </div>
-          <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mb-6">
-            <span className="font-semibold text-[#F59E0B]">{recentlyCalledCount}</span> of{' '}
-            <span className="font-semibold text-[#111111] dark:text-white">{totalMatched}</span> selected contacts
-            were called in the past {windowDays} days. Proceed with reassigning them anyway?
-          </p>
+          <div className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mb-6 space-y-2">
+            {recentlyCalledCount > 0 && (
+              <p>
+                <span className="font-semibold text-[#F59E0B]">{recentlyCalledCount}</span> of{' '}
+                <span className="font-semibold text-[#111111] dark:text-white">{totalMatched}</span> selected contacts
+                were called in the past {windowDays} days.
+              </p>
+            )}
+            {alreadyAssignedToOthers > 0 && (
+              <p>
+                <span className="font-semibold text-[#F59E0B]">{alreadyAssignedToOthers}</span> of{' '}
+                <span className="font-semibold text-[#111111] dark:text-white">{totalMatched}</span> selected contacts
+                are currently assigned to a different caller and will be moved.
+              </p>
+            )}
+            <p>Proceed anyway?</p>
+          </div>
           <div className="flex gap-3">
             <button onClick={onCancel}
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">Cancel</button>
@@ -2132,9 +2171,13 @@ function buildPageNums(current, total) {
 /* ─── Main Page ──────────────────────────────────────────────────────── */
 
 export default function ContactsPage() {
+  // Lets other pages (e.g. Caller Workload's "View Contacts") deep-link straight into a
+  // caller's contacts via ?assignedTo=<id> — read once on mount, not kept in sync with
+  // the URL afterward (this page's other filters are plain local state, not URL-driven).
+  const [searchParams] = useSearchParams()
   const [search,       setSearch]     = useState('')
   const [statusFilter, setStatus]     = useState('')
-  const [callerFilter, setCaller]     = useState('')
+  const [callerFilter, setCaller]     = useState(() => searchParams.get('assignedTo') ?? '')
   const [schemeFilter, setScheme]     = useState('')
   const [missingPhoneFilter, setMissingPhoneFilter] = useState(false)
   const [unreachableFilter, setUnreachableFilter] = useState(false)
@@ -2299,8 +2342,8 @@ export default function ContactsPage() {
     const ids = [...selected]
     setAssigning(true)
     try {
-      const preview = await contactsApi.assignPreview({ ids }).then((r) => r.data.data)
-      if (preview.recentlyCalledCount > 0) {
+      const preview = await contactsApi.assignPreview({ ids, callerId }).then((r) => r.data.data)
+      if (preview.recentlyCalledCount > 0 || preview.alreadyAssignedToOthers > 0) {
         setPendingBulkAssign({ callerId, ids, ...preview })
         return
       }
@@ -2321,11 +2364,10 @@ export default function ContactsPage() {
       // else starts fresh for the new caller instead of silently vanishing from their
       // "To Call" queue if it was called earlier the same day it's reassigned.
       const { data } = await contactsApi.assignByIds({ ids, callerId })
-      const assigned = data?.data?.assigned ?? ids.length
       qc.invalidateQueries({ queryKey: ['contacts'] })
       qc.invalidateQueries({ queryKey: ['caller-counts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
-      toast.success(`${assigned} contact${assigned !== 1 ? 's' : ''} assigned to ${caller?.firstName} ${caller?.lastName}`)
+      toast.success(buildAssignToast(data.data, caller ? `${caller.firstName} ${caller.lastName}` : 'the cold caller'))
       setSelected(new Set())
     } catch { toast.error('Some assignments failed.') } finally { setAssigning(false) }
   }

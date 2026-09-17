@@ -458,27 +458,39 @@ function ContactCard({ contact, onCallInitiated, showOutcome }) {
           )}
         </div>
 
-        {/* Actions — the Called Today tab shows the outcome instead, since re-dialing
-            isn't the point of reviewing what's already been attempted today. */}
+        {/* Actions — the Called Today tab shows the outcome plus a same-day "Call Again",
+            since a called contact is now retired from "To Call" for good (it won't
+            resurface tomorrow) — this is the only way left to follow up on e.g. a
+            no-answer without waiting for an admin to reassign it. */}
         {showOutcome ? (
-          <div className="flex items-center justify-between gap-2">
-            {(() => {
-              const meta = CALL_OUTCOME_META[contact.lastCallOutcome] ?? { ...DEFAULT_OUTCOME_META, label: contact.lastCallOutcome ?? 'Unknown' }
-              const Icon = meta.icon
-              return (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold flex-shrink-0"
-                  style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
-                  <Icon className="w-3.5 h-3.5" /> {meta.label}
-                </span>
-              )
-            })()}
-            <button
-              onClick={() => onCallInitiated(contact, 'history')}
-              className="flex items-center justify-center w-10 h-10 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#3B82F6] transition-colors flex-shrink-0"
-              title="View call history"
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              {(() => {
+                const meta = CALL_OUTCOME_META[contact.lastCallOutcome] ?? { ...DEFAULT_OUTCOME_META, label: contact.lastCallOutcome ?? 'Unknown' }
+                const Icon = meta.icon
+                return (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold flex-shrink-0"
+                    style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
+                    <Icon className="w-3.5 h-3.5" /> {meta.label}
+                  </span>
+                )
+              })()}
+              <button
+                onClick={() => onCallInitiated(contact, 'history')}
+                className="flex items-center justify-center w-10 h-10 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#3B82F6] transition-colors flex-shrink-0"
+                title="View call history"
+              >
+                <PhoneCall className="w-4 h-4" strokeWidth={1.75} />
+              </button>
+            </div>
+            <a
+              href={`tel:${cleanPhone(preferredPhone)}`}
+              onClick={(e) => { e.preventDefault(); onCallInitiated(contact) }}
+              className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-semibold text-[#10B981] border border-dashed border-[#10B981]/40 hover:bg-[#10B981]/5 transition-colors"
             >
-              <PhoneCall className="w-4 h-4" strokeWidth={1.75} />
-            </button>
+              <Phone className="w-3.5 h-3.5" strokeWidth={2} />
+              Call Again
+            </a>
           </div>
         ) : (
           <>
@@ -547,9 +559,9 @@ function EmptyDoneForToday({ onViewToday, onRequest }) {
       <div className="w-16 h-16 rounded-2xl bg-[#10B981]/10 flex items-center justify-center mb-4">
         <CheckCircle2 className="w-8 h-8 text-[#10B981]" strokeWidth={1.5} />
       </div>
-      <h3 className="text-base font-bold text-[#111111] dark:text-white mb-1">All done for today!</h3>
+      <h3 className="text-base font-bold text-[#111111] dark:text-white mb-1">All done!</h3>
       <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] max-w-xs mb-5">
-        You've called everyone in today's queue — check back tomorrow, or view what you called today.
+        You've called everyone assigned to you. Request more contacts to keep going, or view what you called today.
       </p>
       <div className="flex items-center gap-2.5">
         <button
@@ -674,10 +686,6 @@ export default function MyContactsPage() {
     initiateCallMut.mutate({ contact })
   }, [])
 
-  // Page-local approximation (only meaningful in the "To Call" view) — matches the
-  // pre-existing limitation of this stat, not something this feature changes.
-  const neverCalled = contacts.filter((c) => !c.lastCalledAt).length
-
   return (
     <div className="flex flex-col h-full min-h-0">
 
@@ -712,7 +720,7 @@ export default function MyContactsPage() {
                 ? 'Loading…'
                 : viewMode === 'today'
                   ? `${total} call${total !== 1 ? 's' : ''} logged today`
-                  : `${total} to call · ${calledTodayCount} called today · ${neverCalled} never called`}
+                  : `${total} to call · ${calledTodayCount} called today`}
             </p>
           </div>
 
@@ -767,9 +775,8 @@ export default function MyContactsPage() {
         {!isLoading && viewMode === 'todo' && (total > 0 || calledTodayCount > 0) && (
           <div className="flex items-center gap-4 mb-4">
             {[
-              { label: 'Never called', count: neverCalled,      color: '#3B82F6' },
-              { label: 'Called today', count: calledTodayCount, color: '#10B981' },
               { label: 'To call',      count: total,            color: '#F59E0B' },
+              { label: 'Called today', count: calledTodayCount, color: '#10B981' },
             ].map(({ label, count, color }) => (
               <div key={label} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
