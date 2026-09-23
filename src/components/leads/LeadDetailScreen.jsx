@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import {
   ArrowLeft, Trash2, Repeat, ArrowRight, Phone, Mail, User, Building2,
-  History, FileText, Loader2, ShieldCheck, AlertTriangle, MapPin, PhoneCall,
+  History, FileText, Loader2, ShieldCheck, AlertTriangle, MapPin, PhoneCall, Calendar, Check,
+  MessageCircle,
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { appointmentsApi } from '../../services/appointmentsApi'
+import { chatApi } from '../../services/chatApi'
 import ContactCallHistory from '../contacts/ContactCallHistory'
 import LeadAppointments from '../appointments/LeadAppointments'
 import {
@@ -20,6 +23,10 @@ const STATUS_OPTS = ['cold', 'warm', 'hot', 'listed', 'rented_out', 'sold', 'los
 
 function resolveUser(obj) {
   return (obj && typeof obj === 'object' && obj.firstName) ? obj : null
+}
+
+function cleanPhone(phone) {
+  return phone?.replace(/\s+/g, '') ?? ''
 }
 
 /* ─── Status Change Dialog — shared, brand accent ────────────────────────── */
@@ -158,27 +165,77 @@ function DeleteDialog({ lead, invalidateQueryKey, onClose, onDeleted }) {
 
 /* ─── Small display helpers ──────────────────────────────────────────────── */
 
-function InfoCard({ icon: Icon, title, children }) {
+function InfoCard({ icon: Icon, title, action, children }) {
   return (
     <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111]">
         <Icon className="w-3.5 h-3.5 text-[#F95C4B]" strokeWidth={1.75} />
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{title}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] flex-1">{title}</p>
+        {action}
       </div>
       <div className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">{children}</div>
     </div>
   )
 }
 
-function InfoRow({ icon: Icon, label, value }) {
+/**
+ * Opens (or creates) a conversation with `targetUser` and jumps to the current role's
+ * Messages inbox with that conversation preselected and this lead pre-attached to the
+ * composer — so the next message sent carries a clickable "lead card" both sides can
+ * click back into. Hidden by the caller when targetUser is the viewer themselves.
+ */
+function ChatWithButton({ targetUser, targetLabel, lead, chatBasePath }) {
+  const navigate = useNavigate()
+  const mut = useMutation({
+    mutationFn: () => chatApi.openConversation(targetUser._id),
+    onSuccess: (data) => {
+      navigate(`${chatBasePath}/chat`, {
+        state: {
+          conversationId: data.conversation._id,
+          attachLead: { _id: lead._id, landlordName: lead.landlordName, propertyAddress: lead.propertyAddress, status: lead.status },
+        },
+      })
+    },
+    onError: () => toast.error('Could not open conversation'),
+  })
+
+  return (
+    <button
+      onClick={() => mut.mutate()}
+      disabled={mut.isPending}
+      title={`Chat with ${targetLabel}`}
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-[#F95C4B] bg-[#F95C4B]/10 hover:bg-[#F95C4B]/20 disabled:opacity-50 transition-colors flex-shrink-0"
+    >
+      {mut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageCircle className="w-3 h-3" />}
+      Chat
+    </button>
+  )
+}
+
+function InfoRow({ icon: Icon, label, value, href }) {
   if (!value) return null
+  const inner = (
+    <>
+      <Icon className="w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 flex-shrink-0 group-hover:text-[#F95C4B] transition-colors" strokeWidth={1.75} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{label}</p>
+        <p className="text-sm text-[#111111] dark:text-white break-words group-hover:text-[#F95C4B] transition-colors">{value}</p>
+      </div>
+      {href && (
+        <PhoneCall className="w-3.5 h-3.5 text-[#6B7280]/40 dark:text-[#A1A1AA]/40 group-hover:text-[#F95C4B] transition-colors mt-1 flex-shrink-0" strokeWidth={1.75} />
+      )}
+    </>
+  )
+  if (href) {
+    return (
+      <a href={href} className="flex items-start gap-3 px-4 py-3 group hover:bg-[#F95C4B]/5 transition-colors">
+        {inner}
+      </a>
+    )
+  }
   return (
     <div className="flex items-start gap-3 px-4 py-3">
-      <Icon className="w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 flex-shrink-0" strokeWidth={1.75} />
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{label}</p>
-        <p className="text-sm text-[#111111] dark:text-white break-words">{value}</p>
-      </div>
+      {inner}
     </div>
   )
 }
@@ -203,6 +260,7 @@ export default function LeadDetailScreen({
   canDelete = false,
   canComment = false,
   currentUserId,
+  currentUserRole,
 }) {
   const qc = useQueryClient()
   const [lead, setLead] = useState(initialLead)
@@ -210,10 +268,13 @@ export default function LeadDetailScreen({
   const [statusDialog, setStatusDialog] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState(false)
 
+  const chatBasePath = currentUserRole ? `/${currentUserRole.replace(/_/g, '-')}` : null
+
   const contact = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const area = (lead.area && typeof lead.area === 'object') ? lead.area : null
   const creator = resolveUser(lead.createdBy)
   const assignedAgentUser = resolveUser(lead.assignedAgent)
+  const assignedAgentByUser = resolveUser(lead.assignedAgentBy)
   const canEdit = editableFields.size > 0 || canAssignAgency
 
   const [form, setForm] = useState(() => ({
@@ -254,6 +315,21 @@ export default function LeadDetailScreen({
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to update lead')),
   })
+
+  // Standalone quick-save for just the follow-up date — saving the whole form (below)
+  // works too, but setting the next follow-up is common enough on its own (and the
+  // trigger for the due-date reminder job) to deserve a one-click path that doesn't
+  // require touching or re-submitting every other field.
+  const quickFollowUpMut = useMutation({
+    mutationFn: (value) => leadsApi.update(lead._id, { followUpDate: value || null }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: invalidateQueryKey })
+      toast.success('Follow-up date set')
+      setLead(res.data.data.lead)
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to set follow-up date')),
+  })
+  const followUpDateDirty = form.followUpDate !== (lead.followUpDate ? lead.followUpDate.slice(0, 10) : '')
 
   function handleSave(e) {
     e.preventDefault()
@@ -360,37 +436,72 @@ export default function LeadDetailScreen({
             <div className="lg:col-span-3 space-y-5">
               <InfoCard icon={User} title="Contact">
                 <InfoRow icon={User} label="Name" value={contact?.name ?? lead.landlordName} />
-                <InfoRow icon={Phone} label="Phone" value={contact?.phone ?? lead.phone} />
-                {contact?.altPhone && <InfoRow icon={Phone} label="Alt Phone" value={contact.altPhone} />}
+                <InfoRow
+                  icon={Phone}
+                  label="Phone"
+                  value={contact?.phone ?? lead.phone}
+                  href={(contact?.phone ?? lead.phone) ? `tel:${cleanPhone(contact?.phone ?? lead.phone)}` : undefined}
+                />
+                {contact?.altPhone && (
+                  <InfoRow icon={Phone} label="Alt Phone" value={contact.altPhone} href={`tel:${cleanPhone(contact.altPhone)}`} />
+                )}
                 <InfoRow icon={Mail} label="Email" value={contact?.email ?? lead.email} />
                 {area && <InfoRow icon={MapPin} label="Area" value={`${area.name}${area.region ? `, ${area.region}` : ''}`} />}
               </InfoCard>
 
               {creator && (
-                <InfoCard icon={User} title="Cold Caller">
+                <InfoCard
+                  icon={User}
+                  title="Cold Caller"
+                  action={chatBasePath && creator._id !== currentUserId ? (
+                    <ChatWithButton targetUser={creator} targetLabel="cold caller" lead={lead} chatBasePath={chatBasePath} />
+                  ) : null}
+                >
                   <InfoRow icon={User} label="Name" value={`${creator.firstName} ${creator.lastName}`} />
                   <InfoRow icon={Mail} label="Email" value={creator.email} />
                 </InfoCard>
               )}
 
-              <InfoCard icon={Building2} title="Assigned Agent">
+              <InfoCard
+                icon={Building2}
+                title="Assigned Agent"
+                action={chatBasePath && assignedAgentUser && assignedAgentUser._id !== currentUserId ? (
+                  <ChatWithButton targetUser={assignedAgentUser} targetLabel="agency" lead={lead} chatBasePath={chatBasePath} />
+                ) : null}
+              >
                 {canAssignAgency ? (
-                  <div className="p-4">
-                    <select
-                      value={form.assignedAgent}
-                      onChange={(e) => setField('assignedAgent', e.target.value)}
-                      className={inputCls(false)}
-                    >
-                      <option value="">-- Unassigned --</option>
-                      {agencies.map((a) => (
-                        <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <>
+                    <div className="p-4">
+                      <select
+                        value={form.assignedAgent}
+                        onChange={(e) => setField('assignedAgent', e.target.value)}
+                        className={inputCls(false)}
+                      >
+                        <option value="">-- Unassigned --</option>
+                        {agencies.map((a) => (
+                          <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {assignedAgentUser && assignedAgentByUser && lead.assignedAgentAt && (
+                      <InfoRow
+                        icon={Calendar}
+                        label="Assigned By"
+                        value={`${assignedAgentByUser.firstName} ${assignedAgentByUser.lastName} · ${format(new Date(lead.assignedAgentAt), 'd MMM yyyy')}`}
+                      />
+                    )}
+                  </>
                 ) : assignedAgentUser ? (
                   <>
                     <InfoRow icon={User} label="Name" value={`${assignedAgentUser.firstName} ${assignedAgentUser.lastName}`} />
                     <InfoRow icon={Mail} label="Email" value={assignedAgentUser.email} />
+                    {assignedAgentByUser && lead.assignedAgentAt && (
+                      <InfoRow
+                        icon={Calendar}
+                        label="Assigned By"
+                        value={`${assignedAgentByUser.firstName} ${assignedAgentByUser.lastName} · ${format(new Date(lead.assignedAgentAt), 'd MMM yyyy')}`}
+                      />
+                    )}
                   </>
                 ) : (
                   <p className="px-4 py-3 text-sm text-[#6B7280] dark:text-[#A1A1AA] italic">Unassigned</p>
@@ -453,7 +564,18 @@ export default function LeadDetailScreen({
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Follow-up Date">
                         {has('followUpDate') ? (
-                          <DateField value={form.followUpDate} onChange={(v) => setField('followUpDate', v)} className={inputCls(false)} />
+                          <div className="flex items-center gap-2">
+                            <DateField value={form.followUpDate} onChange={(v) => setField('followUpDate', v)} className={inputCls(false)} />
+                            <button
+                              type="button"
+                              onClick={() => quickFollowUpMut.mutate(form.followUpDate)}
+                              disabled={quickFollowUpMut.isPending || !followUpDateDirty}
+                              title="Save just this date, without submitting the rest of the form"
+                              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-[#F95C4B]/10 text-[#F95C4B] hover:bg-[#F95C4B]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {quickFollowUpMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" strokeWidth={2.5} />}
+                            </button>
+                          </div>
                         ) : <p className="text-sm text-[#111111] dark:text-white py-1">{lead.followUpDate ? format(new Date(lead.followUpDate), 'd MMM yyyy') : '—'}</p>}
                       </Field>
                       <Field label="Appointment Date">

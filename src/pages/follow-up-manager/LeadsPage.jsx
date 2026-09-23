@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { isPast } from 'date-fns'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { isPast, format } from 'date-fns'
 import {
   Flame, Search, X, AlertTriangle, Loader2, Users,
   ChevronDown, ChevronUp, CalendarCheck, CheckCircle2,
@@ -10,7 +10,7 @@ import { leadsApi } from '../../services/leadsApi'
 import {
   ListingBadge, ListingTypeFilter, LeadStatusBadge, FollowUpChip,
   LastFollowUpCommentCell, LastFollowUpByCell, isLeadFollowedUpToday, isLeadFollowedUpByMeToday,
-  FollowUpActivityFilters,
+  FollowUpActivityFilters, CreatedDateRangeFilter, QuickFollowUpDateButton,
 } from '../../components/leads/leadShared'
 import { useAuthStore } from '../../store/authStore'
 
@@ -149,7 +149,7 @@ function FollowUpManagerStrip({ fumFilter, onFumChange, collapsed, onToggleColla
 
 /* ─── Lead Row ───────────────────────────────────────────────────────────── */
 
-function LeadRow({ lead, onOpen, currentUserId }) {
+function LeadRow({ lead, onOpen, currentUserId, onFollowUpSaved }) {
   const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const agentUser  = resolveUser(lead.assignedAgent)
   const callerUser = resolveUser(lead.createdBy)
@@ -194,10 +194,16 @@ function LeadRow({ lead, onOpen, currentUserId }) {
         )}
       </td>
       <td className="px-4 py-3.5">
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{format(new Date(lead.createdAt), 'd MMM yyyy')}</p>
+      </td>
+      <td className="px-4 py-3.5">
         <LeadStatusBadge status={lead.status} />
       </td>
       <td className="px-4 py-3.5">
-        <FollowUpChip date={lead.followUpDate} />
+        <div className="flex items-center gap-1">
+          <FollowUpChip date={lead.followUpDate} />
+          <QuickFollowUpDateButton lead={lead} onSaved={onFollowUpSaved} />
+        </div>
       </td>
       <td className="px-4 py-3.5">
         <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} />
@@ -231,6 +237,7 @@ function EmptyState({ hasFilters }) {
 
 export default function FollowUpManagerLeadsPage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { user } = useAuthStore()
   const [search, setSearch] = useState('')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
@@ -238,11 +245,13 @@ export default function FollowUpManagerLeadsPage() {
   const [followedUpFilter, setFollowedUpFilter] = useState('')
   const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
   const [hasCommentFilter, setHasCommentFilter] = useState(false)
+  const [createdFrom, setCreatedFrom] = useState('')
+  const [createdTo,   setCreatedTo]   = useState('')
   const [fumFilterCollapsed, setFumFilterCollapsed] = useState(false)
   const debouncedSearch = useDebounce(search)
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['fum-leads', { search: debouncedSearch, listingType: listingTypeFilter, lastFollowUpBy: fumFilter, followedUpWithin: followedUpFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter }],
+    queryKey: ['fum-leads', { search: debouncedSearch, listingType: listingTypeFilter, lastFollowUpBy: fumFilter, followedUpWithin: followedUpFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter, createdFrom, createdTo }],
     queryFn: () => leadsApi.list({
       search:      debouncedSearch    || undefined,
       listingType: listingTypeFilter  || undefined,
@@ -250,6 +259,8 @@ export default function FollowUpManagerLeadsPage() {
       followedUpWithin: followedUpFilter || undefined,
       hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
       hasComment:  hasCommentFilter  ? 'true' : undefined,
+      createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
+      createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
       limit: 100,
     }).then((r) => r.data.data),
     placeholderData: keepPreviousData,
@@ -259,7 +270,11 @@ export default function FollowUpManagerLeadsPage() {
   const total = leads.length
   const unassignedCount = leads.filter((l) => !l.assignedAgent).length
   const overdueCount = leads.filter((l) => l.followUpDate && isPast(new Date(l.followUpDate))).length
-  const hasFilters = Boolean(search || listingTypeFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter)
+  const hasFilters = Boolean(search || listingTypeFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
+
+  function handleFollowUpSaved() {
+    qc.invalidateQueries({ queryKey: ['fum-leads'] })
+  }
 
   // A dedicated count, not leads.filter(...) on the loaded page — the hot-leads queue can
   // exceed the 100-lead page size, and this stat is exactly the "has anyone already
@@ -357,6 +372,12 @@ export default function FollowUpManagerLeadsPage() {
           hasComment={hasCommentFilter}
           onHasCommentChange={setHasCommentFilter}
         />
+
+        <CreatedDateRangeFilter
+          from={createdFrom}
+          to={createdTo}
+          onChange={({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) }}
+        />
       </div>
 
       <div className="flex-1 overflow-auto px-5 sm:px-8 py-5">
@@ -383,6 +404,7 @@ export default function FollowUpManagerLeadsPage() {
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Contact</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Cold Caller</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Agent</th>
+                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Created</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Status</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Follow-up</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Last Follow-Up</th>
@@ -396,6 +418,7 @@ export default function FollowUpManagerLeadsPage() {
                       lead={lead}
                       onOpen={() => navigate(`/follow-up-manager/leads/${lead._id}`)}
                       currentUserId={user?._id}
+                      onFollowUpSaved={handleFollowUpSaved}
                     />
                   ))}
                 </tbody>

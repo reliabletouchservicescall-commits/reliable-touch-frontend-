@@ -53,6 +53,7 @@ export default function AdminLeadDetailPage() {
       canDelete
       canComment
       currentUserId={user?._id}
+      currentUserRole={user?.role}
     />
   )
 }

@@ -52,6 +52,7 @@ export default function FollowUpManagerLeadDetailPage() {
       canDelete={false}
       canComment
       currentUserId={user?._id}
+      currentUserRole={user?.role}
     />
   )
 }

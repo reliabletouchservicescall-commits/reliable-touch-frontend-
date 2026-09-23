@@ -7,7 +7,10 @@ import {
   MapPin, Phone, User, Clock, Home, AlertCircle,
 } from 'lucide-react'
 import { agentsApi } from '../../services/agentsApi'
-import { ListingBadge, ListingTypeFilter, LastFollowUpCommentCell, FollowUpActivityFilters } from '../../components/leads/leadShared'
+import { leadsApi } from '../../services/leadsApi'
+import {
+  ListingBadge, ListingTypeFilter, LastFollowUpCommentCell, FollowUpActivityFilters, CreatedDateRangeFilter,
+} from '../../components/leads/leadShared'
 import { useAuthStore } from '../../store/authStore'
 
 const STATUS_META = {
@@ -125,6 +128,8 @@ export default function AgencyLeadsPage() {
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
   const [hasCommentFilter, setHasCommentFilter] = useState(false)
+  const [createdFrom, setCreatedFrom] = useState('')
+  const [createdTo,   setCreatedTo]   = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
 
@@ -134,7 +139,12 @@ export default function AgencyLeadsPage() {
     ...(listingTypeFilter ? { listingType: listingTypeFilter } : {}),
     ...(hasFollowUpFilter ? { hasFollowUp: 'true' } : {}),
     ...(hasCommentFilter ? { hasComment: 'true' } : {}),
+    ...(createdFrom ? { createdAfter: new Date(createdFrom).toISOString() } : {}),
+    ...(createdTo ? { createdBefore: new Date(createdTo).toISOString() } : {}),
   }
+  // Same as params but without status — feeds the per-status tab counts, which need
+  // every OTHER active filter applied but obviously can't themselves be status-filtered.
+  const { status: _status, ...statsParams } = params
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['agent-leads', params],
@@ -142,6 +152,14 @@ export default function AgencyLeadsPage() {
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   })
+
+  const { data: statsData } = useQuery({
+    queryKey: ['agent-leads-stats', statsParams],
+    queryFn: () => leadsApi.getStats(statsParams).then((r) => r.data.data),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  })
+  const statusCounts = statsData?.byStatus ?? {}
 
   const leads = data?.leads ?? []
   const total = data?.total ?? 0
@@ -175,6 +193,12 @@ export default function AgencyLeadsPage() {
 
   function handleHasCommentChange(value) {
     setHasCommentFilter(value)
+    setPage(1)
+  }
+
+  function handleCreatedDateChange({ from, to }) {
+    setCreatedFrom(from)
+    setCreatedTo(to)
     setPage(1)
   }
 
@@ -222,6 +246,13 @@ export default function AgencyLeadsPage() {
               }`}
             >
               {t.label}
+              <span
+                className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  status === t.key ? 'bg-white/20 text-white' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#6B7280] dark:text-[#A1A1AA]'
+                }`}
+              >
+                {t.key ? (statusCounts[t.key] ?? 0) : statsData?.total ?? 0}
+              </span>
             </button>
           ))}
         </div>
@@ -233,6 +264,7 @@ export default function AgencyLeadsPage() {
             hasComment={hasCommentFilter}
             onHasCommentChange={handleHasCommentChange}
           />
+          <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={handleCreatedDateChange} />
         </div>
       </div>
 

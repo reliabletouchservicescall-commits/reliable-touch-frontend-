@@ -68,8 +68,9 @@ import LoginActivityPage from '../pages/admin/LoginActivityPage'
 import AdminNotificationsPage from '../pages/admin/NotificationsPage'
 import BinPage from '../pages/admin/BinPage'
 
-// Shared
-import UserChatPage from '../pages/shared/UserChatPage'
+import ColdCallerChatPage from '../pages/cold-caller/ChatPage'
+import AgencyChatPage from '../pages/agency/ChatPage'
+import FollowUpManagerChatPage from '../pages/follow-up-manager/ChatPage'
 import ProtectedRoute from './ProtectedRoute'
 
 function Stub({ label }) {
@@ -151,7 +152,7 @@ export default function AppRouter() {
           <Route path="campaigns" element={<ColdCallerCampaignsPage />} />
           <Route path="leaderboard" element={<LeaderboardPage />} />
           <Route path="notifications" element={<ColdCallerNotificationsPage />} />
-          <Route path="chat" element={<UserChatPage />} />
+          <Route path="chat" element={<ColdCallerChatPage />} />
         </Route>
 
         {/* ── Agency ───────────────────────────────────────────────── */}
@@ -169,7 +170,7 @@ export default function AppRouter() {
           <Route path="leads/:id" element={<AgencyLeadDetailPage />} />
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
           <Route path="notifications" element={<AgencyNotificationsPage />} />
-          <Route path="chat" element={<UserChatPage />} />
+          <Route path="chat" element={<AgencyChatPage />} />
         </Route>
 
         {/* ── Follow Up Manager ───────────────────────────────────────── */}
@@ -187,7 +188,7 @@ export default function AppRouter() {
           <Route path="appointments" element={<FollowUpManagerAppointmentsPage />} />
           <Route path="campaigns" element={<ColdCallerCampaignsPage />} />
           <Route path="notifications" element={<FollowUpManagerNotificationsPage />} />
-          <Route path="chat" element={<UserChatPage />} />
+          <Route path="chat" element={<FollowUpManagerChatPage />} />
         </Route>
 
         {/* Catch-all */}

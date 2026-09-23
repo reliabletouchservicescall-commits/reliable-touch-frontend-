@@ -4,11 +4,12 @@ import { toast } from 'sonner'
 import { format, formatDistanceToNow, isToday, isThisWeek } from 'date-fns'
 import {
   Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle,
-  Plus, Loader2, X, Search, ChevronDown, MessageSquare, Send, CheckCircle2,
+  Plus, Loader2, X, Search, ChevronDown, MessageSquare, Send, CheckCircle2, CalendarDays, Check,
 } from 'lucide-react'
 import { areasApi } from '../../services/areasApi'
 import { contactsApi } from '../../services/contactsApi'
 import { leadsApi } from '../../services/leadsApi'
+import { DateField } from '../common/DateTimeFields'
 
 function useDebounce(value, delay = 300) {
   const [debounced, setDebounced] = useState(value)
@@ -147,6 +148,138 @@ export function ListingTypeFilter({ value, onChange, accent = '#F95C4B' }) {
           {o.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+// "Date Created" range filter — same popover-button shape as the caller/scheme filters
+// elsewhere on these pages, so a new filter type doesn't introduce a new interaction
+// pattern. `from`/`to` are 'yyyy-MM-dd' strings or ''; onChange fires once, on Apply/Clear
+// (not per-keystroke), matching how every other filter here commits.
+export function CreatedDateRangeFilter({ from, to, onChange }) {
+  const [open, setOpen] = useState(false)
+  const [draftFrom, setDraftFrom] = useState(from)
+  const [draftTo, setDraftTo] = useState(to)
+  const ref = useRef(null)
+
+  useEffect(() => { setDraftFrom(from); setDraftTo(to) }, [from, to])
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    function handleEscape(e) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
+  const active = Boolean(from || to)
+  const label = active
+    ? `${from ? format(new Date(from), 'd MMM') : 'Any'} – ${to ? format(new Date(to), 'd MMM') : 'Any'}`
+    : 'Date Created'
+
+  function apply() { onChange({ from: draftFrom, to: draftTo }); setOpen(false) }
+  function clear() { setDraftFrom(''); setDraftTo(''); onChange({ from: '', to: '' }); setOpen(false) }
+
+  return (
+    <div className="relative flex-shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={[
+          'flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap border transition-all',
+          active
+            ? 'bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/30'
+            : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#3B82F6]/40 hover:text-[#3B82F6]',
+        ].join(' ')}
+      >
+        <CalendarDays className="w-3.5 h-3.5 flex-shrink-0" />
+        {label}
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1.5 w-64 bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-xl p-3 space-y-3 right-0 sm:right-auto">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">From</p>
+            <DateField value={draftFrom} onChange={setDraftFrom} allowPast className="w-full px-3 py-2 rounded-lg text-sm bg-[#F5F5F4] dark:bg-[#202020] border border-transparent text-[#111111] dark:text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">To</p>
+            <DateField value={draftTo} onChange={setDraftTo} allowPast className="w-full px-3 py-2 rounded-lg text-sm bg-[#F5F5F4] dark:bg-[#202020] border border-transparent text-[#111111] dark:text-white" />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={clear} className="flex-1 py-2 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+              Clear
+            </button>
+            <button type="button" onClick={apply} className="flex-1 py-2 rounded-lg text-xs font-semibold text-white bg-[#3B82F6] hover:bg-[#2563EB]">
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Compact "set the next follow-up date" popover for a table row — lets an admin/follow-up
+// manager update just this one field inline, without opening the full lead detail screen.
+// Mirrors the standalone quick-save action on LeadDetailScreen.jsx, at table-row scale.
+export function QuickFollowUpDateButton({ lead, onSaved }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState(lead.followUpDate ? lead.followUpDate.slice(0, 10) : '')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const mut = useMutation({
+    mutationFn: () => leadsApi.update(lead._id, { followUpDate: value || null }),
+    onSuccess: (res) => {
+      toast.success('Follow-up date set')
+      setOpen(false)
+      onSaved?.(res.data.data.lead)
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to set follow-up date')),
+  })
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setValue(lead.followUpDate ? lead.followUpDate.slice(0, 10) : ''); setOpen((v) => !v) }}
+        title="Set follow-up date"
+        className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F95C4B]/10 hover:text-[#F95C4B] transition-all flex-shrink-0"
+      >
+        <CalendarDays className="w-3.5 h-3.5" strokeWidth={1.75} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute z-30 top-full right-0 mt-1.5 w-56 bg-white dark:bg-[#181818] rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-xl p-3 space-y-2.5 text-left"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Follow-Up Date</p>
+          <DateField value={value} onChange={setValue} className="w-full px-3 py-2 rounded-lg text-sm bg-[#F5F5F4] dark:bg-[#202020] border border-transparent text-[#111111] dark:text-white" />
+          <button
+            type="button"
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60"
+          >
+            {mut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" strokeWidth={2.5} />}
+            Save
+          </button>
+        </div>
+      )}
     </div>
   )
 }

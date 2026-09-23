@@ -10,7 +10,7 @@ import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
 import {
   LEAD_STATUS_META, LeadStatusBadge, FollowUpChip, ListingTypeFilter, ListingBadge,
-  LastFollowUpCommentCell, FollowUpActivityFilters,
+  LastFollowUpCommentCell, FollowUpActivityFilters, CreatedDateRangeFilter,
 } from '../../components/leads/leadShared'
 import SidePanel from '../../components/common/SidePanel'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
@@ -193,6 +193,8 @@ export default function ColdCallerLeadsPage() {
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
   const [hasCommentFilter, setHasCommentFilter] = useState(false)
+  const [createdFrom, setCreatedFrom] = useState('')
+  const [createdTo,   setCreatedTo]   = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [createContact, setCreateContact] = useState(null)
 
@@ -209,7 +211,7 @@ export default function ColdCallerLeadsPage() {
   }, [deepLinkContact])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter, mine: true }],
+    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter, createdFrom, createdTo, mine: true }],
     queryFn: () =>
       leadsApi
         .list({
@@ -218,6 +220,8 @@ export default function ColdCallerLeadsPage() {
           listingType: listingTypeFilter  || undefined,
           hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
           hasComment:  hasCommentFilter  ? 'true' : undefined,
+          createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
+          createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
           limit: 100,
         })
         .then((r) => r.data.data),
@@ -226,7 +230,7 @@ export default function ColdCallerLeadsPage() {
 
   const leads = data?.leads ?? []
   const total = leads.length
-  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter)
+  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
 
   const counts = STATUS_TABS.reduce((acc, t) => {
     if (!t.key) return acc
@@ -309,6 +313,12 @@ export default function ColdCallerLeadsPage() {
           onHasFollowUpChange={setHasFollowUpFilter}
           hasComment={hasCommentFilter}
           onHasCommentChange={setHasCommentFilter}
+        />
+
+        <CreatedDateRangeFilter
+          from={createdFrom}
+          to={createdTo}
+          onChange={({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) }}
         />
       </div>
 

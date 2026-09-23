@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Flame,
@@ -208,6 +208,11 @@ export default function FollowUpManagerLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { clearAuth } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  // The full "Messages" inbox page already covers everything this floating quick-chat
+  // widget does (and more) — showing both stacks the widget's FAB on top of the inbox's
+  // own send button.
+  const onMessagesPage = location.pathname.startsWith('/follow-up-manager/chat')
 
   useEffect(() => {
     let unsub = () => {}
@@ -290,7 +295,7 @@ export default function FollowUpManagerLayout() {
         </main>
       </div>
 
-      <ChatWidget />
+      {!onMessagesPage && <ChatWidget />}
     </div>
   )
 }

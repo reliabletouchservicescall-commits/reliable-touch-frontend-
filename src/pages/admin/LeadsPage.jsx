@@ -14,7 +14,7 @@ import { areasApi } from '../../services/areasApi'
 import {
   ListingFields, ListingBadge, ListingTypeFilter, PropertyFromContact, SearchableContactSelect, getApiErrorMessage,
   LastFollowUpCommentCell, LastFollowUpByCell, isLeadFollowedUpToday, isLeadFollowedUpByMeToday,
-  FollowUpActivityFilters,
+  FollowUpActivityFilters, CreatedDateRangeFilter, QuickFollowUpDateButton,
 } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 import { useAuthStore } from '../../store/authStore'
@@ -159,9 +159,12 @@ function resolveUser(obj) {
   return null
 }
 
-/* ─── Caller Stats Strip ─────────────────────────────────────────────────── */
+/* ─── User Filter Dropdown (Cold Caller / Follow Up Manager) ─────────────── */
 
-function CallerFilterDropdown({ callerFilter, onCallerChange }) {
+// Generic "filter leads by a specific user" dropdown with live per-user counts — used
+// for both "Cold Caller" (filters by createdBy) and "Follow Up Manager" (filters by
+// lastFollowUpBy, i.e. whoever most recently logged a follow-up on the lead).
+function UserFilterDropdown({ role, label, filterKey, value, onChange }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef(null)
@@ -184,13 +187,13 @@ function CallerFilterDropdown({ callerFilter, onCallerChange }) {
     }
   }, [])
 
-  const { data: callersData } = useQuery({
-    queryKey: ['cold-callers-select'],
-    queryFn: () => usersApi.list({ role: 'cold_caller', limit: 100 }).then((r) => r.data.data),
+  const { data: usersData } = useQuery({
+    queryKey: ['users-select', role],
+    queryFn: () => usersApi.list({ role, limit: 100 }).then((r) => r.data.data),
     staleTime: 60_000,
   })
-  const rawCallers = callersData?.users ?? callersData ?? []
-  const callerList = Array.isArray(rawCallers) ? rawCallers : []
+  const rawUsers = usersData?.users ?? usersData ?? []
+  const userList = Array.isArray(rawUsers) ? rawUsers : []
 
   const { data: totalCount = 0 } = useQuery({
     queryKey: ['leads-all-count'],
@@ -199,29 +202,29 @@ function CallerFilterDropdown({ callerFilter, onCallerChange }) {
   })
 
   const { data: counts = {} } = useQuery({
-    queryKey: ['leads-caller-counts', callerList.map((c) => c._id)],
+    queryKey: ['leads-user-counts', filterKey, userList.map((u) => u._id)],
     queryFn: async () => {
       const results = await Promise.all(
-        callerList.map((c) =>
-          leadsApi.list({ createdBy: c._id, limit: 1 }).then((r) => [c._id, r.data.data?.total ?? 0])
+        userList.map((u) =>
+          leadsApi.list({ [filterKey]: u._id, limit: 1 }).then((r) => [u._id, r.data.data?.total ?? 0])
         )
       )
       return Object.fromEntries(results)
     },
-    enabled: callerList.length > 0,
+    enabled: userList.length > 0,
     staleTime: 30_000,
   })
 
-  if (!callerList.length) return null
+  if (!userList.length) return null
 
-  const selectedIdx = callerList.findIndex((c) => c._id === callerFilter)
-  const selectedCaller = selectedIdx >= 0 ? callerList[selectedIdx] : null
+  const selectedIdx = userList.findIndex((u) => u._id === value)
+  const selectedUser = selectedIdx >= 0 ? userList[selectedIdx] : null
   const selectedColor = selectedIdx >= 0 ? CALLER_COLORS[selectedIdx % CALLER_COLORS.length] : null
 
   const q = search.trim().toLowerCase()
   const filtered = q
-    ? callerList.filter((c) => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q))
-    : callerList
+    ? userList.filter((u) => `${u.firstName} ${u.lastName}`.toLowerCase().includes(q))
+    : userList
 
   return (
     <div className="relative flex-shrink-0" ref={ref}>
@@ -230,36 +233,36 @@ function CallerFilterDropdown({ callerFilter, onCallerChange }) {
         onClick={() => setOpen((v) => !v)}
         className={[
           'flex items-center gap-2 pl-2.5 pr-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border',
-          selectedCaller
+          selectedUser
             ? 'border-transparent text-white shadow-sm'
             : 'bg-white dark:bg-[#181818] border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:border-[#F95C4B]/40',
         ].join(' ')}
-        style={selectedCaller ? { backgroundColor: selectedColor.bg } : undefined}
+        style={selectedUser ? { backgroundColor: selectedColor.bg } : undefined}
       >
         <span
           className="w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center flex-shrink-0"
           style={{
-            backgroundColor: selectedCaller ? 'rgba(255,255,255,0.25)' : '#F5F5F4',
-            color: selectedCaller ? 'white' : '#6B7280',
+            backgroundColor: selectedUser ? 'rgba(255,255,255,0.25)' : '#F5F5F4',
+            color: selectedUser ? 'white' : '#6B7280',
           }}
         >
-          {selectedCaller
-            ? `${selectedCaller.firstName?.[0] ?? ''}${selectedCaller.lastName?.[0] ?? ''}`.toUpperCase()
+          {selectedUser
+            ? `${selectedUser.firstName?.[0] ?? ''}${selectedUser.lastName?.[0] ?? ''}`.toUpperCase()
             : <Users className="w-3 h-3" />}
         </span>
         <span className="max-w-[130px] truncate">
-          {selectedCaller ? `${selectedCaller.firstName} ${selectedCaller.lastName}` : 'Cold Caller'}
+          {selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName}` : label}
         </span>
         <span
           className={[
             'text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center flex-shrink-0',
-            selectedCaller ? 'bg-white/20 text-white' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white',
+            selectedUser ? 'bg-white/20 text-white' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white',
           ].join(' ')}
         >
-          {selectedCaller ? (counts[selectedCaller._id] ?? 0) : totalCount}
+          {selectedUser ? (counts[selectedUser._id] ?? 0) : totalCount}
         </span>
         <ChevronDown
-          className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''} ${selectedCaller ? 'text-white' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}
+          className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''} ${selectedUser ? 'text-white' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}
         />
       </button>
 
@@ -271,7 +274,7 @@ function CallerFilterDropdown({ callerFilter, onCallerChange }) {
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search cold callers…"
+              placeholder={`Search ${label.toLowerCase()}s…`}
               className="w-full pl-8 pr-2 py-2 text-sm bg-[#F5F5F4] dark:bg-[#202020] rounded-lg outline-none ring-2 ring-transparent focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40"
             />
           </div>
@@ -279,9 +282,9 @@ function CallerFilterDropdown({ callerFilter, onCallerChange }) {
             {!q && (
               <button
                 type="button"
-                onClick={() => { onCallerChange(''); setOpen(false); setSearch('') }}
+                onClick={() => { onChange(''); setOpen(false); setSearch('') }}
                 className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors ${
-                  callerFilter === ''
+                  value === ''
                     ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
                     : 'text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
                 }`}
@@ -289,7 +292,7 @@ function CallerFilterDropdown({ callerFilter, onCallerChange }) {
                 <span className="w-6 h-6 rounded-full bg-[#111111] dark:bg-white flex items-center justify-center flex-shrink-0">
                   <Users className="w-3 h-3 text-white dark:text-[#111111]" />
                 </span>
-                <span className="flex-1 truncate">All Callers</span>
+                <span className="flex-1 truncate">All {label}s</span>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white min-w-[20px] text-center">
                   {totalCount}
                 </span>
@@ -297,20 +300,20 @@ function CallerFilterDropdown({ callerFilter, onCallerChange }) {
             )}
             {filtered.length === 0 ? (
               <p className="px-4 py-6 text-xs text-[#6B7280] dark:text-[#A1A1AA] text-center">
-                No cold callers match "{search}"
+                No {label.toLowerCase()}s match "{search}"
               </p>
             ) : (
-              filtered.map((caller) => {
-                const idx = callerList.indexOf(caller)
+              filtered.map((u) => {
+                const idx = userList.indexOf(u)
                 const color = CALLER_COLORS[idx % CALLER_COLORS.length]
-                const count = counts[caller._id] ?? 0
-                const initials = `${caller.firstName?.[0] ?? ''}${caller.lastName?.[0] ?? ''}`.toUpperCase()
-                const isActive = callerFilter === caller._id
+                const count = counts[u._id] ?? 0
+                const initials = `${u.firstName?.[0] ?? ''}${u.lastName?.[0] ?? ''}`.toUpperCase()
+                const isActive = value === u._id
                 return (
                   <button
-                    key={caller._id}
+                    key={u._id}
                     type="button"
-                    onClick={() => { onCallerChange(isActive ? '' : caller._id); setOpen(false); setSearch('') }}
+                    onClick={() => { onChange(isActive ? '' : u._id); setOpen(false); setSearch('') }}
                     className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors ${
                       isActive
                         ? 'bg-[#F95C4B]/8 text-[#F95C4B] font-semibold'
@@ -323,7 +326,7 @@ function CallerFilterDropdown({ callerFilter, onCallerChange }) {
                     >
                       {initials}
                     </span>
-                    <span className="flex-1 truncate">{caller.firstName} {caller.lastName}</span>
+                    <span className="flex-1 truncate">{u.firstName} {u.lastName}</span>
                     <span
                       className="text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
                       style={{ backgroundColor: color.light, color: color.bg }}
@@ -668,7 +671,7 @@ function DeleteDialog({ lead, onClose, onDeleted }) {
 
 /* ─── Lead Row ────────────────────────────────────────────────────────────── */
 
-function LeadRow({ lead, onOpen, onDelete, currentUserId }) {
+function LeadRow({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved }) {
   const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const agentUser  = resolveUser(lead.assignedAgent)
   const callerUser = resolveUser(lead.createdBy)
@@ -713,10 +716,16 @@ function LeadRow({ lead, onOpen, onDelete, currentUserId }) {
         )}
       </td>
       <td className="px-4 py-3.5">
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{format(new Date(lead.createdAt), 'd MMM yyyy')}</p>
+      </td>
+      <td className="px-4 py-3.5">
         <LeadStatusBadge status={lead.status} />
       </td>
       <td className="px-4 py-3.5">
-        <FollowUpChip date={lead.followUpDate} />
+        <div className="flex items-center gap-1">
+          <FollowUpChip date={lead.followUpDate} />
+          <QuickFollowUpDateButton lead={lead} onSaved={onFollowUpSaved} />
+        </div>
       </td>
       <td className="px-4 py-3.5">
         <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} />
@@ -761,44 +770,64 @@ function EmptyState({ hasFilters, onAdd }) {
 
 export default function LeadsPage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { user } = useAuthStore()
   const [search,        setSearch]      = useState('')
   const [statusFilter,  setStatus]      = useState('')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [callerFilter,  setCallerFilter] = useState('')
+  const [fumFilter,     setFumFilter]    = useState('')
   const [followedUpFilter, setFollowedUpFilter] = useState('')
   const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
   const [hasCommentFilter, setHasCommentFilter] = useState(false)
+  const [createdFrom,   setCreatedFrom] = useState('')
+  const [createdTo,     setCreatedTo]   = useState('')
   const [sort,          setSort]        = useState('-createdAt')
   const [drawer,        setDrawer]      = useState(null)
   const [toDelete,      setToDelete]    = useState(null)
 
   const debouncedSearch = useDebounce(search)
 
-  useEffect(() => { /* reset page if needed */ }, [debouncedSearch, statusFilter, listingTypeFilter, callerFilter, followedUpFilter, hasFollowUpFilter, hasCommentFilter, sort])
+  useEffect(() => { /* reset page if needed */ }, [debouncedSearch, statusFilter, listingTypeFilter, callerFilter, fumFilter, followedUpFilter, hasFollowUpFilter, hasCommentFilter, createdFrom, createdTo, sort])
+
+  // Shared by the leads query and the status-tab counts below — everything EXCEPT status
+  // itself, so both always reflect "what am I currently filtering by" identically.
+  const sharedFilterParams = {
+    search:      debouncedSearch     || undefined,
+    listingType: listingTypeFilter   || undefined,
+    followedUpWithin: followedUpFilter || undefined,
+    hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
+    hasComment:  hasCommentFilter  ? 'true' : undefined,
+    createdBy:      callerFilter || undefined,
+    lastFollowUpBy: fumFilter    || undefined,
+    createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
+    createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
+  }
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, createdBy: callerFilter, followedUpWithin: followedUpFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter, sort }],
+    queryKey: ['leads', { ...sharedFilterParams, status: statusFilter, sort }],
     queryFn: () =>
       leadsApi
-        .list({
-          search:      debouncedSearch     || undefined,
-          status:      statusFilter        || undefined,
-          listingType: listingTypeFilter   || undefined,
-          followedUpWithin: followedUpFilter || undefined,
-          hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
-          hasComment:  hasCommentFilter  ? 'true' : undefined,
-          createdBy:   callerFilter        || undefined,
-          sort,
-          limit: 100,
-        })
+        .list({ ...sharedFilterParams, status: statusFilter || undefined, sort, limit: 100 })
         .then((r) => r.data.data),
     placeholderData: keepPreviousData,
   })
 
+  const { data: statsData } = useQuery({
+    queryKey: ['leads-stats', sharedFilterParams],
+    queryFn: () => leadsApi.getStats(sharedFilterParams).then((r) => r.data.data),
+    placeholderData: keepPreviousData,
+  })
+  const statusCounts = statsData?.byStatus ?? {}
+
   const leads = data?.leads ?? data ?? []
   const total = Array.isArray(leads) ? leads.length : 0
-  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || callerFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter)
+  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || callerFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
+
+  function handleFollowUpSaved() {
+    qc.invalidateQueries({ queryKey: ['leads'] })
+    qc.invalidateQueries({ queryKey: ['leads-stats'] })
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -845,6 +874,14 @@ export default function LeadsPage() {
                 />
               )}
               {tab.label}
+              <span
+                className={[
+                  'text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center',
+                  statusFilter === tab.key ? 'bg-[#F95C4B]/15 text-[#F95C4B]' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#6B7280] dark:text-[#A1A1AA]',
+                ].join(' ')}
+              >
+                {tab.key ? (statusCounts[tab.key] ?? 0) : statsData?.total ?? 0}
+              </span>
             </button>
           ))}
         </div>
@@ -868,7 +905,9 @@ export default function LeadsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <CallerFilterDropdown callerFilter={callerFilter} onCallerChange={setCallerFilter} />
+          <UserFilterDropdown role="cold_caller" label="Cold Caller" filterKey="createdBy" value={callerFilter} onChange={setCallerFilter} />
+
+          <UserFilterDropdown role="follow_up_manager" label="Follow Up Manager" filterKey="lastFollowUpBy" value={fumFilter} onChange={setFumFilter} />
 
           <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
 
@@ -895,6 +934,12 @@ export default function LeadsPage() {
             onHasFollowUpChange={setHasFollowUpFilter}
             hasComment={hasCommentFilter}
             onHasCommentChange={setHasCommentFilter}
+          />
+
+          <CreatedDateRangeFilter
+            from={createdFrom}
+            to={createdTo}
+            onChange={({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) }}
           />
 
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] ml-auto">
@@ -937,6 +982,7 @@ export default function LeadsPage() {
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Contact</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Cold Caller</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Agent</th>
+                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Created</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Status</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Follow-up</th>
                     <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Last Follow-Up</th>
@@ -952,6 +998,7 @@ export default function LeadsPage() {
                       onOpen={() => navigate(`/admin/leads/${lead._id}`)}
                       onDelete={() => setToDelete(lead)}
                       currentUserId={user?._id}
+                      onFollowUpSaved={handleFollowUpSaved}
                     />
                   ))}
                 </tbody>

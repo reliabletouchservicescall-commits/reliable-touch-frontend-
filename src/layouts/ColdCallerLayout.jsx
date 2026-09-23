@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -233,6 +233,11 @@ export default function ColdCallerLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  // The full "Messages" inbox page already covers everything this floating quick-chat
+  // widget does (and more) — showing both stacks the widget's FAB on top of the inbox's
+  // own send button.
+  const onMessagesPage = location.pathname.startsWith('/cold-caller/chat')
 
   useEffect(() => {
     let unsub = () => {}
@@ -315,7 +320,7 @@ export default function ColdCallerLayout() {
         </main>
       </div>
 
-      <ChatWidget />
+      {!onMessagesPage && <ChatWidget />}
     </div>
   )
 }

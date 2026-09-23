@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -213,6 +213,11 @@ export default function AgencyLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { clearAuth } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  // The full "Messages" inbox page already covers everything this floating quick-chat
+  // widget does (and more) — showing both stacks the widget's FAB on top of the inbox's
+  // own send button.
+  const onMessagesPage = location.pathname.startsWith('/agency/chat')
 
   useEffect(() => {
     let unsub = () => {}
@@ -295,7 +300,7 @@ export default function AgencyLayout() {
         </main>
       </div>
 
-      <ChatWidget />
+      {!onMessagesPage && <ChatWidget />}
     </div>
   )
 }

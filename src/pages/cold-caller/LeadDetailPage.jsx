@@ -51,6 +51,7 @@ export default function ColdCallerLeadDetailPage() {
       canDelete={false}
       canComment={false}
       currentUserId={user?._id}
+      currentUserRole={user?.role}
     />
   )
 }
