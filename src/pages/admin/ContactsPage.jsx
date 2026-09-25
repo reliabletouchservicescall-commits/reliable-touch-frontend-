@@ -871,7 +871,7 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
 
 /* ─── Import Modal ───────────────────────────────────────────────────── */
 
-function ImportModal({ onClose, onDone, onViewMissingPhone, onReviewDuplicates }) {
+function ImportModal({ onClose, onDone, onReviewDuplicates }) {
   const qc = useQueryClient()
   const [dragOver, setDragOver] = useState(false)
   const [file, setFile]         = useState(null)
@@ -985,8 +985,7 @@ function ImportModal({ onClose, onDone, onViewMissingPhone, onReviewDuplicates }
                     </p>
                   </div>
                   <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
-                    Rows without a usable phone number are still imported with no phone (so the property/owner stays on record) — "DO NOT CONTACT" rows are marked with a Do Not Call status, and "COMPANY" / incomplete-ID / no-results rows are noted accordingly.
-                  </p>
+                    Only rows with a phone number are saved. Rows marked "COMPANY", "NO RESULTS", "INCOMPLETE ID", "DO NOT CONTACT" or with no phone are counted in the summary but not imported.</p>
                 </div>
 
                 <div className="flex gap-3">
@@ -1013,10 +1012,10 @@ function ImportModal({ onClose, onDone, onViewMissingPhone, onReviewDuplicates }
 
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: 'Total rows',    value: result.stats.total,      color: '#111111' },
-                    { label: 'Imported',      value: result.stats.created,    color: '#10B981' },
-                    { label: 'DNC',           value: result.stats.dnc,        color: '#EF4444' },
-                    { label: 'Skipped',       value: result.stats.skipped,    color: '#6B7280' },
+                    { label: 'Contacts detected',     value: result.stats.total,        color: '#111111' },
+                    { label: 'With phone number',     value: result.stats.withPhone,    color: '#3B82F6' },
+                    { label: 'Without phone number',  value: result.stats.withoutPhone, color: '#F59E0B' },
+                    { label: 'Uploaded & saved',      value: result.stats.created,      color: '#10B981' },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
                       <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{label}</span>
@@ -1024,6 +1023,27 @@ function ImportModal({ onClose, onDone, onViewMissingPhone, onReviewDuplicates }
                     </div>
                   ))}
                 </div>
+
+                {result.stats.withoutPhone > 0 && (
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#F59E0B]/8 border border-[#F59E0B]/25">
+                    <PhoneOff className="w-4 h-4 text-[#F59E0B] flex-shrink-0 mt-0.5" strokeWidth={1.75} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#F59E0B]">{result.stats.withoutPhone} row{result.stats.withoutPhone !== 1 ? 's' : ''} had no phone number and were not saved</p>
+                      <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
+                        {Object.entries(result.stats.withoutPhoneReasons ?? {})
+                          .map(([reason, n]) => `${n} ${reason === 'NO_PHONE' ? 'blank' : reason.replace(/_/g, ' ').toLowerCase()}`)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {(result.stats.dnc > 0 || result.stats.sharedPhone > 0) && (
+                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
+                    {result.stats.dnc > 0 && <>{result.stats.dnc} saved as Do Not Call. </>}
+                    {result.stats.sharedPhone > 0 && <>{result.stats.sharedPhone} co-owner{result.stats.sharedPhone !== 1 ? 's' : ''} shared a number already claimed in this file (not saved twice).</>}
+                  </p>
+                )}
 
                 {/* Duplicates — a phone number that already exists on another contact was
                     dropped from creation entirely unless reviewed here, so this needs a
@@ -1042,29 +1062,6 @@ function ImportModal({ onClose, onDone, onViewMissingPhone, onReviewDuplicates }
                     </div>
                     <ChevronRight className="w-4 h-4 text-[#8B5CF6] flex-shrink-0" />
                   </button>
-                )}
-
-                {/* Missing phone — the one stat that needs admin follow-up, so it gets a
-                    dedicated, clickable call-to-action instead of hiding in the grid. */}
-                {result.stats.noPhone > 0 ? (
-                  <button
-                    onClick={() => onViewMissingPhone(result.batchId)}
-                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#F59E0B]/8 border border-[#F59E0B]/25 hover:bg-[#F59E0B]/12 transition-colors text-left"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-[#F59E0B]/15 flex items-center justify-center flex-shrink-0">
-                      <PhoneOff className="w-4 h-4 text-[#F59E0B]" strokeWidth={1.75} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-[#F59E0B]">{result.stats.noPhone} contact{result.stats.noPhone !== 1 ? 's' : ''} missing a phone number</p>
-                      <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">Click to view and fix them one by one</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-[#F59E0B] flex-shrink-0" />
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2 p-3 rounded-xl bg-[#10B981]/8 border border-[#10B981]/20">
-                    <CheckCircle2 className="w-4 h-4 text-[#10B981] flex-shrink-0" />
-                    <p className="text-xs text-[#10B981] font-semibold">Every imported contact has a phone number</p>
-                  </div>
                 )}
 
                 <button onClick={onDone}
@@ -1325,6 +1322,21 @@ function FilesVaultModal({ onClose, onAssignFile }) {
     onError: (e) => toast.error(e.response?.data?.message ?? 'Failed to return file'),
   })
 
+  const deleteMut = useMutation({
+    mutationFn: (fileBatchId) => contactsApi.deleteFile(fileBatchId),
+    onSuccess: (res) => {
+      toast.success(`File deleted — ${res.data.data.contactsDeleted} contacts moved to the Bin`)
+      qc.invalidateQueries({ queryKey: ['contact-files'] })
+      qc.invalidateQueries({ queryKey: ['contacts'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.message ?? 'Failed to delete file'),
+  })
+  function confirmDelete(f) {
+    if (window.confirm(`Delete "${f.displayName}" and ALL contacts imported from it?\n\nThe contacts are moved to the Bin and the file is removed from storage.`)) {
+      deleteMut.mutate(f.batchId)
+    }
+  }
+
   const availableFiles = (data ?? []).filter((f) => !f.assignment)
   const assignedFiles  = (data ?? []).filter((f) => f.assignment)
   const activeList = tab === 'available' ? availableFiles : assignedFiles
@@ -1466,6 +1478,15 @@ function FilesVaultModal({ onClose, onAssignFile }) {
                               ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               : <RotateCcw className="w-3.5 h-3.5" />}
                             Return
+                          </button>
+                        )}
+                        {f.batchId && (
+                          <button onClick={() => confirmDelete(f)} title="Delete file and its contacts"
+                            disabled={deleteMut.isPending && deleteMut.variables === f.batchId}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-all flex-shrink-0 disabled:opacity-50">
+                            {deleteMut.isPending && deleteMut.variables === f.batchId
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <Trash2 className="w-3.5 h-3.5" />}
                           </button>
                         )}
                       </div>
@@ -2216,14 +2237,6 @@ export default function ContactsPage() {
     placeholderData: keepPreviousData,
   })
 
-  function viewMissingPhoneForBatch(newBatchId) {
-    setModal(null)
-    setStatus(''); setCaller(''); setScheme('')
-    setSearch('')
-    setBatchFilter(newBatchId)
-    setMissingPhoneFilter(true)
-  }
-
   function clearAllFilters() {
     setSearch('')
     setStatus('')
@@ -2693,7 +2706,6 @@ export default function ContactsPage() {
         <ImportModal
           onClose={() => setModal(null)}
           onDone={() => setModal(null)}
-          onViewMissingPhone={viewMissingPhoneForBatch}
           onReviewDuplicates={(dups) => setReviewingDuplicates(dups)}
         />
       )}
