@@ -6,6 +6,7 @@ import {
   Trophy, Phone, TrendingUp, CheckCircle2,
   Star, BarChart2, Users, LineChart,
   ThermometerSnowflake, ThermometerSun, Flame, CalendarRange,
+  Building2, Key, Banknote, Ban,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import PeriodPicker from '../../components/performance/PeriodPicker'
@@ -131,6 +132,10 @@ function PodiumCard({ entry, maxScore, onClick }) {
     </div>
   )
 }
+
+/* ─── Full-table column layout — shared by header + rows so they can never drift ──── */
+const TABLE_GRID = '2.5rem_11rem_4rem_4rem_4rem_4rem_4rem_4rem_4rem_4rem_4rem_4rem_5.5rem_7rem'
+const TABLE_MIN_WIDTH = 1520
 
 /* ─── Stat pill ───────────────────────────────────────────────────── */
 
@@ -285,15 +290,25 @@ export default function PerformancePage() {
             </p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <div className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
             {/* Table header */}
-            <div className="hidden sm:grid grid-cols-[2.5rem_1fr_5rem_5rem_5rem_5rem_6rem_8rem] items-center gap-3 px-5 py-2.5 bg-[#FAFAF9] dark:bg-[#0F0F0F]">
+            <div
+              className="hidden sm:grid items-center gap-3 px-5 py-2.5 bg-[#FAFAF9] dark:bg-[#0F0F0F]"
+              style={{ gridTemplateColumns: TABLE_GRID.split('_').join(' '), minWidth: TABLE_MIN_WIDTH }}
+            >
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280]">#</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280]">Name</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Calls</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Leads</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Closed</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Cold</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Warm</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Hot</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Listed</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Rented</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Sold</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-center">Lost</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] text-right">Score</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280]">Progress</span>
             </div>
@@ -304,10 +319,14 @@ export default function PerformancePage() {
                 <div
                   key={entry.userId}
                   onClick={() => navigate(`/admin/users/${entry.userId}`, { state: { from: 'performance' } })}
-                  className={`flex sm:grid sm:grid-cols-[2.5rem_1fr_5rem_5rem_5rem_5rem_6rem_8rem] items-center gap-3 px-5 py-3.5 hover:bg-[#FAFAF9] dark:hover:bg-[#111111] transition-colors cursor-pointer ${
+                  className={`flex sm:grid items-center gap-3 px-5 py-3.5 hover:bg-[#FAFAF9] dark:hover:bg-[#111111] transition-colors cursor-pointer ${
                     entry.rank <= 3 ? 'bg-gradient-to-r from-white dark:from-[#181818]' : ''
                   }`}
-                  style={entry.rank <= 3 ? { backgroundImage: `linear-gradient(90deg, ${medal.bg} 0%, transparent 20%)` } : {}}
+                  style={{
+                    ...(entry.rank <= 3 ? { backgroundImage: `linear-gradient(90deg, ${medal.bg} 0%, transparent 20%)` } : {}),
+                    gridTemplateColumns: TABLE_GRID.split('_').join(' '),
+                    minWidth: TABLE_MIN_WIDTH,
+                  }}
                 >
                   {/* Rank */}
                   <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
@@ -345,9 +364,39 @@ export default function PerformancePage() {
                     <StatPill icon={CheckCircle2} value={entry.leadsClosed} color="#8B5CF6" />
                   </div>
 
+                  {/* Cold */}
+                  <div className="hidden sm:flex justify-center">
+                    <StatPill icon={ThermometerSnowflake} value={entry.coldCount} color="#6B7280" />
+                  </div>
+
+                  {/* Warm */}
+                  <div className="hidden sm:flex justify-center">
+                    <StatPill icon={ThermometerSun} value={entry.warmCount} color="#F59E0B" />
+                  </div>
+
                   {/* Hot */}
                   <div className="hidden sm:flex justify-center">
                     <StatPill icon={Flame} value={entry.hotCount} color="#EF4444" />
+                  </div>
+
+                  {/* Listed */}
+                  <div className="hidden sm:flex justify-center">
+                    <StatPill icon={Building2} value={entry.listedCount} color="#8B5CF6" />
+                  </div>
+
+                  {/* Rented Out */}
+                  <div className="hidden sm:flex justify-center">
+                    <StatPill icon={Key} value={entry.rentedOutCount} color="#10B981" />
+                  </div>
+
+                  {/* Sold */}
+                  <div className="hidden sm:flex justify-center">
+                    <StatPill icon={Banknote} value={entry.soldCount} color="#F95C4B" />
+                  </div>
+
+                  {/* Lost */}
+                  <div className="hidden sm:flex justify-center">
+                    <StatPill icon={Ban} value={entry.lostCount} color="#9CA3AF" />
                   </div>
 
                   {/* Score */}
@@ -365,6 +414,7 @@ export default function PerformancePage() {
                 </div>
               )
             })}
+          </div>
           </div>
         )}
       </div>

@@ -21,6 +21,7 @@ import {
 import { format } from 'date-fns'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
+import WorkingHoursSection from '../../components/performance/WorkingHoursSection'
 
 /* ─── Stat Card ────────────────────────────────────────────────────── */
 function StatCard({ icon: Icon, label, value, sub, color, loading, badge }) {
@@ -342,6 +343,8 @@ export default function ColdCallerDashboard() {
           )}
         </div>
       </div>
+
+      <WorkingHoursSection endpoint="/performance/working-hours/me" />
 
       {/* Quick actions */}
       <div>

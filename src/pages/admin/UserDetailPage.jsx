@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { usersApi } from '../../services/usersApi'
 import axiosClient from '../../lib/axios'
+import WorkingHoursSection from '../../components/performance/WorkingHoursSection'
 
 /* ─── Shared color conventions (match the rest of the app) ──────────────── */
 
@@ -384,6 +385,8 @@ export default function UserDetailPage() {
               </ChartCard>
             </div>
           </section>
+
+          <WorkingHoursSection endpoint={`/performance/working-hours/${id}`} />
 
           <section>
             <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
