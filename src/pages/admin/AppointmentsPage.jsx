@@ -127,6 +127,16 @@ function AppointmentForm({ id, initial, onSubmit, isPending, isEdit }) {
   const leads     = leadsData?.leads ?? []
   const assignees = assigneesData    ?? []
 
+  // The lead/assignee lists above are independently fetched and capped/filtered — if this
+  // appointment's actual lead or assignee falls outside them (older lead beyond the page cap,
+  // person no longer eligible), inject it as an option so it still shows as selected.
+  const leadOptions = initial.leadObj && !leads.some((l) => l._id === initial.leadObj._id)
+    ? [initial.leadObj, ...leads]
+    : leads
+  const assigneeOptions = initial.agentObj && !assignees.some((a) => a._id === initial.agentObj._id)
+    ? [initial.agentObj, ...assignees]
+    : assignees
+
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
     if (errors[k]) setErrors((e) => ({ ...e, [k]: null }))
@@ -160,7 +170,7 @@ function AppointmentForm({ id, initial, onSubmit, isPending, isEdit }) {
       <Field label="Lead" required error={errors.leadId}>
         <select value={form.leadId} onChange={(e) => set('leadId', e.target.value)} className={inputCls(errors.leadId)}>
           <option value="">-- Select lead --</option>
-          {leads.map((l) => (
+          {leadOptions.map((l) => (
             <option key={l._id} value={l._id}>{l.landlordName} — {l.propertyAddress}</option>
           ))}
         </select>
@@ -169,7 +179,7 @@ function AppointmentForm({ id, initial, onSubmit, isPending, isEdit }) {
       <Field label="Assign To" required error={errors.agentId} hint="Any admin, agency user, or cold caller — they'll get an email + in-app reminder 30 minutes before">
         <select value={form.agentId} onChange={(e) => set('agentId', e.target.value)} className={inputCls(errors.agentId)}>
           <option value="">-- Select a person --</option>
-          {assignees.map((a) => (
+          {assigneeOptions.map((a) => (
             <option key={a._id} value={a._id}>{a.firstName} {a.lastName} — {ROLE_LABEL[a.role] ?? a.role}</option>
           ))}
         </select>
@@ -270,14 +280,17 @@ function EditDrawer({ appt, onClose, onSaved }) {
     onError: (err) => toast.error(err.response?.data?.message ?? 'Failed to update appointment'),
   })
   const lead  = resolveLead(appt.leadId)
+  const agent = resolveUser(appt.agentId)
   const initial = {
     leadId:        lead?._id        ?? appt.leadId  ?? '',
-    agentId:       resolveUser(appt.agentId)?._id ?? appt.agentId ?? '',
+    agentId:       agent?._id       ?? appt.agentId ?? '',
     scheduledDate: appt.scheduledDate ? appt.scheduledDate.slice(0, 10) : '',
     scheduledTime: appt.scheduledTime ?? '',
     adminNotes:    appt.adminNotes ?? '',
     agencyNotes:   appt.agencyNotes ?? '',
     status:        appt.status ?? '',
+    leadObj:       lead,
+    agentObj:      agent,
   }
   return (
     <DrawerShell title="Edit Appointment" subtitle={lead?.landlordName} icon={<Pencil className="w-5 h-5 text-[#3B82F6]" strokeWidth={1.75} />} iconBg="bg-[#3B82F6]/10" formId="edit-appt" submitLabel="Save Changes" isPending={mut.isPending} onClose={onClose}>

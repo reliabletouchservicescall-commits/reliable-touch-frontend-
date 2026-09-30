@@ -178,7 +178,7 @@ export default function PerformancePage() {
   const [first, second, third] = [board[0], board[1], board[2]]
 
   return (
-    <div className="p-5 sm:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-5 sm:p-8 space-y-8">
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -272,7 +272,7 @@ export default function PerformancePage() {
             <span className="text-sm font-bold text-[#111111] dark:text-white">Full Leaderboard</span>
           </div>
           <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-            Score = calls×1 + closed×5 + (cold×1 + warm×2 + hot×10 + listed×15 + rented/sold×25)
+            Score = calls×0.5 + closed×10 + (cold×1 + warm×2 + hot×10 + listed×15 + rented/sold×25)
           </span>
         </div>
 
@@ -426,8 +426,8 @@ export default function PerformancePage() {
         </p>
         <div className="flex flex-wrap gap-3">
           {[
-            { icon: Phone,                label: 'Call logged',        pts: '+1 pt',  color: '#3B82F6' },
-            { icon: CheckCircle2,         label: 'Lead closed',        pts: '+5 pts', color: '#8B5CF6' },
+            { icon: Phone,                label: 'Call logged',        pts: '+0.5 pt', color: '#3B82F6' },
+            { icon: CheckCircle2,         label: 'Lead closed',        pts: '+10 pts', color: '#8B5CF6' },
             { icon: ThermometerSnowflake, label: 'Cold lead',          pts: '+1 pt',  color: '#6B7280' },
             { icon: ThermometerSun,       label: 'Warm lead',          pts: '+2 pts', color: '#F59E0B' },
             { icon: Flame,                label: 'Hot lead',           pts: '+10 pts', color: '#EF4444' },

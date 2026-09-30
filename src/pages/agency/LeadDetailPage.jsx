@@ -4,6 +4,7 @@ import { Loader2, AlertTriangle } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { useAuthStore } from '../../store/authStore'
 import LeadDetailScreen from '../../components/leads/LeadDetailScreen'
+import { AGENCY_STATUS_OPTIONS } from '../../components/leads/leadShared'
 
 // Mirrors AGENT_EDITABLE in leads.service.js (attachments excluded — no upload UI exists
 // anywhere in this app yet).
@@ -45,9 +46,10 @@ export default function AgencyLeadDetailPage() {
       invalidateQueryKey={['agent-leads']}
       editableFields={EDITABLE_FIELDS}
       canAssignAgency={false}
-      canChangeStatus={false}
+      canChangeStatus
+      statusOptions={AGENCY_STATUS_OPTIONS}
       canDelete={false}
-      canComment={false}
+      canComment
       currentUserId={user?._id}
       currentUserRole={user?.role}
     />

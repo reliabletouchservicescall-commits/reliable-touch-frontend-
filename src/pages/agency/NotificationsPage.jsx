@@ -5,7 +5,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import {
   Bell, CheckCheck, Loader2, AlertTriangle, ChevronLeft, ChevronRight,
   Flame, CalendarCheck, CalendarClock, BellRing, FileText,
-  Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote,
+  Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote, Handshake,
 } from 'lucide-react'
 import { notificationsApi } from '../../services/notificationsApi'
 
@@ -23,6 +23,7 @@ const EVENT_META = {
   daily_winner:         { label: 'Daily Winner',     icon: Trophy,       color: '#F59E0B' },
   commission_due:       { label: 'Commission Due',   icon: Wallet,       color: '#8B5CF6' },
   renewal_due:          { label: 'Renewal Due',      icon: Banknote,     color: '#8B5CF6' },
+  lead_negotiation_reminder: { label: 'Negotiation Update Needed', icon: Handshake, color: '#F59E0B' },
 }
 const DEFAULT_META = { label: 'Notification', icon: Bell, color: '#6B7280' }
 

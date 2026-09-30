@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -9,13 +9,12 @@ import {
   MessageCircle,
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
-import { appointmentsApi } from '../../services/appointmentsApi'
 import { chatApi } from '../../services/chatApi'
 import ContactCallHistory from '../contacts/ContactCallHistory'
 import LeadAppointments from '../appointments/LeadAppointments'
 import {
   LeadStatusBadge, ListingBadge, ListingFields, PropertyFromContact, FollowUpComments,
-  Field, inputCls, LEAD_STATUS_META, getApiErrorMessage,
+  Field, inputCls, LEAD_STATUS_META, getApiErrorMessage, AgentOrAgencyPicker,
 } from './leadShared'
 import { DateField, TimeField } from '../common/DateTimeFields'
 
@@ -25,15 +24,20 @@ function resolveUser(obj) {
   return (obj && typeof obj === 'object' && obj.firstName) ? obj : null
 }
 
+function resolveAgency(obj) {
+  return (obj && typeof obj === 'object' && obj.name) ? obj : null
+}
+
 function cleanPhone(phone) {
   return phone?.replace(/\s+/g, '') ?? ''
 }
 
 /* ─── Status Change Dialog — shared, brand accent ────────────────────────── */
 
-function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated }) {
+function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated, options }) {
   const qc = useQueryClient()
-  const [status, setStatus] = useState(lead.status)
+  const opts = options ?? STATUS_OPTS.map((s) => ({ value: s, label: LEAD_STATUS_META[s].label }))
+  const [status, setStatus] = useState(opts.some((o) => o.value === lead.status) ? lead.status : opts[0].value)
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
 
@@ -77,11 +81,42 @@ function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated }) {
 
           <div className="space-y-4">
             <Field label="New Status" required>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls(false)}>
-                {STATUS_OPTS.map((s) => (
-                  <option key={s} value={s}>{LEAD_STATUS_META[s].label}</option>
-                ))}
-              </select>
+              {options ? (
+                <div className="space-y-2">
+                  {opts.map((o) => {
+                    const Icon = o.icon
+                    const active = status === o.value
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => setStatus(o.value)}
+                        className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
+                          active ? '' : 'border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#D1D5DB] dark:hover:border-[#3A3A3A] bg-white dark:bg-[#202020]'
+                        }`}
+                        style={active ? { backgroundColor: `${o.color}10`, borderColor: o.color } : {}}
+                      >
+                        {Icon && (
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${o.color}18` }}>
+                            <Icon className="w-4 h-4" style={{ color: o.color }} strokeWidth={1.75} />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-[#111111] dark:text-white">{o.label}</p>
+                          {o.hint && <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">{o.hint}</p>}
+                        </div>
+                        {active && <Check className="w-4 h-4 mt-1.5 flex-shrink-0" style={{ color: o.color }} strokeWidth={2.5} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls(false)}>
+                  {opts.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
             </Field>
 
             <Field label="Reason" required error={error} hint="Shown to the cold caller and saved to this lead's history">
@@ -257,6 +292,7 @@ export default function LeadDetailScreen({
   showAdminFields = false,
   canAssignAgency = false,
   canChangeStatus = false,
+  statusOptions = null,
   canDelete = false,
   canComment = false,
   currentUserId,
@@ -274,6 +310,7 @@ export default function LeadDetailScreen({
   const area = (lead.area && typeof lead.area === 'object') ? lead.area : null
   const creator = resolveUser(lead.createdBy)
   const assignedAgentUser = resolveUser(lead.assignedAgent)
+  const assignedAgency = resolveAgency(lead.agencyId)
   const assignedAgentByUser = resolveUser(lead.assignedAgentBy)
   const canEdit = editableFields.size > 0 || canAssignAgency
 
@@ -291,20 +328,13 @@ export default function LeadDetailScreen({
     appointmentDate: lead.appointmentDate ? lead.appointmentDate.slice(0, 10) : '',
     appointmentTime: lead.appointmentTime ?? '',
     assignedAgent: lead.assignedAgent?._id ?? lead.assignedAgent ?? '',
+    agencyId: lead.agencyId?._id ?? lead.agencyId ?? '',
     adminReviewed: lead.adminReviewed ?? false,
     adminNotes: lead.adminNotes ?? '',
   }))
 
   function setField(k, v) { setForm((f) => ({ ...f, [k]: v })) }
   function has(field) { return editableFields.has(field) }
-
-  const { data: assigneesData } = useQuery({
-    queryKey: ['appointment-assignees'],
-    queryFn: () => appointmentsApi.assignees().then((r) => r.data.data?.users ?? []),
-    enabled: canAssignAgency,
-    staleTime: 60_000,
-  })
-  const agencies = (assigneesData ?? []).filter((a) => a.role === 'agency')
 
   const saveMut = useMutation({
     mutationFn: (payload) => leadsApi.update(lead._id, payload),
@@ -338,7 +368,10 @@ export default function LeadDetailScreen({
       const v = form[key]
       payload[key] = v === '' ? null : v
     }
-    if (canAssignAgency) payload.assignedAgent = form.assignedAgent || null
+    if (canAssignAgency) {
+      payload.assignedAgent = form.assignedAgent || null
+      payload.agencyId = form.agencyId || null
+    }
     if (showAdminFields) {
       payload.adminReviewed = form.adminReviewed
       payload.adminNotes = form.adminNotes.trim() || null
@@ -472,18 +505,14 @@ export default function LeadDetailScreen({
                 {canAssignAgency ? (
                   <>
                     <div className="p-4">
-                      <select
-                        value={form.assignedAgent}
-                        onChange={(e) => setField('assignedAgent', e.target.value)}
+                      <AgentOrAgencyPicker
+                        assignedAgent={form.assignedAgent}
+                        agencyId={form.agencyId}
+                        onChange={({ assignedAgent, agencyId }) => setForm((f) => ({ ...f, assignedAgent, agencyId }))}
                         className={inputCls(false)}
-                      >
-                        <option value="">-- Unassigned --</option>
-                        {agencies.map((a) => (
-                          <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>
-                        ))}
-                      </select>
+                      />
                     </div>
-                    {assignedAgentUser && assignedAgentByUser && lead.assignedAgentAt && (
+                    {(assignedAgentUser || assignedAgency) && assignedAgentByUser && lead.assignedAgentAt && (
                       <InfoRow
                         icon={Calendar}
                         label="Assigned By"
@@ -495,6 +524,21 @@ export default function LeadDetailScreen({
                   <>
                     <InfoRow icon={User} label="Name" value={`${assignedAgentUser.firstName} ${assignedAgentUser.lastName}`} />
                     <InfoRow icon={Mail} label="Email" value={assignedAgentUser.email} />
+                    {assignedAgentByUser && lead.assignedAgentAt && (
+                      <InfoRow
+                        icon={Calendar}
+                        label="Assigned By"
+                        value={`${assignedAgentByUser.firstName} ${assignedAgentByUser.lastName} · ${format(new Date(lead.assignedAgentAt), 'd MMM yyyy')}`}
+                      />
+                    )}
+                  </>
+                ) : assignedAgency ? (
+                  <>
+                    <InfoRow icon={Building2} label="Agency" value={assignedAgency.name} />
+                    {assignedAgency.contactEmail && <InfoRow icon={Mail} label="Email" value={assignedAgency.contactEmail} />}
+                    {assignedAgency.contactPhone && (
+                      <InfoRow icon={Phone} label="Phone" value={assignedAgency.contactPhone} href={`tel:${cleanPhone(assignedAgency.contactPhone)}`} />
+                    )}
                     {assignedAgentByUser && lead.assignedAgentAt && (
                       <InfoRow
                         icon={Calendar}
@@ -674,6 +718,7 @@ export default function LeadDetailScreen({
         <StatusChangeDialog
           lead={lead}
           invalidateQueryKey={invalidateQueryKey}
+          options={statusOptions}
           onClose={() => setStatusDialog(false)}
           onUpdated={(updated) => { setStatusDialog(false); if (updated) setLead(updated) }}
         />

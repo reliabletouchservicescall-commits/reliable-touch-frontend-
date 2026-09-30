@@ -40,6 +40,12 @@ function resolveUser(obj) {
   return null
 }
 
+function resolveAgency(obj) {
+  if (!obj) return null
+  if (typeof obj === 'object' && obj.name) return obj
+  return null
+}
+
 /* ─── Filter by Follow-Up Manager strip ──────────────────────────────────── */
 
 function FollowUpManagerStrip({ fumFilter, onFumChange, collapsed, onToggleCollapsed }) {
@@ -152,6 +158,7 @@ function FollowUpManagerStrip({ fumFilter, onFumChange, collapsed, onToggleColla
 function LeadRow({ lead, onOpen, currentUserId, onFollowUpSaved }) {
   const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const agentUser  = resolveUser(lead.assignedAgent)
+  const agency     = resolveAgency(lead.agencyId)
   const callerUser = resolveUser(lead.createdBy)
   const followedUpToday = isLeadFollowedUpToday(lead)
   const followedUpByMeToday = isLeadFollowedUpByMeToday(lead, currentUserId)
@@ -189,6 +196,8 @@ function LeadRow({ lead, onOpen, currentUserId, onFollowUpSaved }) {
       <td className="px-4 py-3.5">
         {agentUser ? (
           <p className="text-sm text-[#111111] dark:text-white">{agentUser.firstName} {agentUser.lastName}</p>
+        ) : agency ? (
+          <p className="text-sm text-[#111111] dark:text-white">{agency.name}</p>
         ) : (
           <span className="text-xs text-[#F59E0B] font-semibold">Unassigned</span>
         )}
@@ -268,7 +277,7 @@ export default function FollowUpManagerLeadsPage() {
 
   const leads = data?.leads ?? []
   const total = leads.length
-  const unassignedCount = leads.filter((l) => !l.assignedAgent).length
+  const unassignedCount = leads.filter((l) => !l.assignedAgent && !l.agencyId).length
   const overdueCount = leads.filter((l) => l.followUpDate && isPast(new Date(l.followUpDate))).length
   const hasFilters = Boolean(search || listingTypeFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
 

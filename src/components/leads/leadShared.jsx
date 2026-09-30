@@ -5,10 +5,13 @@ import { format, formatDistanceToNow, isToday, isThisWeek } from 'date-fns'
 import {
   Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle,
   Plus, Loader2, X, Search, ChevronDown, MessageSquare, Send, CheckCircle2, CalendarDays, Check,
+  Handshake, FileCheck2, Banknote,
 } from 'lucide-react'
 import { areasApi } from '../../services/areasApi'
 import { contactsApi } from '../../services/contactsApi'
 import { leadsApi } from '../../services/leadsApi'
+import { usersApi } from '../../services/usersApi'
+import { agenciesApi } from '../../services/agenciesApi'
 import { DateField } from '../common/DateTimeFields'
 
 function useDebounce(value, delay = 300) {
@@ -21,14 +24,26 @@ function useDebounce(value, delay = 300) {
 }
 
 export const LEAD_STATUS_META = {
-  cold:       { label: 'Cold',       color: '#6B7280', bg: '#6B728018' },
-  warm:       { label: 'Warm',       color: '#F59E0B', bg: '#F59E0B18' },
-  hot:        { label: 'Hot',        color: '#EF4444', bg: '#EF444418' },
-  listed:     { label: 'Listed',     color: '#8B5CF6', bg: '#8B5CF618' },
-  rented_out: { label: 'Rented Out', color: '#10B981', bg: '#10B98118' },
-  sold:       { label: 'Sold',       color: '#F95C4B', bg: '#F95C4B18' },
-  lost:       { label: 'Lost',       color: '#9CA3AF', bg: '#9CA3AF18' },
+  cold:              { label: 'Cold',              color: '#6B7280', bg: '#6B728018' },
+  warm:              { label: 'Warm',               color: '#F59E0B', bg: '#F59E0B18' },
+  hot:               { label: 'Hot',                color: '#EF4444', bg: '#EF444418' },
+  still_negotiating: { label: 'Still Negotiating',  color: '#F59E0B', bg: '#F59E0B18' },
+  listed:            { label: 'Listed',              color: '#8B5CF6', bg: '#8B5CF618' },
+  rented_out:        { label: 'Rented Out',          color: '#10B981', bg: '#10B98118' },
+  sold:              { label: 'Sold',                color: '#F95C4B', bg: '#F95C4B18' },
+  lost:              { label: 'Lost',                color: '#9CA3AF', bg: '#9CA3AF18' },
 }
+
+// The 4 outcomes an assigned agency may set directly on a lead (see backend's
+// AGENCY_UPDATABLE_LEAD_STATUSES) — labelled as the action taken rather than the resulting
+// status name (e.g. "Listing Signed" reads as an event; the badge everywhere else still
+// shows the resulting status "Listed"), with a hint explaining what each one means.
+export const AGENCY_STATUS_OPTIONS = [
+  { value: 'still_negotiating', label: 'Still Negotiating', hint: 'Deal is progressing — no outcome yet', icon: Handshake, color: '#F59E0B' },
+  { value: 'listed',            label: 'Listing Signed',    hint: 'Landlord signed the listing mandate',  icon: FileCheck2, color: '#8B5CF6' },
+  { value: 'rented_out',        label: 'Rented Out',        hint: 'Property has been rented out',         icon: Key,        color: '#10B981' },
+  { value: 'sold',              label: 'Sold',               hint: 'Property has been sold',               icon: Banknote,   color: '#F95C4B' },
+]
 
 // Statuses a cold caller may pick when logging a new lead — matches the backend's
 // LEAD_STATUS_CALLER_OPTIONS. '' means "let the system decide from the follow-up date".
@@ -149,6 +164,55 @@ export function ListingTypeFilter({ value, onChange, accent = '#F95C4B' }) {
         </button>
       ))}
     </div>
+  )
+}
+
+// A lead's "Assigned Agent" slot is a single choice between an individual Agent (a
+// User with role 'agency' — an individual person we work with) and an Agency (a company
+// we work with, from the standalone Agency directory) — never both. The value is encoded
+// as one of the two id fields on the lead; picking an option here always clears the other.
+export function AgentOrAgencyPicker({ assignedAgent, agencyId, onChange, className }) {
+  const { data: agentsData } = useQuery({
+    queryKey: ['agency-users-select'],
+    queryFn: () => usersApi.list({ role: 'agency', limit: 100 }).then((r) => r.data.data),
+    staleTime: 60_000,
+  })
+  const { data: agenciesData } = useQuery({
+    queryKey: ['agencies-select'],
+    queryFn: () => agenciesApi.list({ limit: 100, isActive: true }).then((r) => r.data.data.agencies),
+    staleTime: 60_000,
+  })
+  const agentsRaw = agentsData?.users ?? agentsData ?? []
+  const agents = Array.isArray(agentsRaw) ? agentsRaw : []
+  const agencies = agenciesData ?? []
+
+  const value = assignedAgent ? `agent:${assignedAgent}` : agencyId ? `agency:${agencyId}` : ''
+
+  function handleChange(e) {
+    const v = e.target.value
+    if (!v) { onChange({ assignedAgent: '', agencyId: '' }); return }
+    const [type, id] = v.split(':')
+    onChange(type === 'agent' ? { assignedAgent: id, agencyId: '' } : { assignedAgent: '', agencyId: id })
+  }
+
+  return (
+    <select value={value} onChange={handleChange} className={className}>
+      <option value="">-- Unassigned --</option>
+      {agencies.length > 0 && (
+        <optgroup label="Agencies (companies)">
+          {agencies.map((a) => (
+            <option key={a._id} value={`agency:${a._id}`}>{a.name}</option>
+          ))}
+        </optgroup>
+      )}
+      {agents.length > 0 && (
+        <optgroup label="Agents (people)">
+          {agents.map((a) => (
+            <option key={a._id} value={`agent:${a._id}`}>{a.firstName} {a.lastName}</option>
+          ))}
+        </optgroup>
+      )}
+    </select>
   )
 }
 

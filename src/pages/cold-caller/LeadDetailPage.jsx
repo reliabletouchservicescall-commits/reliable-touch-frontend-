@@ -49,7 +49,7 @@ export default function ColdCallerLeadDetailPage() {
       canAssignAgency={false}
       canChangeStatus={false}
       canDelete={false}
-      canComment={false}
+      canComment
       currentUserId={user?._id}
       currentUserRole={user?.role}
     />

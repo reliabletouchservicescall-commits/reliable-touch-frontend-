@@ -17,14 +17,15 @@ import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import { useAuthStore } from '../../store/authStore'
 
 const STATUS_TABS = [
-  { key: '',           label: 'All' },
-  { key: 'cold',       label: 'Cold' },
-  { key: 'warm',       label: 'Warm' },
-  { key: 'hot',        label: 'Hot' },
-  { key: 'listed',     label: 'Listed' },
-  { key: 'rented_out', label: 'Rented Out' },
-  { key: 'sold',       label: 'Sold' },
-  { key: 'lost',       label: 'Lost' },
+  { key: '',                  label: 'All' },
+  { key: 'cold',               label: 'Cold' },
+  { key: 'warm',                label: 'Warm' },
+  { key: 'hot',                 label: 'Hot' },
+  { key: 'still_negotiating',  label: 'Negotiating' },
+  { key: 'listed',              label: 'Listed' },
+  { key: 'rented_out',          label: 'Rented Out' },
+  { key: 'sold',                label: 'Sold' },
+  { key: 'lost',                label: 'Lost' },
 ]
 
 function useDebounce(value, delay = 400) {

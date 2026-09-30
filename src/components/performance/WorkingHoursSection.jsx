@@ -42,6 +42,13 @@ function fmtHours(h) {
   return mins ? `${hrs}h ${mins}m` : `${hrs}h`
 }
 
+function fmtDuration(sec) {
+  if (!sec) return null
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return m ? `${m}m ${s}s` : `${s}s`
+}
+
 /* ─── Small building blocks (kept local — only this section uses them) ──────── */
 
 function StatCard({ icon: Icon, label, value, sub, color }) {
@@ -76,7 +83,7 @@ function TimelineDot({ call }) {
   )
 }
 
-function CallTimeline({ timeline, firstCallAt, lastCallAt }) {
+function CallTimeline({ timeline, firstCallAt, lastCallAt, selectedHour, onSelectHour }) {
   if (!timeline.length) {
     return (
       <div className="h-28 flex flex-col items-center justify-center gap-2 text-center">
@@ -92,19 +99,31 @@ function CallTimeline({ timeline, firstCallAt, lastCallAt }) {
   return (
     <div className="pt-8 pb-2">
       <div className="relative h-8">
+        {/* clickable per-hour columns — click an hour to see exactly what happened then */}
+        <div className="absolute inset-0 flex">
+          {Array.from({ length: 24 }, (_, h) => (
+            <button
+              key={h}
+              type="button"
+              onClick={() => onSelectHour(selectedHour === h ? null : h)}
+              title={`${String(h).padStart(2, '0')}:00 – ${String(h + 1).padStart(2, '0')}:00`}
+              className={`flex-1 h-full rounded-sm transition-colors ${selectedHour === h ? 'bg-[#F95C4B]/15' : 'hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'}`}
+            />
+          ))}
+        </div>
         {/* hour gridlines */}
         {HOUR_MARKS.map((h) => (
-          <div key={h} className="absolute top-0 bottom-0 border-l border-[#E5E7EB] dark:border-[#2A2A2A]" style={{ left: `${(h / 24) * 100}%` }} />
+          <div key={h} className="absolute top-0 bottom-0 border-l border-[#E5E7EB] dark:border-[#2A2A2A] pointer-events-none" style={{ left: `${(h / 24) * 100}%` }} />
         ))}
         {/* working span */}
         {timeline.length > 1 && (
           <div
-            className="absolute top-1/2 -translate-y-1/2 h-2.5 rounded-full"
+            className="absolute top-1/2 -translate-y-1/2 h-2.5 rounded-full pointer-events-none"
             style={{ left: `${spanStart}%`, width: `${Math.max(spanEnd - spanStart, 0.5)}%`, backgroundColor: `${BRAND}30` }}
           />
         )}
         {/* base track */}
-        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-px bg-[#E5E7EB] dark:bg-[#2A2A2A]" />
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-px bg-[#E5E7EB] dark:bg-[#2A2A2A] pointer-events-none" />
         {/* call dots */}
         {timeline.map((c, i) => <TimelineDot key={i} call={c} />)}
       </div>
@@ -119,6 +138,48 @@ function CallTimeline({ timeline, firstCallAt, lastCallAt }) {
           </span>
         ))}
       </div>
+    </div>
+  )
+}
+
+/* ─── Hour detail list — what exactly happened in the clicked hour ──────────── */
+
+function HourDetail({ hour, calls, onClear }) {
+  return (
+    <div className="mt-2 pt-4 border-t border-[#E5E7EB] dark:border-[#2A2A2A]">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-bold text-[#111111] dark:text-white">
+          {String(hour).padStart(2, '0')}:00 – {String(hour + 1).padStart(2, '0')}:00
+          <span className="ml-2 font-normal text-[#6B7280] dark:text-[#A1A1AA]">
+            {calls.length} call{calls.length !== 1 ? 's' : ''}
+          </span>
+        </span>
+        <button onClick={onClear} className="text-[11px] font-semibold text-[#F95C4B] hover:underline">
+          Show all hours
+        </button>
+      </div>
+      {calls.length === 0 ? (
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">No calls logged in this hour.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {calls.map((c, i) => {
+            const color = OUTCOME_COLORS[c.outcome] ?? '#6B7280'
+            const dur = fmtDuration(c.durationSeconds)
+            return (
+              <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-[#FAFAF9] dark:bg-[#111111]">
+                <span className="text-xs font-semibold text-[#111111] dark:text-white w-12 flex-shrink-0">
+                  {format(new Date(c.calledAt), 'HH:mm')}
+                </span>
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                <span className="text-xs text-[#111111] dark:text-white truncate flex-1">{c.contactName}</span>
+                {c.contactPhone && <span className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] hidden sm:inline">{c.contactPhone}</span>}
+                <span className="text-[11px] font-medium flex-shrink-0" style={{ color }}>{OUTCOME_LABEL[c.outcome] ?? c.outcome}</span>
+                {dur && <span className="text-[10px] text-[#9CA3AF] flex-shrink-0">{dur}</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -148,6 +209,7 @@ function HoursTooltip({ active, payload }) {
 
 export default function WorkingHoursSection({ endpoint, days = 14 }) {
   const [date, setDate] = useState('')
+  const [selectedHour, setSelectedHour] = useState(null)
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['performance', 'working-hours', endpoint, date, days],
@@ -161,6 +223,9 @@ export default function WorkingHoursSection({ endpoint, days = 14 }) {
     if (data?.date && !date) setDate(data.date)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.date])
+
+  // Clear the hour selection whenever the viewed day changes — it belongs to that day's timeline only.
+  useEffect(() => { setSelectedHour(null) }, [data?.date])
 
   const series = data?.series ?? []
   const chartData = series.map((d) => ({ ...d, isSelected: d.date === (data?.date ?? date) }))
@@ -216,9 +281,22 @@ export default function WorkingHoursSection({ endpoint, days = 14 }) {
               </span>
             </div>
             <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] ml-9">
-              Each dot is one logged call. The shaded band is the span between the first and last call that day.
+              Each dot is one logged call. The shaded band is the span between the first and last call that day. Click an hour to see exactly what happened then.
             </p>
-            <CallTimeline timeline={data.timeline} firstCallAt={data.firstCallAt} lastCallAt={data.lastCallAt} />
+            <CallTimeline
+              timeline={data.timeline}
+              firstCallAt={data.firstCallAt}
+              lastCallAt={data.lastCallAt}
+              selectedHour={selectedHour}
+              onSelectHour={setSelectedHour}
+            />
+            {selectedHour !== null && (
+              <HourDetail
+                hour={selectedHour}
+                calls={data.timeline.filter((c) => new Date(c.calledAt).getHours() === selectedHour)}
+                onClear={() => setSelectedHour(null)}
+              />
+            )}
           </div>
 
           <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5">

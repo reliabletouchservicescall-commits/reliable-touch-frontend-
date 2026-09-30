@@ -14,7 +14,7 @@ import { areasApi } from '../../services/areasApi'
 import {
   ListingFields, ListingBadge, ListingTypeFilter, PropertyFromContact, SearchableContactSelect, getApiErrorMessage,
   LastFollowUpCommentCell, LastFollowUpByCell, isLeadFollowedUpToday, isLeadFollowedUpByMeToday,
-  FollowUpActivityFilters, CreatedDateRangeFilter, QuickFollowUpDateButton,
+  FollowUpActivityFilters, CreatedDateRangeFilter, QuickFollowUpDateButton, AgentOrAgencyPicker,
 } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 import { useAuthStore } from '../../store/authStore'
@@ -22,24 +22,26 @@ import { useAuthStore } from '../../store/authStore'
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
 const STATUS_TABS = [
-  { key: '',           label: 'All' },
-  { key: 'cold',       label: 'Cold' },
-  { key: 'warm',       label: 'Warm' },
-  { key: 'hot',        label: 'Hot' },
-  { key: 'listed',     label: 'Listed' },
-  { key: 'rented_out', label: 'Rented Out' },
-  { key: 'sold',       label: 'Sold' },
-  { key: 'lost',       label: 'Lost' },
+  { key: '',                  label: 'All' },
+  { key: 'cold',               label: 'Cold' },
+  { key: 'warm',                label: 'Warm' },
+  { key: 'hot',                 label: 'Hot' },
+  { key: 'still_negotiating',  label: 'Negotiating' },
+  { key: 'listed',              label: 'Listed' },
+  { key: 'rented_out',          label: 'Rented Out' },
+  { key: 'sold',                label: 'Sold' },
+  { key: 'lost',                label: 'Lost' },
 ]
 
 const LEAD_STATUS_META = {
-  cold:       { label: 'Cold',       color: '#6B7280', bg: '#6B728018' },
-  warm:       { label: 'Warm',       color: '#F59E0B', bg: '#F59E0B18' },
-  hot:        { label: 'Hot',        color: '#EF4444', bg: '#EF444418' },
-  listed:     { label: 'Listed',     color: '#8B5CF6', bg: '#8B5CF618' },
-  rented_out: { label: 'Rented Out', color: '#10B981', bg: '#10B98118' },
-  sold:       { label: 'Sold',       color: '#F95C4B', bg: '#F95C4B18' },
-  lost:       { label: 'Lost',       color: '#9CA3AF', bg: '#9CA3AF18' },
+  cold:              { label: 'Cold',              color: '#6B7280', bg: '#6B728018' },
+  warm:              { label: 'Warm',               color: '#F59E0B', bg: '#F59E0B18' },
+  hot:               { label: 'Hot',                color: '#EF4444', bg: '#EF444418' },
+  still_negotiating: { label: 'Still Negotiating',  color: '#F59E0B', bg: '#F59E0B18' },
+  listed:            { label: 'Listed',              color: '#8B5CF6', bg: '#8B5CF618' },
+  rented_out:        { label: 'Rented Out',          color: '#10B981', bg: '#10B98118' },
+  sold:              { label: 'Sold',                color: '#F95C4B', bg: '#F95C4B18' },
+  lost:              { label: 'Lost',                color: '#9CA3AF', bg: '#9CA3AF18' },
 }
 
 const SORT_OPTIONS = [
@@ -58,7 +60,7 @@ const FOLLOWED_UP_OPTIONS = [
 const EMPTY_CREATE = {
   contactId: '', createdBy: '', landlordName: '', listingType: '', priceMin: '', priceMax: '',
   phone: '', email: '', comments: '', availability: '', bestCallTime: '',
-  followUpDate: '', appointmentDate: '', appointmentTime: '', assignedAgent: '',
+  followUpDate: '', appointmentDate: '', appointmentTime: '', assignedAgent: '', agencyId: '',
 }
 
 const CALLER_COLORS = [
@@ -156,6 +158,12 @@ function ActionBtn({ icon: Icon, title, onClick, variant }) {
 function resolveUser(obj) {
   if (!obj) return null
   if (typeof obj === 'object' && obj.firstName) return obj
+  return null
+}
+
+function resolveAgency(obj) {
+  if (!obj) return null
+  if (typeof obj === 'object' && obj.name) return obj
   return null
 }
 
@@ -367,11 +375,6 @@ function LeadForm({ id, initial, onSubmit, isEdit, onMissingPropertyInfoChange }
     queryFn: () => usersApi.list({ role: 'cold_caller', limit: 100 }).then((r) => r.data.data),
     staleTime: 60_000,
   })
-  const { data: agentsData } = useQuery({
-    queryKey: ['agency-users-select'],
-    queryFn: () => usersApi.list({ role: 'agency', limit: 100 }).then((r) => r.data.data),
-    staleTime: 60_000,
-  })
   const { data: areasData } = useQuery({
     queryKey: ['areas-select'],
     queryFn: () => areasApi.list({ limit: 100, isActive: true }).then((r) => r.data.data.areas),
@@ -380,8 +383,6 @@ function LeadForm({ id, initial, onSubmit, isEdit, onMissingPropertyInfoChange }
 
   const callersRaw = callersData?.users ?? callersData ?? []
   const callers   = Array.isArray(callersRaw) ? callersRaw : []
-  const agentsRaw = agentsData?.users     ?? agentsData   ?? []
-  const agents   = Array.isArray(agentsRaw) ? agentsRaw : []
 
   const missingAddress = Boolean(selectedContact) && !selectedContact.address && !pendingAddress
   const missingArea = Boolean(selectedContact) && !(selectedContact.area && typeof selectedContact.area === 'object') && !pendingArea
@@ -520,12 +521,12 @@ function LeadForm({ id, initial, onSubmit, isEdit, onMissingPropertyInfoChange }
       </Field>
 
       <Field label="Assigned Agent">
-        <select value={form.assignedAgent} onChange={(e) => setField('assignedAgent', e.target.value)} className={inputCls(false)}>
-          <option value="">-- Unassigned --</option>
-          {agents.map((a) => (
-            <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>
-          ))}
-        </select>
+        <AgentOrAgencyPicker
+          assignedAgent={form.assignedAgent}
+          agencyId={form.agencyId}
+          onChange={({ assignedAgent, agencyId }) => setForm((f) => ({ ...f, assignedAgent, agencyId }))}
+          className={inputCls(false)}
+        />
       </Field>
 
       {isEdit && (
@@ -674,6 +675,7 @@ function DeleteDialog({ lead, onClose, onDeleted }) {
 function LeadRow({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved }) {
   const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const agentUser  = resolveUser(lead.assignedAgent)
+  const agency     = resolveAgency(lead.agencyId)
   const callerUser = resolveUser(lead.createdBy)
   const followedUpToday = isLeadFollowedUpToday(lead)
   const followedUpByMeToday = isLeadFollowedUpByMeToday(lead, currentUserId)
@@ -711,6 +713,8 @@ function LeadRow({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved }) {
       <td className="px-4 py-3.5">
         {agentUser ? (
           <p className="text-sm text-[#111111] dark:text-white">{agentUser.firstName} {agentUser.lastName}</p>
+        ) : agency ? (
+          <p className="text-sm text-[#111111] dark:text-white">{agency.name}</p>
         ) : (
           <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">Unassigned</span>
         )}

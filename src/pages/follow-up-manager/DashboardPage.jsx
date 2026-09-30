@@ -81,7 +81,7 @@ export default function FollowUpManagerDashboard() {
     staleTime: 30_000,
   })
   const hotLeads = hotLeadsData ?? []
-  const unassignedCount = hotLeads.filter((l) => !l.assignedAgent).length
+  const unassignedCount = hotLeads.filter((l) => !l.assignedAgent && !l.agencyId).length
   const overdueLeads = hotLeads
     .filter((l) => l.followUpDate && isPast(new Date(l.followUpDate)))
     .sort((a, b) => new Date(a.followUpDate) - new Date(b.followUpDate))

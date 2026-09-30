@@ -14,13 +14,14 @@ import {
 import { useAuthStore } from '../../store/authStore'
 
 const STATUS_META = {
-  cold:       { label: 'Cold',       color: '#6B7280', bg: '#6B728018' },
-  warm:       { label: 'Warm',       color: '#F59E0B', bg: '#F59E0B18' },
-  hot:        { label: 'Hot',        color: '#EF4444', bg: '#EF444418' },
-  listed:     { label: 'Listed',     color: '#8B5CF6', bg: '#8B5CF618' },
-  rented_out: { label: 'Rented Out', color: '#10B981', bg: '#10B98118' },
-  sold:       { label: 'Sold',       color: '#F95C4B', bg: '#F95C4B18' },
-  lost:       { label: 'Lost',       color: '#9CA3AF', bg: '#9CA3AF18' },
+  cold:              { label: 'Cold',              color: '#6B7280', bg: '#6B728018' },
+  warm:              { label: 'Warm',               color: '#F59E0B', bg: '#F59E0B18' },
+  hot:               { label: 'Hot',                color: '#EF4444', bg: '#EF444418' },
+  still_negotiating: { label: 'Still Negotiating',  color: '#F59E0B', bg: '#F59E0B18' },
+  listed:            { label: 'Listed',              color: '#8B5CF6', bg: '#8B5CF618' },
+  rented_out:        { label: 'Rented Out',          color: '#10B981', bg: '#10B98118' },
+  sold:              { label: 'Sold',                color: '#F95C4B', bg: '#F95C4B18' },
+  lost:              { label: 'Lost',                color: '#9CA3AF', bg: '#9CA3AF18' },
 }
 
 const STATUS_TABS = [
@@ -28,6 +29,7 @@ const STATUS_TABS = [
   { key: 'cold', label: 'Cold' },
   { key: 'warm', label: 'Warm' },
   { key: 'hot', label: 'Hot' },
+  { key: 'still_negotiating', label: 'Negotiating' },
   { key: 'listed', label: 'Listed' },
   { key: 'rented_out', label: 'Rented Out' },
   { key: 'sold', label: 'Sold' },
