@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, keepPreviousData } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
   FileText, Plus, Search, X, Loader2, AlertTriangle, MapPin,
@@ -211,33 +211,43 @@ export default function ColdCallerLeadsPage() {
     if (deepLinkContact) setCreateContact(deepLinkContact)
   }, [deepLinkContact])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', { search: debouncedSearch, status: statusFilter, listingType: listingTypeFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter, createdFrom, createdTo, mine: true }],
-    queryFn: () =>
+  const sharedFilterParams = {
+    search:      debouncedSearch    || undefined,
+    listingType: listingTypeFilter  || undefined,
+    hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
+    hasComment:  hasCommentFilter  ? 'true' : undefined,
+    createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
+    createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
+  }
+
+  // Loaded 500 at a time via "Load More" rather than a hard-capped single page — a busy
+  // cold caller's own lead list can exceed the old 100-lead cap, which silently hid leads
+  // beyond it and under-reported the total.
+  const {
+    data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['leads', { ...sharedFilterParams, status: statusFilter, mine: true }],
+    queryFn: ({ pageParam }) =>
       leadsApi
-        .list({
-          search:      debouncedSearch    || undefined,
-          status:      statusFilter       || undefined,
-          listingType: listingTypeFilter  || undefined,
-          hasFollowUp: hasFollowUpFilter ? 'true' : undefined,
-          hasComment:  hasCommentFilter  ? 'true' : undefined,
-          createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
-          createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
-          limit: 100,
-        })
+        .list({ ...sharedFilterParams, status: statusFilter || undefined, limit: 500, page: pageParam })
         .then((r) => r.data.data),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => (lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined),
     placeholderData: keepPreviousData,
   })
 
-  const leads = data?.leads ?? []
-  const total = leads.length
+  const leads = data?.pages?.flatMap((p) => p.leads) ?? []
+  const total = data?.pages?.[0]?.total ?? 0
   const hasFilters = Boolean(search || statusFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
 
-  const counts = STATUS_TABS.reduce((acc, t) => {
-    if (!t.key) return acc
-    acc[t.key] = leads.filter((l) => l.status === t.key).length
-    return acc
-  }, {})
+  // Real counts per status, scoped the same way the list itself is (own leads only) — not
+  // derived from whatever page happens to be loaded, so a tab badge never undercounts.
+  const { data: statsData } = useQuery({
+    queryKey: ['leads-stats', sharedFilterParams],
+    queryFn: () => leadsApi.getStats(sharedFilterParams).then((r) => r.data.data),
+    placeholderData: keepPreviousData,
+  })
+  const counts = statsData?.byStatus ?? {}
 
   function closeCreateFlow() {
     setCreateContact(null)
@@ -345,6 +355,24 @@ export default function ColdCallerLeadsPage() {
             {leads.map((lead) => (
               <LeadCard key={lead._id} lead={lead} onOpen={() => navigate(`/cold-caller/leads/${lead._id}`)} currentUserId={user?._id} />
             ))}
+          </div>
+        )}
+
+        {!isLoading && leads.length > 0 && (
+          <div className="flex flex-col items-center gap-2 py-6">
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+              Showing {leads.length} of {total} lead{total !== 1 ? 's' : ''}
+            </p>
+            {hasNextPage && (
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-60 transition-colors"
+              >
+                {isFetchingNextPage && <Loader2 className="w-4 h-4 animate-spin" />}
+                Load 500 More
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format, isPast, differenceInDays } from 'date-fns'
 import {
@@ -808,12 +808,19 @@ export default function LeadsPage() {
     createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
   }
 
-  const { data, isLoading, isError } = useQuery({
+  // Loaded 500 leads at a time rather than classic page-number pagination — "Load More"
+  // below the table fetches the next 500 and appends them, so an admin can keep going past
+  // 500/1000/5000+ leads instead of silently being capped at the first page.
+  const {
+    data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['leads', { ...sharedFilterParams, status: statusFilter, sort }],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       leadsApi
-        .list({ ...sharedFilterParams, status: statusFilter || undefined, sort, limit: 100 })
+        .list({ ...sharedFilterParams, status: statusFilter || undefined, sort, limit: 500, page: pageParam })
         .then((r) => r.data.data),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => (lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined),
     placeholderData: keepPreviousData,
   })
 
@@ -824,8 +831,8 @@ export default function LeadsPage() {
   })
   const statusCounts = statsData?.byStatus ?? {}
 
-  const leads = data?.leads ?? data ?? []
-  const total = Array.isArray(leads) ? leads.length : 0
+  const leads = data?.pages?.flatMap((p) => p.leads) ?? []
+  const total = data?.pages?.[0]?.total ?? 0
   const hasFilters = Boolean(search || statusFilter || listingTypeFilter || callerFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
 
   function handleFollowUpSaved() {
@@ -1008,6 +1015,24 @@ export default function LeadsPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {!isLoading && leads.length > 0 && (
+          <div className="flex flex-col items-center gap-2 py-6">
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+              Showing {leads.length} of {total} lead{total !== 1 ? 's' : ''}
+            </p>
+            {hasNextPage && (
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-60 transition-colors"
+              >
+                {isFetchingNextPage && <Loader2 className="w-4 h-4 animate-spin" />}
+                Load 500 More
+              </button>
+            )}
           </div>
         )}
       </div>

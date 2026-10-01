@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { isPast, format } from 'date-fns'
 import {
   Flame, Search, X, AlertTriangle, Loader2, Users,
@@ -259,9 +259,14 @@ export default function FollowUpManagerLeadsPage() {
   const [fumFilterCollapsed, setFumFilterCollapsed] = useState(false)
   const debouncedSearch = useDebounce(search)
 
-  const { data, isLoading, isError } = useQuery({
+  // Loaded 500 at a time via "Load More" rather than a hard-capped single page — the hot
+  // leads queue can exceed the old 100-lead cap, which silently hid leads beyond it and
+  // under-reported the total.
+  const {
+    data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['fum-leads', { search: debouncedSearch, listingType: listingTypeFilter, lastFollowUpBy: fumFilter, followedUpWithin: followedUpFilter, hasFollowUp: hasFollowUpFilter, hasComment: hasCommentFilter, createdFrom, createdTo }],
-    queryFn: () => leadsApi.list({
+    queryFn: ({ pageParam }) => leadsApi.list({
       search:      debouncedSearch    || undefined,
       listingType: listingTypeFilter  || undefined,
       lastFollowUpBy: fumFilter       || undefined,
@@ -270,13 +275,19 @@ export default function FollowUpManagerLeadsPage() {
       hasComment:  hasCommentFilter  ? 'true' : undefined,
       createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
       createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
-      limit: 100,
+      limit: 500,
+      page: pageParam,
     }).then((r) => r.data.data),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => (lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined),
     placeholderData: keepPreviousData,
   })
 
-  const leads = data?.leads ?? []
-  const total = leads.length
+  const leads = data?.pages?.flatMap((p) => p.leads) ?? []
+  const total = data?.pages?.[0]?.total ?? 0
+  // Derived from whatever's loaded so far (500 at a time, "Load More" beyond that) rather
+  // than a dedicated backend count — exact once every page is loaded, an undercount only
+  // while more pages remain (visible via the "Showing X of Y" footer below the table).
   const unassignedCount = leads.filter((l) => !l.assignedAgent && !l.agencyId).length
   const overdueCount = leads.filter((l) => l.followUpDate && isPast(new Date(l.followUpDate))).length
   const hasFilters = Boolean(search || listingTypeFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
@@ -433,6 +444,24 @@ export default function FollowUpManagerLeadsPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {!isLoading && leads.length > 0 && (
+          <div className="flex flex-col items-center gap-2 py-6">
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+              Showing {leads.length} of {total} lead{total !== 1 ? 's' : ''}
+            </p>
+            {hasNextPage && (
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-60 transition-colors"
+              >
+                {isFetchingNextPage && <Loader2 className="w-4 h-4 animate-spin" />}
+                Load 500 More
+              </button>
+            )}
           </div>
         )}
       </div>

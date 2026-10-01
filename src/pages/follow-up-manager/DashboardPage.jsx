@@ -75,12 +75,16 @@ export default function FollowUpManagerDashboard() {
   const [stats, setStats] = useState({ today: null, unread: null })
   const [loadingAppts, setLoadingAppts] = useState(true)
 
+  // limit: 500 (not the old 100) so the "Hot Leads" count and the derived stats below it
+  // don't silently undercount once a busy queue grows past a small page size; the StatCard
+  // itself shows the real backend total regardless of how many of those are loaded here.
   const { data: hotLeadsData, isLoading: loadingLeads } = useQuery({
     queryKey: ['fum-dashboard-leads'],
-    queryFn: () => leadsApi.list({ limit: 100 }).then((r) => r.data.data.leads ?? []),
+    queryFn: () => leadsApi.list({ limit: 500 }).then((r) => r.data.data),
     staleTime: 30_000,
   })
-  const hotLeads = hotLeadsData ?? []
+  const hotLeads = hotLeadsData?.leads ?? []
+  const hotLeadsTotal = hotLeadsData?.total ?? hotLeads.length
   const unassignedCount = hotLeads.filter((l) => !l.assignedAgent && !l.agencyId).length
   const overdueLeads = hotLeads
     .filter((l) => l.followUpDate && isPast(new Date(l.followUpDate)))
@@ -130,7 +134,7 @@ export default function FollowUpManagerDashboard() {
           Today's Overview
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={Flame}         label="Hot Leads"          value={hotLeads.length}   sub="Currently in your queue" color="#8B5CF6" loading={loadingLeads} />
+          <StatCard icon={Flame}         label="Hot Leads"          value={hotLeadsTotal}   sub="Currently in your queue" color="#8B5CF6" loading={loadingLeads} />
           <StatCard icon={Building2}     label="No Agency Assigned" value={unassignedCount}   sub="Still need routing"      color="#F59E0B" loading={loadingLeads} />
           <StatCard icon={CalendarCheck} label="Today's Appointments" value={stats.today}    sub={format(now, 'd MMM yyyy')} color="#3B82F6" loading={loadingAppts} />
           <StatCard icon={Bell}          label="Notifications"      value={stats.unread}      sub="Unread"                   color="#F95C4B" loading={loadingAppts} />
