@@ -41,3 +41,27 @@
     text-wrap: balance;
   }
 }
+
+/* Loading placeholder sweep — light surfaces by default, dimmer highlight in dark mode. */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: #F5F5F4;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  animation: shimmer-sweep 1.4s ease-in-out infinite;
+}
+.dark .shimmer {
+  background-color: #202020;
+}
+.dark .shimmer::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+}
+@keyframes shimmer-sweep {
+  100% { transform: translateX(100%); }
+}

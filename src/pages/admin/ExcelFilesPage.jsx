@@ -1,14 +1,16 @@
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns'
 import {
   FileSpreadsheet, Search, X, Trash2, Loader2, AlertTriangle, Inbox, CheckCircle2, UserCheck, Layers, Upload, CalendarDays,
+  ChevronLeft, ChevronRight, Users,
 } from 'lucide-react'
 import { contactsApi } from '../../services/contactsApi'
 import { areasApi } from '../../services/areasApi'
 import { SearchableAreaSelect } from '../../components/leads/leadShared'
 import ImportModal from '../../components/contacts/ImportExcelModal'
+import SidePanel from '../../components/common/SidePanel'
 import DuplicatesReviewModal from '../../components/contacts/DuplicatesReviewModal'
 
 const AREA_PALETTE = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#F95C4B', '#06B6D4', '#EC4899']
@@ -47,6 +49,25 @@ function fmtBytes(b) {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function FileCardSkeleton() {
+  return (
+    <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] p-5 space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl shimmer" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3.5 w-3/4 rounded shimmer" />
+          <div className="h-2.5 w-1/2 rounded shimmer" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="h-16 rounded-xl shimmer" />
+        <div className="h-16 rounded-xl shimmer" />
+      </div>
+      <div className="h-10 rounded-xl shimmer" />
+    </div>
+  )
+}
+
 function StatCard({ icon: Icon, label, value, color, emphasise }) {
   return (
     <div className={`bg-white dark:bg-[#181818] rounded-2xl border p-4 flex items-center gap-3 ${
@@ -63,7 +84,7 @@ function StatCard({ icon: Icon, label, value, color, emphasise }) {
   )
 }
 
-function FileCard({ file, areas, saving, onAreaChange, onDelete }) {
+function FileCard({ file, areas, saving, onAreaChange, onDelete, onViewContacts }) {
   const accent = file.areaId ? areaColor(file.areaId) : UNASSIGNED_COLOR
   return (
     <div
@@ -93,7 +114,14 @@ function FileCard({ file, areas, saving, onAreaChange, onDelete }) {
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-[#FAFAF9] dark:bg-[#111111] px-3.5 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Contacts</p>
-          <p className="text-lg font-bold text-[#111111] dark:text-white leading-tight mt-0.5">{file.contactCount.toLocaleString()}</p>
+          <button
+            onClick={() => onViewContacts(file)}
+            title="View the contacts in this spreadsheet"
+            className="group flex items-center gap-1.5 mt-0.5 text-lg font-bold text-[#111111] dark:text-white leading-tight hover:text-[#059669] dark:hover:text-[#34D399] transition-colors"
+          >
+            {file.contactCount.toLocaleString()}
+            <Users className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100" />
+          </button>
         </div>
         <div className="rounded-xl bg-[#FAFAF9] dark:bg-[#111111] px-3.5 py-3 min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Status</p>
@@ -163,6 +191,119 @@ function DeleteFileDialog({ file, pending, onClose, onConfirm }) {
   )
 }
 
+const CONTACT_STATUS_META = {
+  unassigned: { label: 'Unassigned', color: '#6B7280' },
+  assigned:   { label: 'Assigned',   color: '#3B82F6' },
+  contacted:  { label: 'Contacted',  color: '#F59E0B' },
+  converted:  { label: 'Converted',  color: '#10B981' },
+  dnc:        { label: 'Do not call', color: '#EF4444' },
+}
+
+function ContactStatusPill({ status }) {
+  const meta = CONTACT_STATUS_META[status] ?? { label: status, color: '#6B7280' }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: meta.color }} />{meta.label}
+    </span>
+  )
+}
+
+function FileContactsPanel({ file, onClose }) {
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [term, setTerm] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => { setTerm(search.trim()); setPage(1) }, 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const { data, isLoading, isError, isFetching } = useQuery({
+    queryKey: ['file-contacts', file.batchId, page, term],
+    queryFn: () => contactsApi.list({ uploadBatchId: file.batchId, page, limit: 25, search: term || undefined }).then((r) => r.data.data),
+    placeholderData: keepPreviousData,
+  })
+
+  const contacts = data?.contacts ?? []
+  const totalPages = data?.totalPages ?? 1
+
+  return (
+    <SidePanel
+      onClose={onClose}
+      icon={FileSpreadsheet}
+      iconColor="#10B981"
+      title={file.displayName}
+      subtitle={data ? `${data.total.toLocaleString()} contact${data.total === 1 ? '' : 's'} from this spreadsheet` : 'Loading contacts…'}
+      widthClass="sm:max-w-3xl"
+      footer={totalPages > 1 ? (
+        <div className="flex items-center justify-between w-full">
+          <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] disabled:opacity-40">
+            <ChevronLeft className="w-3.5 h-3.5" /> Previous
+          </button>
+          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Page {page} of {totalPages}</p>
+          <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] disabled:opacity-40">
+            Next <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : null}
+    >
+      <div className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone or address…"
+            className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white outline-none ring-2 ring-transparent focus:ring-[#10B981]/20" />
+          {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111]"><X className="w-3.5 h-3.5" /></button>}
+        </div>
+
+        {isError ? (
+          <div className="p-4 rounded-xl bg-[#EF4444]/10 text-sm text-[#EF4444]">Couldn't load this spreadsheet's contacts.</div>
+        ) : isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 rounded-xl shimmer" />)}
+          </div>
+        ) : contacts.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-sm font-semibold text-[#111111] dark:text-white">{term ? 'No contacts match' : 'No contacts in this spreadsheet'}</p>
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">{term ? 'Try a different name, phone or address.' : 'Duplicates from this file were sent for review instead of being saved.'}</p>
+          </div>
+        ) : (
+          <div className={`rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
+            <table className="w-full text-left">
+              <thead className="bg-[#FAFAF9] dark:bg-[#111111] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+                <tr>
+                  {['Name', 'Phone', 'Address / Unit', 'Cold caller', 'Status'].map((h) => (
+                    <th key={h} className="px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
+                {contacts.map((c) => (
+                  <tr key={c._id} className="hover:bg-[#FAFAF9] dark:hover:bg-[#111111]">
+                    <td className="px-3.5 py-2.5 text-sm font-semibold text-[#111111] dark:text-white truncate max-w-[180px]">{c.name}</td>
+                    <td className="px-3.5 py-2.5 text-xs font-mono text-[#111111] dark:text-white whitespace-nowrap">{c.phone ?? '—'}</td>
+                    <td className="px-3.5 py-2.5 text-xs text-[#6B7280] dark:text-[#A1A1AA] max-w-[220px]">
+                      <p className="truncate">{c.address ?? '—'}</p>
+                      {c.unitNumber && <p className="text-[10px]">Unit {c.unitNumber}</p>}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-xs whitespace-nowrap">
+                      {c.assignedTo
+                        ? <span className="flex items-center gap-1.5 text-[#111111] dark:text-white"><UserCheck className="w-3.5 h-3.5 text-[#3B82F6]" />{c.assignedTo.firstName} {c.assignedTo.lastName}</span>
+                        : <span className="italic text-[#F59E0B]">Unassigned</span>}
+                    </td>
+                    <td className="px-3.5 py-2.5"><ContactStatusPill status={c.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </SidePanel>
+  )
+}
+
 export default function ExcelFilesPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
@@ -173,6 +314,7 @@ export default function ExcelFilesPage() {
   const [dateTo, setDateTo] = useState('')
   const [importing, setImporting] = useState(false)
   const [duplicates, setDuplicates] = useState(null)
+  const [viewing, setViewing] = useState(null)
 
   const { data: files = [], isLoading, isError } = useQuery({
     queryKey: ['contact-files'],
@@ -186,15 +328,29 @@ export default function ExcelFilesPage() {
     staleTime: 60_000,
   })
 
+  // Show the new area straight away — the file listing is slow to refetch (it reads Firebase),
+  // so waiting on it made the card look unchanged until a manual reload.
   const assignMut = useMutation({
     mutationFn: ({ batchId, areaId }) => contactsApi.assignFileArea(batchId, areaId),
+    onMutate: async ({ batchId, areaId }) => {
+      await qc.cancelQueries({ queryKey: ['contact-files'] })
+      const previous = qc.getQueryData(['contact-files'])
+      const area = areas.find((a) => a._id === areaId)
+      qc.setQueryData(['contact-files'], (old) => old?.map((f) =>
+        f.batchId === batchId ? { ...f, areaId, areaName: area?.name ?? null } : f
+      ))
+      return { previous }
+    },
     onSuccess: (res) => {
       const { areaName, contactsUpdated } = res.data.data
       toast.success(`Assigned to ${areaName} — ${contactsUpdated} contact${contactsUpdated !== 1 ? 's' : ''} updated`)
-      qc.invalidateQueries({ queryKey: ['contact-files'] })
       qc.invalidateQueries({ queryKey: ['contacts'] })
     },
-    onError: (e) => toast.error(e.response?.data?.message ?? 'Failed to assign area'),
+    onError: (e, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(['contact-files'], ctx.previous)
+      toast.error(e.response?.data?.message ?? 'Failed to assign area')
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['contact-files'] }),
   })
 
   const deleteMut = useMutation({
@@ -350,9 +506,7 @@ export default function ExcelFilesPage() {
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-56 rounded-2xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] animate-pulse" />
-            ))}
+            {Array.from({ length: 6 }).map((_, i) => <FileCardSkeleton key={i} />)}
           </div>
         ) : files.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -379,11 +533,14 @@ export default function ExcelFilesPage() {
                 saving={assignMut.isPending && assignMut.variables?.batchId === file.batchId}
                 onAreaChange={(f, areaId) => assignMut.mutate({ batchId: f.batchId, areaId })}
                 onDelete={setToDelete}
+                onViewContacts={setViewing}
               />
             ))}
           </div>
         )}
       </div>
+
+      {viewing && <FileContactsPanel file={viewing} onClose={() => setViewing(null)} />}
 
       {importing && (
         <ImportModal
