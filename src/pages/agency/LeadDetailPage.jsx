@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { agenciesApi } from '../../services/agenciesApi'
 import { Loader2, AlertTriangle } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { useAuthStore } from '../../store/authStore'
@@ -18,6 +19,16 @@ export default function AgencyLeadDetailPage() {
   const { data: lead, isLoading, isError } = useQuery({
     queryKey: ['lead', id],
     queryFn: () => leadsApi.getById(id).then((r) => r.data.data.lead),
+  })
+
+  // A company manager hands a lead to one of their own team — the picker only ever offers
+  // active people from their company.
+  const isManager = Boolean(user?.isAgencyManager)
+  const { data: team } = useQuery({
+    queryKey: ['agency-team', user?.agencyId],
+    queryFn: () => agenciesApi.listTeam(user.agencyId).then((r) => r.data.data.team),
+    enabled: isManager && Boolean(user?.agencyId),
+    staleTime: 60_000,
   })
 
   if (isLoading) {
@@ -45,7 +56,8 @@ export default function AgencyLeadDetailPage() {
       onDeleted={() => navigate('/agency/leads')}
       invalidateQueryKey={['agent-leads']}
       editableFields={EDITABLE_FIELDS}
-      canAssignAgency={false}
+      canAssignAgency={isManager}
+      assignableTeam={isManager ? (team ?? []).filter((m) => m.isActive) : null}
       canChangeStatus
       statusOptions={AGENCY_STATUS_OPTIONS}
       canDelete={false}

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
-import { Users, AlertTriangle, Clock, ArrowRight, Loader2 } from 'lucide-react'
+import { Users, AlertTriangle, Clock, ArrowRight, Loader2, MapPin } from 'lucide-react'
 import { contactsApi } from '../../services/contactsApi'
 
 function initials(name = '') {
@@ -9,7 +9,7 @@ function initials(name = '') {
 }
 
 function CallerCard({ caller, onViewContacts }) {
-  const { callerName, totalAssigned, called, remaining, lastCalledAt, hasPendingRequest } = caller
+  const { callerName, totalAssigned, called, remaining, lastCalledAt, hasPendingRequest, areas = [] } = caller
   const exhausted = totalAssigned > 0 && remaining === 0
   const pct = totalAssigned > 0 ? Math.round((called / totalAssigned) * 100) : 0
 
@@ -67,6 +67,24 @@ function CallerCard({ caller, onViewContacts }) {
           <p className={`text-base font-bold ${exhausted ? 'text-[#EF4444]' : 'text-[#F59E0B]'}`}>{remaining}</p>
           <p className="text-[9px] font-semibold uppercase tracking-wide text-[#6B7280] dark:text-[#A1A1AA]">Left</p>
         </div>
+      </div>
+
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">Areas</p>
+        {areas.length === 0 ? (
+          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No area-tagged contacts yet</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {areas.slice(0, 4).map((a) => (
+              <span key={a.areaId} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-[#F95C4B]/8 text-[#F95C4B]">
+                <MapPin className="w-3 h-3" /> {a.name} <span className="opacity-70">{a.count}</span>
+              </span>
+            ))}
+            {areas.length > 4 && (
+              <span className="px-2 py-1 text-[11px] font-semibold text-[#6B7280] dark:text-[#A1A1AA]">+{areas.length - 4} more</span>
+            )}
+          </div>
+        )}
       </div>
 
       <button

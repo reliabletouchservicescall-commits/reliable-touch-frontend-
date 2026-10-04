@@ -29,6 +29,7 @@ import {
   BarChart2,
   ShieldCheck,
   Trash2,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuthStore } from '../store/authStore'
@@ -48,6 +49,7 @@ const NAV = [
     group: 'CRM',
     items: [
       { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
+      { label: 'Excel Files', icon: FileSpreadsheet, to: '/admin/excel-files' },
       { label: 'Leads', icon: TrendingUp, to: '/admin/leads' },
       { label: 'Campaigns', icon: Megaphone, to: '/admin/campaigns' },
       { label: 'Call Logs', icon: PhoneCall, to: '/admin/call-logs' },

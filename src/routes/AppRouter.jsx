@@ -27,6 +27,7 @@ import CommissionsPage from '../pages/admin/CommissionsPage'
 import LeaseRenewalsPage from '../pages/admin/LeaseRenewalsPage'
 import AgenciesPage from '../pages/admin/AgenciesPage'
 import AreasPage from '../pages/admin/AreasPage'
+import ExcelFilesPage from '../pages/admin/ExcelFilesPage'
 
 // Cold Caller pages
 import ColdCallerDashboard from '../pages/cold-caller/DashboardPage'
@@ -70,6 +71,8 @@ import BinPage from '../pages/admin/BinPage'
 
 import ColdCallerChatPage from '../pages/cold-caller/ChatPage'
 import AgencyChatPage from '../pages/agency/ChatPage'
+import AgencyTeamPage from '../pages/agency/TeamPage'
+import AgencyDetailPage from '../pages/admin/AgencyDetailPage'
 import FollowUpManagerChatPage from '../pages/follow-up-manager/ChatPage'
 import ProtectedRoute from './ProtectedRoute'
 
@@ -122,7 +125,9 @@ export default function AppRouter() {
           <Route path="commissions" element={<CommissionsPage />} />
           <Route path="lease-renewals" element={<LeaseRenewalsPage />} />
           <Route path="agencies" element={<AgenciesPage />} />
+          <Route path="agencies/:id" element={<AgencyDetailPage />} />
           <Route path="areas" element={<AreasPage />} />
+          <Route path="excel-files" element={<ExcelFilesPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="performance" element={<PerformancePage />} />
           <Route path="agents-performance" element={<AgentsPerformancePage />} />
@@ -170,6 +175,7 @@ export default function AppRouter() {
           <Route path="leads/:id" element={<AgencyLeadDetailPage />} />
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
           <Route path="notifications" element={<AgencyNotificationsPage />} />
+          <Route path="team" element={<AgencyTeamPage />} />
           <Route path="chat" element={<AgencyChatPage />} />
         </Route>
 

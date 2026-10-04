@@ -306,12 +306,20 @@ function ContactDetailPanel({ contact, onClose }) {
         </div>
 
         {/* Property details */}
-        {(contact.unitNumber || contact.sizeInSqm || contact.sectionalScheme) && (
+        {(contact.area?.name || contact.unitNumber || contact.sizeInSqm || contact.sectionalScheme) && (
           <div className="rounded-xl border border-[#8B5CF6]/20 bg-[#8B5CF6]/5 dark:bg-[#8B5CF6]/8 p-4 space-y-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8B5CF6] flex items-center gap-1.5">
               <Home className="w-3.5 h-3.5" /> Property Details
             </p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+              {contact.area?.name && (
+                <div className="col-span-2">
+                  <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Area</p>
+                  <p className="text-sm font-bold text-[#111111] dark:text-white">
+                    {contact.area.name}{contact.area.region && <span className="font-normal text-[#6B7280] dark:text-[#A1A1AA]"> · {contact.area.region}</span>}
+                  </p>
+                </div>
+              )}
               {contact.unitNumber && (
                 <div>
                   <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-semibold uppercase tracking-widest">Unit</p>
@@ -421,8 +429,14 @@ function ContactCard({ contact, onCallInitiated, showOutcome }) {
         </div>
 
         {/* Property info strip */}
-        {(contact.sectionalScheme || contact.sizeInSqm) && (
+        {(contact.area?.name || contact.sectionalScheme || contact.sizeInSqm) && (
           <div className="flex items-center gap-2 mb-3 px-2 py-1.5 rounded-lg bg-[#F5F5F4] dark:bg-[#202020]">
+            {contact.area?.name && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-[#F95C4B] min-w-0 max-w-[45%]">
+                <MapPin className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{contact.area.name}</span>
+              </span>
+            )}
             {contact.sectionalScheme && (
               <span className="flex items-center gap-1 text-[10px] text-[#6B7280] dark:text-[#A1A1AA] min-w-0">
                 <Layers className="w-3 h-3 flex-shrink-0 text-[#8B5CF6]" />

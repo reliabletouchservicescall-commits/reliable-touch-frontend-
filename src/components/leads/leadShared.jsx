@@ -171,19 +171,50 @@ export function ListingTypeFilter({ value, onChange, accent = '#F95C4B' }) {
 // User with role 'agency' — an individual person we work with) and an Agency (a company
 // we work with, from the standalone Agency directory) — never both. The value is encoded
 // as one of the two id fields on the lead; picking an option here always clears the other.
-export function AgentOrAgencyPicker({ assignedAgent, agencyId, onChange, className }) {
+/**
+ * "Assigned to" picker used on lead forms. Two modes:
+ *  - Admin (default): choose a company (its manager takes it from there) or one of Reliable's
+ *    own agents. A company's individual people aren't listed here — they're attached by the
+ *    company, which keeps the two levels from being confused.
+ *  - Team mode (`teamMembers` given): a company manager attaching one of their own people.
+ */
+export function AgentOrAgencyPicker({ assignedAgent, agencyId, onChange, className, teamMembers = null }) {
+  const teamMode = Array.isArray(teamMembers)
+
   const { data: agentsData } = useQuery({
     queryKey: ['agency-users-select'],
     queryFn: () => usersApi.list({ role: 'agency', limit: 100 }).then((r) => r.data.data),
     staleTime: 60_000,
+    enabled: !teamMode,
   })
   const { data: agenciesData } = useQuery({
     queryKey: ['agencies-select'],
     queryFn: () => agenciesApi.list({ limit: 100, isActive: true }).then((r) => r.data.data.agencies),
     staleTime: 60_000,
+    enabled: !teamMode,
   })
+
+  if (teamMode) {
+    return (
+      <select
+        value={assignedAgent ? `agent:${assignedAgent}` : ''}
+        onChange={(e) => onChange({ assignedAgent: e.target.value.replace(/^agent:/, ''), agencyId: '' })}
+        className={className}
+      >
+        <option value="">-- Unassigned --</option>
+        {teamMembers.map((m) => (
+          <option key={m._id} value={`agent:${m._id}`}>
+            {m.firstName} {m.lastName}{m.isAgencyManager ? ' (manager)' : ''}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
   const agentsRaw = agentsData?.users ?? agentsData ?? []
-  const agents = Array.isArray(agentsRaw) ? agentsRaw : []
+  // Team members belong to their company — only Reliable's own agents are offered directly.
+  // The one already selected stays listed so an existing assignment never shows as blank.
+  const agents = (Array.isArray(agentsRaw) ? agentsRaw : []).filter((a) => !a.agencyId || a._id === assignedAgent)
   const agencies = agenciesData ?? []
 
   const value = assignedAgent ? `agent:${assignedAgent}` : agencyId ? `agency:${agencyId}` : ''
@@ -199,14 +230,14 @@ export function AgentOrAgencyPicker({ assignedAgent, agencyId, onChange, classNa
     <select value={value} onChange={handleChange} className={className}>
       <option value="">-- Unassigned --</option>
       {agencies.length > 0 && (
-        <optgroup label="Agencies (companies)">
+        <optgroup label="Companies (agencies)">
           {agencies.map((a) => (
             <option key={a._id} value={`agency:${a._id}`}>{a.name}</option>
           ))}
         </optgroup>
       )}
       {agents.length > 0 && (
-        <optgroup label="Agents (people)">
+        <optgroup label="Reliable agents">
           {agents.map((a) => (
             <option key={a._id} value={`agent:${a._id}`}>{a.firstName} {a.lastName}</option>
           ))}
@@ -403,9 +434,10 @@ export function ListingFields({ form, setField, errors }) {
  * filtered, scrollable list below. Same value/onChange shape as a native select
  * (area ID in, area ID out) so it drops straight into PropertyFromContact.
  */
-function SearchableAreaSelect({ areas, value, onChange, placeholder = 'Select area…' }) {
+export function SearchableAreaSelect({ areas, value, onChange, placeholder = 'Select area…', allowAdd = false }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [adding, setAdding] = useState(false)
   const ref = useRef(null)
 
   useEffect(() => {
@@ -474,6 +506,24 @@ function SearchableAreaSelect({ areas, value, onChange, placeholder = 'Select ar
               ))
             )}
           </div>
+          {allowAdd && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setSearch(''); setAdding(true) }}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-[#F95C4B] border-t border-[#E5E7EB] dark:border-[#2A2A2A] hover:bg-[#F95C4B]/5 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add new area
+            </button>
+          )}
+        </div>
+      )}
+
+      {adding && (
+        <div className="mt-2">
+          <AddAreaInline
+            onCreated={(area) => { onChange(area._id); setAdding(false) }}
+            onCancel={() => setAdding(false)}
+          />
         </div>
       )}
     </div>
@@ -651,7 +701,7 @@ function SearchableSchemeSelect({ value, onChange, placeholder = 'Select or type
  * query (used by every page that lists areas for a picker) so it shows up everywhere
  * immediately, and selects it on the calling form via `onCreated`.
  */
-function AddAreaInline({ onCreated, onCancel }) {
+export function AddAreaInline({ onCreated, onCancel }) {
   const qc = useQueryClient()
   const [name, setName] = useState('')
   const [region, setRegion] = useState('')

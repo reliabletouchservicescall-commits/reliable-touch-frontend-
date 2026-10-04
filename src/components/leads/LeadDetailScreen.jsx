@@ -293,6 +293,7 @@ export default function LeadDetailScreen({
   canAssignAgency = false,
   canChangeStatus = false,
   statusOptions = null,
+  assignableTeam = null,
   canDelete = false,
   canComment = false,
   currentUserId,
@@ -506,6 +507,7 @@ export default function LeadDetailScreen({
                   <>
                     <div className="p-4">
                       <AgentOrAgencyPicker
+                        teamMembers={assignableTeam}
                         assignedAgent={form.assignedAgent}
                         agencyId={form.agencyId}
                         onChange={({ assignedAgent, agencyId }) => setForm((f) => ({ ...f, assignedAgent, agencyId }))}

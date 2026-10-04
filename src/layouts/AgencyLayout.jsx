@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Trophy,
   TrendingUp,
+  Users,
 } from 'lucide-react'
 import logo from '../assets/logo-reliable-touch.png'
 import { useTheme } from '../context/ThemeContext'
@@ -35,6 +36,7 @@ const NAV = [
     items: [
       { label: 'Appointments', icon: CalendarCheck, to: '/agency/appointments' },
       { label: 'My Leads',     icon: TrendingUp,    to: '/agency/leads' },
+      { label: 'Team',         icon: Users,         to: '/agency/team', managerOnly: true },
     ],
   },
   {
@@ -147,7 +149,7 @@ function Sidebar({ collapsed, onClose, isMobile }) {
               </p>
             )}
             <ul className="space-y-0.5">
-              {items.map((item) => (
+              {items.filter((item) => !item.managerOnly || user?.isAgencyManager).map((item) => (
                 <li key={item.to}>
                   <NavItem
                     {...item}

@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { format, isPast, differenceInDays } from 'date-fns'
 import {
   Plus, Search, X, Trash2, AlertTriangle, Loader2,
-  FileText, Users, SlidersHorizontal, Info, ChevronDown, CalendarCheck,
+  FileText, Users, SlidersHorizontal, Info, ChevronDown, CalendarCheck, MapPin,
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
@@ -695,6 +695,11 @@ function LeadRow({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved }) {
       <td className="px-4 py-3.5">
         <p className="text-sm font-semibold text-[#111111] dark:text-white truncate max-w-[180px]">{lead.landlordName}</p>
         <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate max-w-[180px]">{lead.propertyAddress}</p>
+        {lead.area?.name && (
+          <p className="text-[10px] font-semibold text-[#F95C4B] flex items-center gap-1 mt-0.5 truncate max-w-[180px]">
+            <MapPin className="w-2.5 h-2.5 flex-shrink-0" /> {lead.area.name}
+          </p>
+        )}
         <div className="mt-1">
           <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
         </div>

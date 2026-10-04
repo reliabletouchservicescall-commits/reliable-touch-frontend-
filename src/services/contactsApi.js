@@ -20,5 +20,6 @@ export const contactsApi = {
   getBatchStats:  (batchId) => axiosClient.get(`/contacts/files/${batchId}/stats`),
   returnFileToPool: (batchId) => axiosClient.post(`/contacts/files/${batchId}/return`),
   deleteFile: (batchId) => axiosClient.delete(`/contacts/files/${batchId}`),
+  assignFileArea: (batchId, areaId) => axiosClient.patch(`/contacts/files/${batchId}/area`, { areaId }),
   callerWorkload: () => axiosClient.get('/contacts/caller-workload'),
 }

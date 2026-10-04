@@ -13,6 +13,7 @@ export const PATHS = {
     DNC: '/admin/dnc',
     CAMPAIGNS: '/admin/campaigns',
     AREAS: '/admin/areas',
+    EXCEL_FILES: '/admin/excel-files',
     AGENCIES: '/admin/agencies',
     ASSIGNMENT: '/admin/assignment',
     LEADS: '/admin/leads',

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -77,12 +78,14 @@ function StatCard({ icon: Icon, label, value, color, loading }) {
 
 /* ─── Agency Card ─────────────────────────────────────────────────────────── */
 
-function AgencyCard({ agency, agentCount, commStats, onEdit, onDelete, onToggle, toggling }) {
+function AgencyCard({ agency, agentCount, commStats, onOpen, onEdit, onDelete, onToggle, toggling }) {
   const color  = agencyColor(agency._id)
   const active = agency.isActive
 
   return (
-    <div className={`bg-white dark:bg-[#181818] border rounded-2xl overflow-hidden transition-shadow hover:shadow-md ${
+    <div
+      onClick={() => onOpen(agency)}
+      className={`bg-white dark:bg-[#181818] border rounded-2xl overflow-hidden transition-shadow hover:shadow-md cursor-pointer ${
       active ? 'border-[#E5E7EB] dark:border-[#2A2A2A]' : 'border-[#E5E7EB]/60 dark:border-[#2A2A2A]/60 opacity-75'
     }`}>
       {/* Top accent bar */}
@@ -122,6 +125,7 @@ function AgencyCard({ agency, agentCount, commStats, onEdit, onDelete, onToggle,
         <div className="space-y-2 mb-4">
           {agency.contactEmail ? (
             <a
+              onClick={(e) => e.stopPropagation()}
               href={`mailto:${agency.contactEmail}`}
               className="flex items-center gap-2 text-xs text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B] transition-colors truncate group"
             >
@@ -137,6 +141,7 @@ function AgencyCard({ agency, agentCount, commStats, onEdit, onDelete, onToggle,
 
           {agency.contactPhone ? (
             <a
+              onClick={(e) => e.stopPropagation()}
               href={`tel:${agency.contactPhone}`}
               className="flex items-center gap-2 text-xs text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B] transition-colors group"
             >
@@ -186,7 +191,7 @@ function AgencyCard({ agency, agentCount, commStats, onEdit, onDelete, onToggle,
         {/* Actions */}
         <div className="flex items-center gap-2 pt-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A]">
           <button
-            onClick={() => onEdit(agency)}
+            onClick={(e) => { e.stopPropagation(); onEdit(agency) }}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-[#6B7280] dark:text-[#A1A1AA] bg-[#F5F5F4] dark:bg-[#202020] hover:bg-[#EBEBEB] dark:hover:bg-[#2A2A2A] transition-colors"
           >
             <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
@@ -194,7 +199,7 @@ function AgencyCard({ agency, agentCount, commStats, onEdit, onDelete, onToggle,
           </button>
 
           <button
-            onClick={() => onToggle(agency)}
+            onClick={(e) => { e.stopPropagation(); onToggle(agency) }}
             disabled={toggling === agency._id}
             title={active ? 'Deactivate' : 'Activate'}
             className={`flex items-center justify-center w-9 h-9 rounded-xl transition-colors ${
@@ -210,7 +215,7 @@ function AgencyCard({ agency, agentCount, commStats, onEdit, onDelete, onToggle,
           </button>
 
           <button
-            onClick={() => onDelete(agency)}
+            onClick={(e) => { e.stopPropagation(); onDelete(agency) }}
             title="Delete agency"
             className="flex items-center justify-center w-9 h-9 rounded-xl text-[#EF4444] bg-[#EF4444]/10 hover:bg-[#EF4444]/20 transition-colors"
           >
@@ -383,6 +388,7 @@ function DeleteModal({ agency, isPending, onConfirm, onClose }) {
 
 export default function AgenciesPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
 
   const [search, setSearch]         = useState('')
   const [filter, setFilter]         = useState('all')   // 'all' | 'active' | 'inactive'
@@ -625,8 +631,9 @@ export default function AgenciesPage() {
             <AgencyCard
               key={agency._id}
               agency={agency}
-              agentCount={agentsByAgency[agency._id] ?? 0}
+              agentCount={agency.agentCount ?? agentsByAgency[agency._id] ?? 0}
               commStats={commByAgency[agency._id]}
+              onOpen={(a) => navigate(`/admin/agencies/${a._id}`)}
               onEdit={setEditing}
               onDelete={setDeleting}
               onToggle={handleToggle}

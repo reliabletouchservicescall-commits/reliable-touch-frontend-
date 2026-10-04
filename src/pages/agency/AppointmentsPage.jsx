@@ -8,6 +8,8 @@ import {
   Building2, ClipboardList, X, Mail, Ruler, Pencil, Check,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { agenciesApi } from '../../services/agenciesApi'
+import { useAuthStore } from '../../store/authStore'
 import { appointmentsApi } from '../../services/appointmentsApi'
 import { agentsApi } from '../../services/agentsApi'
 import SidePanel from '../../components/common/SidePanel'
@@ -193,7 +195,7 @@ function AppointmentCard({ appointment, onClick }) {
 
 /* ─── Detail Side Panel ─────────────────────────────────────────────────── */
 
-function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, onUpdateNotes, isUpdating, isSavingNotes }) {
+function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, onUpdateNotes, onReassign, team, isUpdating, isSavingNotes }) {
   const lead = appointment.leadId
   const contact = (lead?.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const actions = DEAL_STATUS_ACTIONS[appointment.status] ?? []
@@ -317,6 +319,23 @@ function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, on
             )}
           </div>
         </div>
+
+        {/* Who's attending — a company manager attaches one of their own team */}
+        {team && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-3">Attending</p>
+            <select
+              value={appointment.agentId?._id ?? appointment.agentId ?? ''}
+              onChange={(e) => e.target.value && onReassign(e.target.value)}
+              disabled={isUpdating}
+              className={inputCls(false)}
+            >
+              {team.map((m) => (
+                <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyManager ? ' (manager)' : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Schedule */}
         <div>
@@ -693,6 +712,14 @@ function RecordOutcomePanel({ appointment, onClose, onSuccess }) {
 
 export default function AgencyAppointmentsPage() {
   const qc = useQueryClient()
+  const { user } = useAuthStore()
+  const isManager = Boolean(user?.isAgencyManager)
+  const { data: team } = useQuery({
+    queryKey: ['agency-team', user?.agencyId],
+    queryFn: () => agenciesApi.listTeam(user.agencyId).then((r) => r.data.data.team),
+    enabled: isManager && Boolean(user?.agencyId),
+    staleTime: 60_000,
+  })
   const [statusFilter, setStatusFilter] = useState('')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -868,6 +895,8 @@ export default function AgencyAppointmentsPage() {
       {selected && !showOutcome && (
         <DetailPanel
           appointment={selected}
+          team={isManager ? (team ?? []).filter((m) => m.isActive) : null}
+          onReassign={(agentId) => updateMut.mutate({ id: selected._id, agentId })}
           onClose={closePanel}
           onStatusUpdate={(id, status, agencyNotes) => updateMut.mutate({ id, status, ...(agencyNotes !== undefined ? { agencyNotes } : {}) })}
           onRecordOutcome={() => setShowOutcome(true)}

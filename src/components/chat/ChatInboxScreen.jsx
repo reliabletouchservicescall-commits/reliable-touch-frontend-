@@ -20,6 +20,7 @@ import { format, isToday, isYesterday } from 'date-fns'
 import { toast } from 'sonner'
 import { chatApi } from '../../services/chatApi'
 import { usersApi } from '../../services/usersApi'
+import { agenciesApi } from '../../services/agenciesApi'
 import { useSocket } from '../../context/SocketContext'
 import { useAuthStore } from '../../store/authStore'
 import { LeadStatusBadge } from '../leads/leadShared'
@@ -739,11 +740,15 @@ function ConversationItem({ conv, isActive, onClick, onlineUsers, currentUserId 
 
 /* ─── New chat picker ────────────────────────────────────────────────── */
 
-function NewChatPicker({ currentUserId, onSelect, onClose }) {
+function NewChatPicker({ currentUserId, currentRole, onSelect, onClose }) {
   const [search, setSearch] = useState('')
+  // Agency users can't list every user (that's admin-only) — their people are their own
+  // company's team, so that's what they can message.
   const { data } = useQuery({
-    queryKey: ['users', 'all'],
-    queryFn: () => usersApi.list({ limit: 100 }).then((r) => r.data.data?.users ?? []),
+    queryKey: ['users', 'all', currentRole],
+    queryFn: () => (currentRole === 'agency'
+      ? agenciesApi.myTeam().then((r) => r.data.data.team)
+      : usersApi.list({ limit: 100 }).then((r) => r.data.data?.users ?? [])),
     staleTime: 60_000,
   })
 
@@ -822,6 +827,16 @@ export default function ChatInboxScreen({ leadsBasePath }) {
     onError: () => toast.error('Could not open conversation'),
   })
 
+  // "Message" from a team roster — open (or start) the conversation with that person.
+  useEffect(() => {
+    if (location.state?.openUserId) {
+      const userId = location.state.openUserId
+      navigate(location.pathname, { replace: true, state: null })
+      openConvMutation.mutate(userId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
+
   // Deep-linked from a Lead's detail screen ("Chat with Agency/Cold Caller") — preselect
   // the conversation and preload the composer's attached-lead chip, then clear the
   // navigation state so returning to this page later doesn't re-trigger it.
@@ -857,6 +872,7 @@ export default function ChatInboxScreen({ leadsBasePath }) {
       <div className="w-[300px] flex-shrink-0 flex flex-col border-r border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] relative">
         {showNewChat && (
           <NewChatPicker
+            currentRole={user?.role}
             currentUserId={user?._id}
             onSelect={(u) => openConvMutation.mutate(u._id)}
             onClose={() => setShowNewChat(false)}
