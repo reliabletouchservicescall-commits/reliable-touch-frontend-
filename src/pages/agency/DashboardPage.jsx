@@ -24,6 +24,7 @@ import { format } from 'date-fns'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
 import { agentsApi } from '../../services/agentsApi'
+import ManagerDashboard from './ManagerDashboard'
 
 const APPT_META = {
   scheduled:  { label: 'Scheduled',  color: '#3B82F6' },
@@ -83,7 +84,7 @@ function QuickAction({ icon: Icon, label, description, to, color }) {
 
 const RANK_COLORS = { 1: '#F59E0B', 2: '#9CA3AF', 3: '#B45309' }
 
-export default function AgencyDashboard() {
+function AgentDashboard() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const now = new Date()
@@ -390,4 +391,9 @@ export default function AgencyDashboard() {
       </div>
     </div>
   )
+}
+
+export default function AgencyDashboard() {
+  const { user } = useAuthStore()
+  return user?.isAgencyManager ? <ManagerDashboard /> : <AgentDashboard />
 }

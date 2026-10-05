@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
@@ -7,6 +7,7 @@ import {
   MapPin, Phone, User, Clock, Home, AlertCircle,
 } from 'lucide-react'
 import { agentsApi } from '../../services/agentsApi'
+import { agenciesApi } from '../../services/agenciesApi'
 import { leadsApi } from '../../services/leadsApi'
 import {
   ListingBadge, ListingTypeFilter, LastFollowUpCommentCell, FollowUpActivityFilters, CreatedDateRangeFilter,
@@ -134,9 +135,31 @@ export default function AgencyLeadsPage() {
   const [createdTo,   setCreatedTo]   = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const isManager = Boolean(user?.isAgencyManager)
+  const agentFilter = isManager ? (searchParams.get('agent') ?? '') : ''
+
+  const { data: teamData } = useQuery({
+    queryKey: ['agency-team', user?.agencyId],
+    queryFn: () => agenciesApi.myTeam().then((r) => r.data.data.team),
+    enabled: isManager,
+    staleTime: 60_000,
+  })
+  const team = teamData ?? []
+
+  // A manager narrows the company's book to one person, or to the leads nobody has picked up.
+  const scopeParams = agentFilter === 'unassigned'
+    ? { unassigned: 'true' }
+    : agentFilter ? { assignedAgent: agentFilter } : {}
+
+  function changeAgentFilter(value) {
+    setPage(1)
+    setSearchParams(value ? { agent: value } : {}, { replace: true })
+  }
 
   const params = {
     page, limit: 20,
+    ...scopeParams,
     ...(status ? { status } : {}),
     ...(listingTypeFilter ? { listingType: listingTypeFilter } : {}),
     ...(hasFollowUpFilter ? { hasFollowUp: 'true' } : {}),
@@ -213,12 +236,28 @@ export default function AgencyLeadsPage() {
             <TrendingUp className="w-5 h-5 text-[#3B82F6]" strokeWidth={1.75} />
           </div>
           <div>
-            <h1 className="text-base font-bold text-[#111111] dark:text-white">My Leads</h1>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{total} lead{total !== 1 ? 's' : ''} assigned to you</p>
+            <h1 className="text-base font-bold text-[#111111] dark:text-white">{isManager ? 'Company leads' : 'My Leads'}</h1>
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+              {total} lead{total !== 1 ? 's' : ''} {isManager ? 'attached to your company' : 'assigned to you'}
+            </p>
           </div>
         </div>
 
-        <div className="sm:ml-auto relative">
+        {isManager && (
+          <select
+            value={agentFilter}
+            onChange={(e) => changeAgentFilter(e.target.value)}
+            className="sm:ml-auto w-full sm:w-auto px-3 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none focus:border-[#3B82F6] cursor-pointer"
+          >
+            <option value="">Whole company</option>
+            <option value="unassigned">Not yet with anyone</option>
+            {team.map((m) => (
+              <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyManager ? ' (you)' : ''}</option>
+            ))}
+          </select>
+        )}
+
+        <div className={`${isManager ? '' : 'sm:ml-auto '}relative`}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
           <input
             value={search}

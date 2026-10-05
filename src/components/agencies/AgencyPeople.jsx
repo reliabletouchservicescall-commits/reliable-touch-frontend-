@@ -149,6 +149,7 @@ export function AddPersonModal({ agencyId, agencyName, canMakeManager, onClose }
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agency-team', agencyId] })
+      qc.invalidateQueries({ queryKey: ['agency-manager-dashboard'] })
       qc.invalidateQueries({ queryKey: ['agencies'] })
       setCreated({ email: form.email.trim(), password: form.password, name: `${form.firstName} ${form.lastName}` })
       toast.success('Login created')
