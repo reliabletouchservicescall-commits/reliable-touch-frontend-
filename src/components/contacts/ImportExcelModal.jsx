@@ -68,7 +68,7 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
     <>
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]" onClick={!busy ? onClose : undefined} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl">
+        <div className="w-full max-w-3xl max-h-[92vh] flex flex-col bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl">
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
@@ -89,9 +89,11 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
             )}
           </div>
 
-          <div className="p-6 space-y-5">
+          <div className="p-5 sm:p-6 space-y-5 overflow-y-auto">
             {!result ? (
               <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-4">
                 {/* Drop zone */}
                 <div
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -99,7 +101,7 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
                   onDrop={handleDrop}
                   onClick={() => fileRef.current?.click()}
                   className={[
-                    'border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all',
+                    'border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all',
                     dragOver ? 'border-[#10B981] bg-[#10B981]/5' : file
                       ? 'border-[#10B981]/50 bg-[#10B981]/5'
                       : 'border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#10B981]/50 hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
@@ -139,8 +141,10 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
                   </p>
                 </div>
 
+                </div>
+
                 {/* Info */}
-                <div className="rounded-xl bg-[#F5F5F4] dark:bg-[#202020] p-4 space-y-2.5">
+                <div className="rounded-xl bg-[#F5F5F4] dark:bg-[#202020] p-4 space-y-2.5 self-start">
                   <p className="text-xs font-semibold text-[#111111] dark:text-white">Two formats are auto-detected:</p>
                   <div>
                     <p className="text-[11px] font-semibold text-[#111111] dark:text-white">Deeds office owner report</p>
@@ -156,6 +160,8 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
                   </div>
                   <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
                     Only rows with a phone number are saved. Rows marked "COMPANY", "NO RESULTS", "INCOMPLETE ID", "DO NOT CONTACT" or with no phone are counted in the summary but not imported.</p>
+                </div>
+
                 </div>
 
                 <div className="flex gap-3">
