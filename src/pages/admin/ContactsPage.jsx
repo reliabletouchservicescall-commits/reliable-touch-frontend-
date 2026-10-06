@@ -1656,7 +1656,6 @@ function SortTh({ label, field, sort, onSort }) {
 function ContactRow({ contact, selected, onToggle, onView, onEdit, onDelete }) {
   const caller     = contact.assignedTo
   const color      = caller ? callerColor(caller._id) : null
-  const hasPhone   = Boolean(contact.phone)
   const dialPhone  = contact.preferredPhone === 'alt' && contact.altPhone ? contact.altPhone : contact.phone
 
   return (
@@ -1683,24 +1682,6 @@ function ContactRow({ contact, selected, onToggle, onView, onEdit, onDelete }) {
         </div>
       </td>
 
-      {/* Phone */}
-      <td className="px-3 py-3.5">
-        {hasPhone ? (
-          <div className="space-y-0.5">
-            <a href={`tel:${dialPhone}`}
-              className={`text-sm font-mono flex items-center gap-1 ${contact.preferredPhone === 'alt' && contact.altPhone ? 'text-[#F95C4B]' : 'text-[#111111] dark:text-white'}`}>
-              <Phone className="w-3 h-3 flex-shrink-0" /> {dialPhone}
-            </a>
-            {contact.altPhone && contact.phone && (
-              <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-mono">
-                {contact.preferredPhone === 'alt' ? contact.phone : contact.altPhone}
-              </p>
-            )}
-          </div>
-        ) : (
-          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">No phone</span>
-        )}
-      </td>
 
       {/* Area + Scheme + Size */}
       <td className="px-3 py-3.5">
@@ -2262,7 +2243,6 @@ export default function ContactsPage() {
                       </button>
                     </th>
                     <SortTh label="Name"       field="name"        sort={sort} onSort={setSort} />
-                    <th className="px-3 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Phone</th>
                     <th className="px-3 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Area / Scheme</th>
                     <th className="px-3 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Cold Caller</th>
                     <th className="px-3 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Status</th>
