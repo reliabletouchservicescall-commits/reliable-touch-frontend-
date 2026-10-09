@@ -5,7 +5,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import {
   Bell, CheckCheck, Loader2, AlertTriangle, ChevronLeft, ChevronRight,
   Flame, CalendarCheck, CalendarClock, BellRing, FileText,
-  Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote, ThermometerSun, PhoneOff,
+  Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote, ThermometerSun, PhoneOff, CalendarPlus,
 } from 'lucide-react'
 import { notificationsApi } from '../../services/notificationsApi'
 
@@ -16,6 +16,7 @@ const EVENT_META = {
   hot_lead:                { label: 'Hot Lead',         icon: Flame,         color: '#EF4444' },
   lead_status_updated:     { label: 'Status Updated',   icon: RefreshCw,     color: '#3B82F6' },
   lead_status_escalated:   { label: 'Lead Heating Up',  icon: ThermometerSun,color: '#F59E0B' },
+  lead_followup_nudge:     { label: 'Follow-Up Needed', icon: CalendarPlus, color: '#F95C4B' },
   appointment_booked:      { label: 'Appointment',      icon: CalendarClock, color: '#3B82F6' },
   appointment_confirmed:   { label: 'Confirmed',        icon: CalendarCheck, color: '#10B981' },
   appointment_reminder:    { label: 'Reminder',         icon: BellRing,      color: '#F59E0B' },
