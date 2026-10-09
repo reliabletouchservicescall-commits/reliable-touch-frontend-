@@ -10,6 +10,7 @@ import LeadDetailScreen from '../../components/leads/LeadDetailScreen'
 const EDITABLE_FIELDS = new Set([
   'landlordName', 'listingType', 'priceMin', 'priceMax', 'phone', 'email', 'comments',
   'availability', 'bestCallTime', 'followUpDate', 'appointmentDate', 'appointmentTime',
+  'listingUrl', 'disposition', 'leaseStartDate', 'leaseDurationMonths',
 ])
 
 export default function FollowUpManagerLeadDetailPage() {

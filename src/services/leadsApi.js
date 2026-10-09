@@ -11,4 +11,5 @@ export const leadsApi = {
   getComments: (id) => axiosClient.get(`/leads/${id}/comments`),
   followUpManagers: () => axiosClient.get('/leads/follow-up-managers'),
   getStats: (params) => axiosClient.get('/leads/stats', { params }),
+  getLinkPreview: (url) => axiosClient.get('/leads/link-preview', { params: { url } }),
 }

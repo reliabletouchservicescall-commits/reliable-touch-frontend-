@@ -9,7 +9,10 @@ import { AGENCY_STATUS_OPTIONS } from '../../components/leads/leadShared'
 
 // Mirrors AGENT_EDITABLE in leads.service.js (attachments excluded — no upload UI exists
 // anywhere in this app yet).
-const EDITABLE_FIELDS = new Set(['comments', 'availability', 'followUpDate'])
+const EDITABLE_FIELDS = new Set([
+  'comments', 'availability', 'followUpDate',
+  'listingUrl', 'disposition', 'leaseStartDate', 'leaseDurationMonths',
+])
 
 export default function AgencyLeadDetailPage() {
   const { id } = useParams()

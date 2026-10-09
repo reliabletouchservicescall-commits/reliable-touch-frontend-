@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import {
   ArrowLeft, Trash2, Repeat, ArrowRight, Phone, Mail, User, Building2,
   History, FileText, Loader2, ShieldCheck, AlertTriangle, MapPin, PhoneCall, Calendar, Check,
-  MessageCircle,
+  MessageCircle, Key,
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { chatApi } from '../../services/chatApi'
@@ -15,6 +15,7 @@ import LeadAppointments from '../appointments/LeadAppointments'
 import {
   LeadStatusBadge, ListingBadge, ListingFields, PropertyFromContact, FollowUpComments,
   Field, inputCls, LEAD_STATUS_META, getApiErrorMessage, AgentOrAgencyPicker,
+  ListingUrlInput, LinkPreviewCard, DispositionPicker, DispositionBadge, LeaseCountdownChip,
 } from './leadShared'
 import { DateField, TimeField } from '../common/DateTimeFields'
 
@@ -40,9 +41,24 @@ function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated, opti
   const [status, setStatus] = useState(opts.some((o) => o.value === lead.status) ? lead.status : opts[0].value)
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
+  const [listingUrl, setListingUrl] = useState(lead.listingUrl ?? '')
+  const [disposition, setDisposition] = useState(lead.disposition ?? '')
+  const [leaseStartDate, setLeaseStartDate] = useState(
+    lead.leaseStartDate ? lead.leaseStartDate.slice(0, 10) : new Date().toISOString().slice(0, 10)
+  )
+  const [leaseDurationMonths, setLeaseDurationMonths] = useState(lead.leaseDurationMonths ?? '')
 
   const mut = useMutation({
-    mutationFn: () => leadsApi.updateStatus(lead._id, { status, reason: reason.trim() }),
+    mutationFn: () => {
+      const payload = { status, reason: reason.trim() }
+      if (status === 'listed') payload.listingUrl = listingUrl.trim() || null
+      if (status === 'rented_out') {
+        payload.disposition = disposition || null
+        payload.leaseStartDate = leaseStartDate || null
+        payload.leaseDurationMonths = leaseDurationMonths ? Number(leaseDurationMonths) : null
+      }
+      return leadsApi.updateStatus(lead._id, payload)
+    },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: invalidateQueryKey })
       toast.success('Lead status updated')
@@ -62,7 +78,7 @@ function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated, opti
     <>
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl p-6">
+        <form onSubmit={handleSubmit} className="w-full max-w-md bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
               <Repeat className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
@@ -129,6 +145,38 @@ function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated, opti
                 className={`${inputCls(Boolean(error))} resize-none`}
               />
             </Field>
+
+            {status === 'listed' && (
+              <Field label="Property Listing Link" hint="Optional — paste the live listing URL (Property24, Private Property, etc.) for a rich preview">
+                <ListingUrlInput
+                  value={listingUrl}
+                  onChange={setListingUrl}
+                  initialPreview={lead.listingUrl ? lead.listingPreview : null}
+                  initialUrl={lead.listingUrl}
+                />
+              </Field>
+            )}
+
+            {status === 'rented_out' && (
+              <>
+                <Field label="Who Closed This Deal?" hint="Optional — helps track commission eligibility">
+                  <DispositionPicker value={disposition} onChange={setDisposition} />
+                </Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Date Rented Out">
+                    <DateField value={leaseStartDate} onChange={setLeaseStartDate} allowPast className={inputCls(false)} />
+                  </Field>
+                  <Field label="Lease Length (months)" hint="Any whole number">
+                    <input
+                      type="number" min="1" max="120" placeholder="e.g. 12"
+                      value={leaseDurationMonths}
+                      onChange={(e) => setLeaseDurationMonths(e.target.value)}
+                      className={inputCls(false)}
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex gap-3 mt-6">
@@ -332,6 +380,10 @@ export default function LeadDetailScreen({
     agencyId: lead.agencyId?._id ?? lead.agencyId ?? '',
     adminReviewed: lead.adminReviewed ?? false,
     adminNotes: lead.adminNotes ?? '',
+    listingUrl: lead.listingUrl ?? '',
+    disposition: lead.disposition ?? '',
+    leaseStartDate: lead.leaseStartDate ? lead.leaseStartDate.slice(0, 10) : '',
+    leaseDurationMonths: lead.leaseDurationMonths ?? '',
   }))
 
   function setField(k, v) { setForm((f) => ({ ...f, [k]: v })) }
@@ -575,6 +627,28 @@ export default function LeadDetailScreen({
                       )
                     )}
 
+                    {(has('listingUrl') || lead.listingUrl) && (
+                      <Field
+                        label="Property Listing Link"
+                        hint={has('listingUrl') ? 'Optional — paste the live listing URL (Property24, Private Property, etc.) for a rich preview' : undefined}
+                      >
+                        {has('listingUrl') ? (
+                          <ListingUrlInput
+                            value={form.listingUrl}
+                            onChange={(v) => setField('listingUrl', v)}
+                            initialPreview={lead.listingUrl === form.listingUrl ? lead.listingPreview : null}
+                            initialUrl={lead.listingUrl}
+                          />
+                        ) : lead.listingPreview?.title || lead.listingPreview?.image || lead.listingPreview?.description ? (
+                          <LinkPreviewCard preview={lead.listingPreview} url={lead.listingUrl} compact />
+                        ) : (
+                          <a href={lead.listingUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[#F95C4B] hover:underline break-all">
+                            {lead.listingUrl}
+                          </a>
+                        )}
+                      </Field>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Phone">
                         {has('phone') ? (
@@ -638,6 +712,57 @@ export default function LeadDetailScreen({
                     </Field>
                   </div>
                 </InfoCard>
+
+                {(has('disposition') || has('leaseStartDate') || has('leaseDurationMonths') || lead.disposition || lead.leaseEndDate) && (
+                  <InfoCard icon={Key} title="Deal Details">
+                    <div className="p-4 space-y-4">
+                      {has('disposition') ? (
+                        <Field label="Who Closed This Deal?" hint="Only applies once the property is Rented Out">
+                          <DispositionPicker value={form.disposition} onChange={(v) => setField('disposition', v)} />
+                        </Field>
+                      ) : lead.disposition ? (
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">Who Closed This Deal?</p>
+                          <DispositionBadge disposition={lead.disposition} />
+                        </div>
+                      ) : null}
+
+                      {(has('leaseStartDate') || has('leaseDurationMonths') || lead.leaseDurationMonths) && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Date Rented Out">
+                            {has('leaseStartDate') ? (
+                              <DateField value={form.leaseStartDate} onChange={(v) => setField('leaseStartDate', v)} allowPast className={inputCls(false)} />
+                            ) : (
+                              <p className="text-sm text-[#111111] dark:text-white py-1">
+                                {lead.leaseStartDate ? format(new Date(lead.leaseStartDate), 'd MMM yyyy') : '—'}
+                              </p>
+                            )}
+                          </Field>
+                          <Field label="Lease Length (months)">
+                            {has('leaseDurationMonths') ? (
+                              <input
+                                type="number" min="1" max="120" placeholder="e.g. 12"
+                                value={form.leaseDurationMonths}
+                                onChange={(e) => setField('leaseDurationMonths', e.target.value)}
+                                className={inputCls(false)}
+                              />
+                            ) : <p className="text-sm text-[#111111] dark:text-white py-1">{lead.leaseDurationMonths ?? '—'}</p>}
+                          </Field>
+                        </div>
+                      )}
+
+                      {lead.leaseEndDate && (
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Lease Ends</p>
+                            <p className="text-sm font-bold text-[#111111] dark:text-white">{format(new Date(lead.leaseEndDate), 'd MMM yyyy')}</p>
+                          </div>
+                          <LeaseCountdownChip leaseEndDate={lead.leaseEndDate} />
+                        </div>
+                      )}
+                    </div>
+                  </InfoCard>
+                )}
 
                 {showAdminFields && (
                   <InfoCard icon={ShieldCheck} title="Admin">

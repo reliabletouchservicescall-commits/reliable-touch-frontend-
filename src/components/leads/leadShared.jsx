@@ -5,7 +5,7 @@ import { format, formatDistanceToNow, isToday, isThisWeek } from 'date-fns'
 import {
   Sparkles, ThermometerSnowflake, ThermometerSun, Flame, Home, Key, MapPin, AlertTriangle,
   Plus, Loader2, X, Search, ChevronDown, MessageSquare, Send, CheckCircle2, CalendarDays, Check,
-  Handshake, FileCheck2, Banknote,
+  Handshake, FileCheck2, Banknote, Link2, UserCheck, User, Building2, XCircle,
 } from 'lucide-react'
 import { areasApi } from '../../services/areasApi'
 import { contactsApi } from '../../services/contactsApi'
@@ -101,6 +101,175 @@ export function getApiErrorMessage(err, fallback = 'Something went wrong') {
     return data.errors.join(' · ')
   }
   return data?.message ?? fallback
+}
+
+// The 5 ways a "Rented Out" deal can resolve (see backend's DISPOSITION constant) —
+// labelled as "who closed it" since that's the only question this answers; the lease
+// terms themselves are a separate pair of fields (start date + length in months).
+export const DISPOSITION_META = {
+  rented_by_me:             { label: 'We Rented It Out',      hint: 'Commission applies to Reliable Touch',  icon: UserCheck, color: '#10B981' },
+  rented_by_another_agent:  { label: 'Another Agent',          hint: 'A different individual agent closed this', icon: User,      color: '#F59E0B' },
+  rented_by_another_agency: { label: 'Another Agency',         hint: 'A different agency closed this',        icon: Building2, color: '#F59E0B' },
+  owner_rented_privately:   { label: 'Owner Rented Privately', hint: 'Landlord rented it out directly',       icon: Home,      color: '#6B7280' },
+  listing_cancelled:        { label: 'Listing Cancelled',      hint: 'No longer being rented out',            icon: XCircle,   color: '#EF4444' },
+}
+
+export function DispositionPicker({ value, onChange }) {
+  return (
+    <div className="space-y-2">
+      {Object.entries(DISPOSITION_META).map(([key, meta]) => {
+        const Icon = meta.icon
+        const active = value === key
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+              active ? '' : 'border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#D1D5DB] dark:hover:border-[#3A3A3A] bg-white dark:bg-[#202020]'
+            }`}
+            style={active ? { backgroundColor: `${meta.color}10`, borderColor: meta.color } : {}}
+          >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${meta.color}18` }}>
+              <Icon className="w-4 h-4" style={{ color: meta.color }} strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#111111] dark:text-white">{meta.label}</p>
+              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">{meta.hint}</p>
+            </div>
+            {active && <Check className="w-4 h-4 flex-shrink-0" style={{ color: meta.color }} strokeWidth={2.5} />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export function DispositionBadge({ disposition }) {
+  if (!disposition) return null
+  const meta = DISPOSITION_META[disposition] ?? { label: disposition, color: '#6B7280', icon: User }
+  const Icon = meta.icon
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold flex-shrink-0"
+      style={{ color: meta.color, backgroundColor: `${meta.color}18` }}
+    >
+      <Icon className="w-3 h-3" strokeWidth={2} /> {meta.label}
+    </span>
+  )
+}
+
+// Countdown to a lease's end date — mirrors FollowUpChip's urgency coloring (overdue/soon/
+// normal) so a glance at either chip reads the same way.
+export function LeaseCountdownChip({ leaseEndDate }) {
+  if (!leaseEndDate) return null
+  const d = new Date(leaseEndDate)
+  const now = new Date()
+  const days = Math.ceil((d - now) / (1000 * 60 * 60 * 24))
+  if (days < 0) return <span className="text-xs font-semibold text-[#EF4444]">Lease ended {Math.abs(days)}d ago</span>
+  if (days === 0) return <span className="text-xs font-semibold text-[#EF4444]">Lease ends today</span>
+  if (days <= 14) return <span className="text-xs font-semibold text-[#F59E0B]">Ends in {days}d</span>
+  return <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Ends in {days}d</span>
+}
+
+/**
+ * WhatsApp-style link preview card — image on top, title/description/domain below,
+ * wrapped in an anchor to the real listing so clicking it opens the actual page. Renders
+ * nothing if there's no preview data at all (a dead/unparseable link still saves the raw
+ * URL on the lead — see resolveListingUrlUpdate in leads.service.js — it just has no card).
+ */
+export function LinkPreviewCard({ preview, url, compact = false }) {
+  if (!preview || (!preview.title && !preview.image && !preview.description)) return null
+  let domain = preview.siteName
+  if (!domain && url) {
+    try { domain = new URL(url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex flex-col rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] overflow-hidden hover:border-[#F95C4B]/40 transition-colors group"
+    >
+      {preview.image && (
+        <div className={`w-full bg-[#F5F5F4] dark:bg-[#202020] overflow-hidden ${compact ? 'h-28' : 'h-40'}`}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <img
+            src={preview.image}
+            alt={preview.title ?? 'Listing preview'}
+            className="w-full h-full object-cover"
+            onError={(e) => { e.currentTarget.style.display = 'none' }}
+          />
+        </div>
+      )}
+      <div className="p-3 space-y-1">
+        {domain && (
+          <p className="text-[9px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1">
+            <Link2 className="w-2.5 h-2.5" /> {domain}
+          </p>
+        )}
+        {preview.title && (
+          <p className="text-sm font-semibold text-[#111111] dark:text-white line-clamp-2 group-hover:text-[#F95C4B] transition-colors">
+            {preview.title}
+          </p>
+        )}
+        {preview.description && (
+          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] line-clamp-2">{preview.description}</p>
+        )}
+      </div>
+    </a>
+  )
+}
+
+/**
+ * Property-listing-link input with a live, debounced WhatsApp-style preview — used both
+ * in the "Mark as Listed" status dialog and the main lead detail form. Fetches via the
+ * dedicated GET /leads/link-preview endpoint purely for display; the backend independently
+ * re-fetches and stores its own snapshot when the lead is actually saved, so a stale or
+ * failed preview here never blocks the save.
+ */
+export function ListingUrlInput({ value, onChange, initialPreview = null, initialUrl = null }) {
+  const [preview, setPreview] = useState(initialPreview)
+  const debounced = useDebounce(value, 600)
+  const lastGoodRef = useRef(initialPreview && initialUrl ? initialUrl : null)
+  const looksLikeUrl = /^https?:\/\/.+\..+/i.test((debounced ?? '').trim())
+
+  const { data, isFetching, isError } = useQuery({
+    queryKey: ['listing-link-preview', debounced],
+    queryFn: () => leadsApi.getLinkPreview(debounced.trim()).then((r) => r.data.data.preview),
+    enabled: looksLikeUrl && debounced.trim() !== lastGoodRef.current,
+    retry: false,
+    staleTime: 5 * 60_000,
+  })
+
+  useEffect(() => {
+    if (data) { setPreview(data); lastGoodRef.current = debounced.trim() }
+  }, [data, debounced])
+
+  useEffect(() => {
+    if (!value) setPreview(null)
+  }, [value])
+
+  return (
+    <div className="space-y-2.5">
+      <input
+        type="url"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://www.property24.com/…"
+        className={inputCls(false)}
+      />
+      {looksLikeUrl && isFetching && (
+        <div className="flex items-center gap-2 text-xs text-[#6B7280] dark:text-[#A1A1AA] px-1">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Fetching preview…
+        </div>
+      )}
+      {looksLikeUrl && isError && !isFetching && !preview && (
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] px-1">No preview available for this link — it'll still be saved.</p>
+      )}
+      {preview && <LinkPreviewCard preview={preview} url={value} />}
+    </div>
+  )
 }
 
 export const LISTING_TYPE_META = {
