@@ -53,6 +53,7 @@ export default function AgencyTeamPage() {
           canReset={false}
           canMessage
           onMessage={(m) => navigate('/agency/chat', { state: { openUserId: m._id } })}
+          onViewActivity={isManager ? (m) => navigate(`/agency/agents/${m._id}`, { state: { from: 'team' } }) : undefined}
         />
       </div>
     </div>

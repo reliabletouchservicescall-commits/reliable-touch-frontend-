@@ -54,6 +54,8 @@ import AgencyAreasPage from '../pages/agency/AreasPage'
 import AgencyCampaignsPage from '../pages/agency/CampaignsPage'
 import AgencyCallerWorkloadPage from '../pages/agency/CallerWorkloadPage'
 import AgencyDncPage from '../pages/agency/DncPage'
+import AgencyLoginActivityPage from '../pages/agency/LoginActivityPage'
+import AgentDetailPage from '../pages/agency/AgentDetailPage'
 
 // Follow Up Manager pages
 import FollowUpManagerDashboard from '../pages/follow-up-manager/DashboardPage'
@@ -188,6 +190,8 @@ export default function AppRouter() {
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
           <Route path="notifications" element={<AgencyNotificationsPage />} />
           <Route path="team" element={<AgencyTeamPage />} />
+          <Route path="login-activity" element={<AgencyLoginActivityPage />} />
+          <Route path="agents/:id" element={<AgentDetailPage />} />
           <Route path="chat" element={<AgencyChatPage />} />
         </Route>
 

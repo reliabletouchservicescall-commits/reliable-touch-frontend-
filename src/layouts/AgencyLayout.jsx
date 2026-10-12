@@ -20,6 +20,8 @@ import {
   Megaphone,
   Gauge,
   PhoneOff,
+  ShieldCheck,
+  UserCircle,
 } from 'lucide-react'
 import logo from '../assets/logo-reliable-touch.png'
 import { useTheme } from '../context/ThemeContext'
@@ -55,6 +57,8 @@ const NAV = [
     group: 'Performance',
     items: [
       { label: 'Leaderboard', icon: Trophy, to: '/agency/leaderboard' },
+      { label: 'My Activity', icon: UserCircle, to: '/agency/agents', selfLink: true },
+      { label: 'Login Activity', icon: ShieldCheck, to: '/agency/login-activity', managerOnly: true },
     ],
   },
   {
@@ -66,11 +70,13 @@ const NAV = [
   },
 ]
 
-function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge }) {
+function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge, selfLink }) {
   const { chatUnread } = useSocket()
+  const { user } = useAuthStore()
+  const resolvedTo = selfLink ? `${to}/${user?._id}` : to
   return (
     <NavLink
-      to={to}
+      to={resolvedTo}
       end={end}
       onClick={onClick}
       className={({ isActive }) =>

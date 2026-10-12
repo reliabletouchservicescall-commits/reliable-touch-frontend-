@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Trophy, Crown, Medal, Home, ClipboardCheck,
-  DollarSign, Star, TrendingUp,
+  Trophy, Crown, Medal, Phone, CheckCircle2,
+  CalendarCheck, Star, Flame,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
@@ -26,11 +27,6 @@ function initials(name = '') {
 
 function fmt(n) {
   return typeof n === 'number' ? n.toLocaleString() : '—'
-}
-
-function fmtCurrency(n) {
-  if (typeof n !== 'number') return '—'
-  return `R ${n.toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
 function ScoreBar({ score, max }) {
@@ -64,12 +60,13 @@ function MyStatCard({ icon: Icon, label, value, color }) {
 
 export default function AgencyLeaderboardPage() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [period, setPeriod] = useState('week')
 
   const { data: boardData, isLoading } = useQuery({
-    queryKey: ['agent-leaderboard-me', period],
+    queryKey: ['agency-leaderboard', period],
     queryFn: () =>
-      axiosClient.get(`/performance/agents/leaderboard-me?period=${period}`).then((r) => r.data.data.leaderboard),
+      axiosClient.get(`/performance/agency/leaderboard?period=${period}`).then((r) => r.data.data.leaderboard),
     staleTime: 60_000,
   })
 
@@ -94,7 +91,7 @@ export default function AgencyLeaderboardPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">Leaderboard</h1>
-            <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">See how you rank against other agents</p>
+            <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">See how you rank against your company</p>
           </div>
         </div>
 
@@ -160,10 +157,10 @@ export default function AgencyLeaderboardPage() {
             My Stats This Period
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MyStatCard icon={Home}          label="Property Visits"  value={fmt(me.totalVisits)}      color="#3B82F6" />
-            <MyStatCard icon={ClipboardCheck} label="Listings Signed" value={fmt(me.listingsSigned)}   color="#10B981" />
-            <MyStatCard icon={TrendingUp}    label="Deals Closed"     value={fmt(me.dealsClosed)}       color="#F95C4B" />
-            <MyStatCard icon={DollarSign}    label="Commission"       value={fmtCurrency(me.commissionEarned)} color="#F59E0B" />
+            <MyStatCard icon={Phone}         label="Calls Made"       value={fmt(me.totalCalls)}        color="#3B82F6" />
+            <MyStatCard icon={CheckCircle2}  label="Leads Closed"     value={fmt(me.leadsClosed)}       color="#10B981" />
+            <MyStatCard icon={CalendarCheck} label="Appointments Attended" value={fmt(me.appointmentsAttended)} color="#F95C4B" />
+            <MyStatCard icon={Star}          label="Lead Score"       value={fmt(me.leadScore)}         color="#F59E0B" />
           </div>
         </div>
       )}
@@ -172,7 +169,7 @@ export default function AgencyLeaderboardPage() {
       <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
           <Star className="w-4 h-4 text-[#F95C4B]" strokeWidth={1.75} />
-          <span className="text-sm font-bold text-[#111111] dark:text-white">All Agents</span>
+          <span className="text-sm font-bold text-[#111111] dark:text-white">Your Company</span>
         </div>
 
         {isLoading ? (
@@ -192,10 +189,12 @@ export default function AgencyLeaderboardPage() {
             {board.map((r) => {
               const medalColor = RANK_COLORS[r.rank]
               const isSelf = r.isSelf
+              const canOpen = r.userId && (user?.isAgencyManager || isSelf)
               return (
                 <li
                   key={r.userId ?? r.rank}
-                  className={`px-5 py-3.5 transition-colors ${
+                  onClick={canOpen ? () => navigate(`/agency/agents/${r.userId}`) : undefined}
+                  className={`px-5 py-3.5 transition-colors ${canOpen ? 'cursor-pointer' : ''} ${
                     isSelf
                       ? 'bg-[#F95C4B]/5 border-l-4 border-[#F95C4B]'
                       : 'hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
@@ -234,20 +233,17 @@ export default function AgencyLeaderboardPage() {
                           {isSelf && <span className="ml-1.5 text-[10px] font-bold text-[#F95C4B]">(You)</span>}
                         </p>
                       </div>
-                      {r.agency && (
-                        <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate">{r.agency}</p>
-                      )}
                       {/* Own breakdown pills */}
                       {isSelf && (
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#3B82F6]/10 text-[#3B82F6]">
-                            {fmt(r.totalVisits)} visits
+                            {fmt(r.totalCalls)} calls
                           </span>
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#10B981]/10 text-[#10B981]">
-                            {fmt(r.listingsSigned)} listings
+                            {fmt(r.leadsClosed)} closed
                           </span>
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F95C4B]/10 text-[#F95C4B]">
-                            {fmt(r.dealsClosed)} deals
+                            {fmt(r.appointmentsAttended)} appts attended
                           </span>
                         </div>
                       )}
@@ -278,17 +274,25 @@ export default function AgencyLeaderboardPage() {
         </p>
         <div className="flex flex-wrap gap-3">
           {[
-            { label: 'Property Visit',  pts: 1, color: '#3B82F6' },
-            { label: 'Listing Signed',  pts: 3, color: '#10B981' },
-            { label: 'Deal Closed',     pts: 5, color: '#F95C4B' },
-          ].map(({ label, pts, color }) => (
+            { label: 'Call Made',           pts: 0.5, color: '#6B7280' },
+            { label: 'Cold Lead',           pts: 1,   color: '#6B7280' },
+            { label: 'Warm Lead',           pts: 2,   color: '#F59E0B' },
+            { label: 'Hot Lead',            pts: 10,  color: '#EF4444', icon: Flame },
+            { label: 'Appointment Attended', pts: 10, color: '#3B82F6' },
+            { label: 'Lead Closed (flat bonus)', pts: 10, color: '#8B5CF6' },
+            { label: 'Listed',              pts: 25,  color: '#8B5CF6' },
+            { label: 'Rented Out / Sold',   pts: 35,  color: '#10B981' },
+          ].map(({ label, pts, color, icon: Icon }) => (
             <div key={label} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-[#181818]">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+              {Icon ? <Icon className="w-3 h-3" style={{ color }} /> : <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />}
               <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{label}</span>
-              <span className="text-xs font-bold" style={{ color }}>+{pts} pt{pts > 1 ? 's' : ''}</span>
+              <span className="text-xs font-bold" style={{ color }}>+{pts} pt{pts !== 1 ? 's' : ''}</span>
             </div>
           ))}
         </div>
+        <p className="text-[10px] text-[#9CA3AF] mt-3">
+          Exactly how cold callers are ranked too — same formula, same weights, company-wide.
+        </p>
       </div>
     </div>
   )

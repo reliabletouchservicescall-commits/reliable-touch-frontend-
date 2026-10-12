@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 import {
   Plus, Loader2, X, Eye, EyeOff, Copy, Check, KeyRound, Power, PowerOff, ShieldCheck,
-  UserCircle2, MessageSquare, Mail, Phone, Users, AlertTriangle,
+  UserCircle2, MessageSquare, Mail, Phone, Users, AlertTriangle, Activity,
 } from 'lucide-react'
 import { agenciesApi } from '../../services/agenciesApi'
 import { usersApi } from '../../services/usersApi'
@@ -321,7 +321,7 @@ function initialsOf(m) {
   return `${m.firstName?.[0] ?? ''}${m.lastName?.[0] ?? ''}`.toUpperCase()
 }
 
-function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle, onMessage, toggling }) {
+function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle, onMessage, toggling, onViewActivity }) {
   const active = member.isActive
   return (
     <div className={`bg-white dark:bg-[#181818] rounded-2xl border p-5 flex flex-col gap-4 transition-shadow hover:shadow-md ${
@@ -357,8 +357,14 @@ function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle
         </p>
       </div>
 
-      {(canManage || canReset || canMessage) && (
+      {(canManage || canReset || canMessage || onViewActivity) && (
         <div className="flex items-center gap-2 pt-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A]">
+          {onViewActivity && (
+            <button onClick={onViewActivity}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-[#10B981] bg-[#10B981]/8 hover:bg-[#10B981]/15 transition-colors">
+              <Activity className="w-3.5 h-3.5" /> View Activity
+            </button>
+          )}
           {canMessage && (
             <button onClick={onMessage} disabled={!active}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-[#3B82F6] bg-[#3B82F6]/8 hover:bg-[#3B82F6]/15 disabled:opacity-40 transition-colors">
@@ -391,7 +397,7 @@ function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle
  * company's own manager (on their Team page). What each viewer may do is passed in as flags
  * rather than inferred here, so the two screens can't drift apart.
  */
-export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canMakeManager, canReset, canMessage, onMessage, showAdd = true, embedded = false }) {
+export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canMakeManager, canReset, canMessage, onMessage, onViewActivity, showAdd = true, embedded = false }) {
   const qc = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [resetting, setResetting] = useState(null)
@@ -474,6 +480,7 @@ export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canM
               onReset={() => setResetting(m)}
               toggling={togglingId === m._id}
               onToggle={() => { setTogglingId(m._id); toggleMut.mutate({ member: m, isActive: !m.isActive }) }}
+              onViewActivity={onViewActivity ? () => onViewActivity(m) : undefined}
             />
           ))}
         </div>
