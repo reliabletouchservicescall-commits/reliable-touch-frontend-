@@ -4,14 +4,18 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
   TrendingUp, Search, X, ChevronLeft, ChevronRight, Loader2,
-  MapPin, Phone, User, Clock, Home, AlertCircle,
+  MapPin, Phone, User, Clock, Home, AlertCircle, Plus,
 } from 'lucide-react'
 import { agentsApi } from '../../services/agentsApi'
 import { agenciesApi } from '../../services/agenciesApi'
 import { leadsApi } from '../../services/leadsApi'
+import { contactsApi } from '../../services/contactsApi'
 import {
   ListingBadge, ListingTypeFilter, LastFollowUpCommentCell, FollowUpActivityFilters, CreatedDateRangeFilter,
+  LeadSourceBadge, SearchableContactSelect, Field,
 } from '../../components/leads/leadShared'
+import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
+import SidePanel from '../../components/common/SidePanel'
 import { useAuthStore } from '../../store/authStore'
 
 const STATUS_META = {
@@ -67,6 +71,9 @@ function LeadCard({ lead, onClick, currentUserId }) {
               {lead.landlordName ?? 'Unknown Landlord'}
             </h3>
             <StatusBadge status={lead.status} />
+          </div>
+          <div className="mt-1.5">
+            <LeadSourceBadge source={lead.source} />
           </div>
           {lead.propertyAddress && (
             <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1 mt-1 truncate">
@@ -124,10 +131,46 @@ function LeadCard({ lead, onClick, currentUserId }) {
   )
 }
 
+/* ─── New Lead: pick a contact first, then the full create form ─────────── */
+function NewLeadFlow({ team, isManager, currentUserId, onClose, onCreated }) {
+  const [contactId, setContactId] = useState('')
+  const { data: contact, isFetching } = useQuery({
+    queryKey: ['new-lead-contact', contactId],
+    queryFn: () => contactsApi.getById(contactId).then((r) => r.data.data.contact),
+    enabled: Boolean(contactId),
+  })
+
+  if (contact) {
+    return (
+      <CreateLeadDrawer
+        contact={contact}
+        assignment={isManager ? { teamMembers: team, defaultAssignedAgent: currentUserId } : undefined}
+        onClose={onClose}
+        onCreated={onCreated}
+      />
+    )
+  }
+
+  return (
+    <SidePanel onClose={onClose} icon={TrendingUp} iconColor="#3B82F6" title="New Lead" subtitle="Pick which contact this lead is for" widthClass="sm:max-w-sm">
+      <div className="px-5 py-5">
+        {isFetching ? (
+          <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#3B82F6]" /></div>
+        ) : (
+          <Field label="Contact" required hint="Search by name or phone — only your own contacts appear here">
+            <SearchableContactSelect value={contactId} onChange={setContactId} placeholder="Select contact…" />
+          </Field>
+        )}
+      </div>
+    </SidePanel>
+  )
+}
+
 export default function AgencyLeadsPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const [status, setStatus] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
   const [hasCommentFilter, setHasCommentFilter] = useState(false)
@@ -135,6 +178,7 @@ export default function AgencyLeadsPage() {
   const [createdTo,   setCreatedTo]   = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [showNewLead, setShowNewLead] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const isManager = Boolean(user?.isAgencyManager)
   const agentFilter = isManager ? (searchParams.get('agent') ?? '') : ''
@@ -161,6 +205,7 @@ export default function AgencyLeadsPage() {
     page, limit: 20,
     ...scopeParams,
     ...(status ? { status } : {}),
+    ...(sourceFilter ? { source: sourceFilter } : {}),
     ...(listingTypeFilter ? { listingType: listingTypeFilter } : {}),
     ...(hasFollowUpFilter ? { hasFollowUp: 'true' } : {}),
     ...(hasCommentFilter ? { hasComment: 'true' } : {}),
@@ -243,11 +288,18 @@ export default function AgencyLeadsPage() {
           </div>
         </div>
 
+        <button
+          onClick={() => setShowNewLead(true)}
+          className="sm:ml-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#3B82F6] hover:bg-[#2563EB] shadow-sm transition-all"
+        >
+          <Plus className="w-4 h-4" strokeWidth={2.5} /> New Lead
+        </button>
+
         {isManager && (
           <select
             value={agentFilter}
             onChange={(e) => changeAgentFilter(e.target.value)}
-            className="sm:ml-auto w-full sm:w-auto px-3 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none focus:border-[#3B82F6] cursor-pointer"
+            className="w-full sm:w-auto px-3 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none focus:border-[#3B82F6] cursor-pointer"
           >
             <option value="">Whole company</option>
             <option value="unassigned">Not yet with anyone</option>
@@ -257,7 +309,7 @@ export default function AgencyLeadsPage() {
           </select>
         )}
 
-        <div className={`${isManager ? '' : 'sm:ml-auto '}relative`}>
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
           <input
             value={search}
@@ -307,6 +359,27 @@ export default function AgencyLeadsPage() {
           />
           <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={handleCreatedDateChange} />
         </div>
+      </div>
+
+      {/* Source tabs — where each lead came from */}
+      <div className="flex items-center gap-1">
+        {[
+          { key: '', label: 'All Leads' },
+          { key: 'agency_self_sourced', label: 'Self-Sourced' },
+          { key: 'reliable_touch', label: 'From Reliable Touch' },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => { setSourceFilter(t.key); setPage(1) }}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              sourceFilter === t.key
+                ? 'bg-[#8B5CF6] text-white shadow-sm'
+                : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#8B5CF6]/40 hover:text-[#8B5CF6]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Content */}
@@ -361,6 +434,16 @@ export default function AgencyLeadsPage() {
             </div>
           )}
         </>
+      )}
+
+      {showNewLead && (
+        <NewLeadFlow
+          team={team}
+          isManager={isManager}
+          currentUserId={user?._id}
+          onClose={() => setShowNewLead(false)}
+          onCreated={() => setShowNewLead(false)}
+        />
       )}
     </div>
   )

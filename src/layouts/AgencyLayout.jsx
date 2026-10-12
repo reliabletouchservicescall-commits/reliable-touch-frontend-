@@ -14,6 +14,12 @@ import {
   Trophy,
   TrendingUp,
   Users,
+  BookUser,
+  FileSpreadsheet,
+  MapPin,
+  Megaphone,
+  Gauge,
+  PhoneOff,
 } from 'lucide-react'
 import logo from '../assets/logo-reliable-touch.png'
 import { useTheme } from '../context/ThemeContext'
@@ -34,6 +40,12 @@ const NAV = [
   {
     group: 'My Work',
     items: [
+      { label: 'Contacts',     icon: BookUser,      to: '/agency/contacts' },
+      { label: 'Calling Workload', icon: Gauge,     to: '/agency/caller-workload', managerOnly: true },
+      { label: 'Do Not Call',  icon: PhoneOff,      to: '/agency/dnc' },
+      { label: 'Excel Files',  icon: FileSpreadsheet, to: '/agency/excel-files', managerOnly: true },
+      { label: 'Areas',        icon: MapPin,        to: '/agency/areas', managerOnly: true },
+      { label: 'Campaigns',    icon: Megaphone,     to: '/agency/campaigns' },
       { label: 'Appointments', icon: CalendarCheck, to: '/agency/appointments' },
       { label: 'My Leads',     icon: TrendingUp,    to: '/agency/leads' },
       { label: 'Team',         icon: Users,         to: '/agency/team', managerOnly: true },

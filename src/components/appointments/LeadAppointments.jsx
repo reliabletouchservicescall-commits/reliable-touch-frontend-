@@ -21,7 +21,7 @@ function resolveUser(obj) {
  * Compact "Appointments" section for a lead's detail view — shows any Appointment
  * records linked to this lead and lets the viewer book a new one against it.
  */
-export default function LeadAppointments({ lead, canBook = true }) {
+export default function LeadAppointments({ lead, canBook = true, agencyMode }) {
   const [booking, setBooking] = useState(false)
 
   const { data, isLoading } = useQuery({
@@ -86,6 +86,7 @@ export default function LeadAppointments({ lead, canBook = true }) {
       {booking && (
         <BookAppointmentDrawer
           lead={lead}
+          agencyMode={agencyMode}
           onClose={() => setBooking(false)}
           onBooked={() => setBooking(false)}
         />

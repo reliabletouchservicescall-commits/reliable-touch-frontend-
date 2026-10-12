@@ -7,7 +7,7 @@ import { contactsApi } from '../../services/contactsApi'
 import { areasApi } from '../../services/areasApi'
 import SidePanel from '../common/SidePanel'
 import LeadFormFields from './LeadFormFields'
-import { LeadTemperaturePicker, getApiErrorMessage } from './leadShared'
+import { LeadTemperaturePicker, AgentOrAgencyPicker, Field, inputCls, getApiErrorMessage } from './leadShared'
 
 const OUTCOME_LABEL = {
   interested: 'Interested',
@@ -16,14 +16,20 @@ const OUTCOME_LABEL = {
 }
 
 /**
- * Side-panel form for a cold caller to turn a contact (and optionally the call
- * that was just logged against it) into a lead. Used both from the post-call
- * outcome flow and from the standalone Leads page.
+ * Side-panel form for a cold caller (or an agency manager/agent) to turn a contact
+ * (and optionally the call that was just logged against it) into a lead. Used from the
+ * post-call outcome flow and from the standalone Leads page, for both roles.
+ *
+ * `assignment` is agency-only: pass `{ teamMembers, defaultAssignedAgent }` to show a
+ * company-manager "Assign To" picker (defaults to the manager themselves); omit it
+ * entirely for a plain agent (always auto-assigned to themselves server-side) or for the
+ * existing cold-caller flow, which never touches assignment at all.
  */
-export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '', onClose, onCreated }) {
+export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '', assignment, onClose, onCreated }) {
   const qc = useQueryClient()
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState(defaultStatus)
+  const [assignedAgent, setAssignedAgent] = useState(assignment?.defaultAssignedAgent ?? '')
   const [form, setForm] = useState({
     landlordName: contact.name ?? '',
     listingType: '',
@@ -101,6 +107,7 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
     const payload = { contactId: contact._id }
     if (callLog?._id) payload.callLogId = callLog._id
     if (status) payload.status = status
+    if (assignment && assignedAgent) payload.assignedAgent = assignedAgent
     Object.entries(form).forEach(([k, v]) => { payload[k] = v === '' ? null : v })
     mut.mutate(payload)
   }
@@ -149,6 +156,18 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
         </div>
 
         <LeadTemperaturePicker value={status} onChange={setStatus} />
+
+        {assignment && (
+          <Field label="Assign To">
+            <AgentOrAgencyPicker
+              teamMembers={assignment.teamMembers}
+              assignedAgent={assignedAgent}
+              agencyId=""
+              onChange={({ assignedAgent: next }) => setAssignedAgent(next)}
+              className={inputCls(false)}
+            />
+          </Field>
+        )}
 
         <form id="create-lead-form" onSubmit={handleSubmit}>
           <LeadFormFields

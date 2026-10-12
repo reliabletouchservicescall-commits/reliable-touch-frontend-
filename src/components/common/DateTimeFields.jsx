@@ -33,6 +33,12 @@ export function DateField({ value, onChange, className, placeholder = 'Select da
   const selected = parsed && isValid(parsed) ? parsed : null
 
   return (
+    // withPortal — every SidePanel drawer in this app slides in via a CSS `transform`
+    // animation, which establishes a new containing block for ANY descendant using
+    // `position: fixed` or `absolute` (not just the panel's own content) — so the
+    // calendar's floating-positioned popup ends up measured against the panel's own box
+    // instead of the real viewport, landing far down a tall/scrollable page. Rendering it
+    // through a portal (straight onto document.body) sidesteps that entirely.
     <DatePicker
       selected={selected}
       onChange={(date) => onChange(date ? format(date, 'yyyy-MM-dd') : '')}
@@ -43,6 +49,7 @@ export function DateField({ value, onChange, className, placeholder = 'Select da
       customInput={<CustomButtonInput className={className} placeholder={placeholder} icon={CalendarDays} />}
       popperPlacement="bottom-start"
       showPopperArrow={false}
+      withPortal
     />
   )
 }
@@ -66,6 +73,7 @@ export function TimeField({ value, onChange, className, placeholder = 'Select ti
       customInput={<CustomButtonInput className={className} placeholder={placeholder} icon={Clock} />}
       popperPlacement="bottom-start"
       showPopperArrow={false}
+      withPortal
     />
   )
 }

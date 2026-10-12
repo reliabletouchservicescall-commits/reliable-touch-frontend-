@@ -1112,6 +1112,30 @@ export function LeadStatusBadge({ status, size }) {
   )
 }
 
+// Distinguishes a lead an agency sourced themselves (their own manager/agent created it,
+// from their own contact) from one Reliable Touch handed to them to work — the two have
+// very different "where did this come from" stories, so every agency-facing lead view
+// should make the distinction visible at a glance.
+export const LEAD_SOURCE_META = {
+  agency_self_sourced: { label: 'Self-Sourced', icon: Building2, color: '#8B5CF6', bg: '#8B5CF618' },
+  reliable_touch:       { label: 'From Reliable Touch', icon: UserCheck, color: '#3B82F6', bg: '#3B82F618' },
+}
+
+export function LeadSourceBadge({ source, size }) {
+  const meta = LEAD_SOURCE_META[source] ?? LEAD_SOURCE_META.reliable_touch
+  const Icon = meta.icon
+  const pad = size === 'lg' ? 'px-3 py-1.5 text-xs' : 'px-2 py-0.5 text-[10px]'
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full font-bold flex-shrink-0 ${pad}`}
+      style={{ color: meta.color, backgroundColor: meta.bg }}
+    >
+      <Icon className={size === 'lg' ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} strokeWidth={2.5} />
+      {meta.label}
+    </span>
+  )
+}
+
 // Shared by both list pages' row-highlight logic, so "today" and "mine" are computed
 // identically wherever a lead row decides how to glow.
 export function isLeadFollowedUpToday(lead) {

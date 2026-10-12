@@ -48,6 +48,12 @@ import AgencyLeaderboardPage from '../pages/agency/LeaderboardPage'
 import AgencyLeadsPage from '../pages/agency/LeadsPage'
 import AgencyLeadDetailPage from '../pages/agency/LeadDetailPage'
 import AgencyNotificationsPage from '../pages/agency/NotificationsPage'
+import AgencyContactsPage from '../pages/agency/ContactsPage'
+import AgencyExcelFilesPage from '../pages/agency/ExcelFilesPage'
+import AgencyAreasPage from '../pages/agency/AreasPage'
+import AgencyCampaignsPage from '../pages/agency/CampaignsPage'
+import AgencyCallerWorkloadPage from '../pages/agency/CallerWorkloadPage'
+import AgencyDncPage from '../pages/agency/DncPage'
 
 // Follow Up Manager pages
 import FollowUpManagerDashboard from '../pages/follow-up-manager/DashboardPage'
@@ -170,6 +176,12 @@ export default function AppRouter() {
           }
         >
           <Route index element={<AgencyDashboard />} />
+          <Route path="contacts" element={<AgencyContactsPage />} />
+          <Route path="caller-workload" element={<AgencyCallerWorkloadPage />} />
+          <Route path="dnc" element={<AgencyDncPage />} />
+          <Route path="excel-files" element={<AgencyExcelFilesPage />} />
+          <Route path="areas" element={<AgencyAreasPage />} />
+          <Route path="campaigns" element={<AgencyCampaignsPage />} />
           <Route path="appointments" element={<AgencyAppointmentsPage />} />
           <Route path="leads" element={<AgencyLeadsPage />} />
           <Route path="leads/:id" element={<AgencyLeadDetailPage />} />

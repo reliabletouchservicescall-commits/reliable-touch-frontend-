@@ -13,7 +13,7 @@ import { chatApi } from '../../services/chatApi'
 import ContactCallHistory from '../contacts/ContactCallHistory'
 import LeadAppointments from '../appointments/LeadAppointments'
 import {
-  LeadStatusBadge, ListingBadge, ListingFields, PropertyFromContact, FollowUpComments,
+  LeadStatusBadge, LeadSourceBadge, ListingBadge, ListingFields, PropertyFromContact, FollowUpComments,
   Field, inputCls, LEAD_STATUS_META, getApiErrorMessage, AgentOrAgencyPicker,
   ListingUrlInput, LinkPreviewCard, DispositionPicker, DispositionBadge, LeaseCountdownChip,
 } from './leadShared'
@@ -346,6 +346,7 @@ export default function LeadDetailScreen({
   canComment = false,
   currentUserId,
   currentUserRole,
+  showSourceBadge = false,
 }) {
   const qc = useQueryClient()
   const [lead, setLead] = useState(initialLead)
@@ -448,6 +449,7 @@ export default function LeadDetailScreen({
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight">{lead.landlordName}</h1>
               <LeadStatusBadge status={lead.status} size="lg" />
+              {showSourceBadge && <LeadSourceBadge source={lead.source} size="lg" />}
             </div>
             {lead.propertyAddress && (
               <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mt-1 flex items-center gap-1.5">
@@ -538,9 +540,9 @@ export default function LeadDetailScreen({
               {creator && (
                 <InfoCard
                   icon={User}
-                  title="Cold Caller"
+                  title={lead.source === 'agency_self_sourced' ? 'Created By' : 'Cold Caller'}
                   action={chatBasePath && creator._id !== currentUserId ? (
-                    <ChatWithButton targetUser={creator} targetLabel="cold caller" lead={lead} chatBasePath={chatBasePath} />
+                    <ChatWithButton targetUser={creator} targetLabel={lead.source === 'agency_self_sourced' ? 'the creator' : 'cold caller'} lead={lead} chatBasePath={chatBasePath} />
                   ) : null}
                 >
                   <InfoRow icon={User} label="Name" value={`${creator.firstName} ${creator.lastName}`} />
@@ -817,7 +819,13 @@ export default function LeadDetailScreen({
                 </InfoCard>
               )}
 
-              <LeadAppointments lead={lead} canBook={canEdit} />
+              <LeadAppointments
+                lead={lead}
+                canBook={canEdit}
+                agencyMode={currentUserRole === 'agency'
+                  ? { isManager: canAssignAgency, teamMembers: assignableTeam, currentUserId }
+                  : undefined}
+              />
 
               <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
                 Created {format(new Date(lead.createdAt), 'd MMM yyyy, HH:mm')}

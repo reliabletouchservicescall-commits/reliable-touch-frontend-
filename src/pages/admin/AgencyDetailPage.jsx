@@ -5,11 +5,13 @@ import { toast } from 'sonner'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
   ArrowLeft, Building2, Mail, Phone, Users, UserCheck, TrendingUp, CalendarCheck, Loader2,
-  AlertTriangle, Trash2, Search, X, Clock, MapPin, Power, PowerOff, ShieldCheck,
+  AlertTriangle, Trash2, Search, X, Clock, MapPin, Power, PowerOff, ShieldCheck, BookUser,
+  FileSpreadsheet, Layers,
 } from 'lucide-react'
 import { agenciesApi } from '../../services/agenciesApi'
 import { leadsApi } from '../../services/leadsApi'
 import { appointmentsApi } from '../../services/appointmentsApi'
+import { contactsApi } from '../../services/contactsApi'
 import { LEAD_STATUS_META, getApiErrorMessage } from '../../components/leads/leadShared'
 import { TeamPanel, inputCls } from '../../components/agencies/AgencyPeople'
 import { useAuthStore } from '../../store/authStore'
@@ -36,6 +38,14 @@ const LEAD_TABS = [
   { key: 'sold', label: 'Sold' },
   { key: 'lost', label: 'Lost' },
 ]
+
+const CONTACT_STATUS_META = {
+  unassigned: { label: 'Unassigned', color: '#6B7280' },
+  assigned:   { label: 'Assigned',   color: '#3B82F6' },
+  contacted:  { label: 'Contacted',  color: '#F59E0B' },
+  converted:  { label: 'Converted',  color: '#10B981' },
+  dnc:        { label: 'DNC',        color: '#EF4444' },
+}
 
 const APPT_META = {
   scheduled: { label: 'Scheduled', color: '#3B82F6' },
@@ -281,6 +291,187 @@ function CompanyAppointments({ agencyId, team }) {
   )
 }
 
+/* ─── Contacts of this company ────────────────────────────────────────────── */
+
+function CompanyContacts({ agencyId, team }) {
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('')
+  const [assignedTo, setAssignedTo] = useState('')
+  const [page, setPage] = useState(1)
+
+  const params = { agencyId, status: status || undefined, assignedTo: assignedTo || undefined, search: search.trim() || undefined, page, limit: PAGE_SIZE }
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['agency-contacts-admin', params],
+    queryFn: () => contactsApi.list(params).then((r) => r.data.data),
+    placeholderData: keepPreviousData,
+  })
+  const contacts = data?.contacts ?? []
+  const total = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search name or phone…"
+            className={`${inputCls(false)} pl-9 pr-8`} />
+          {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111]"><X className="w-3.5 h-3.5" /></button>}
+        </div>
+        <select value={assignedTo} onChange={(e) => { setAssignedTo(e.target.value); setPage(1) }}
+          className="px-3 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none cursor-pointer">
+          <option value="">Everyone</option>
+          <option value="unassigned">Unassigned (pool)</option>
+          {team.map((m) => <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyManager ? ' (manager)' : ''}</option>)}
+        </select>
+        <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}
+          className="px-3 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none cursor-pointer">
+          <option value="">Any status</option>
+          {Object.entries(CONTACT_STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </div>
+
+      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
+        <div className="px-5 py-3 border-b border-[#E5E7EB] dark:border-[#2A2A2A] flex items-center justify-between">
+          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{isLoading ? 'Loading…' : `${total} contact${total === 1 ? '' : 's'}`}</p>
+        </div>
+        {isError ? (
+          <div className="p-5 text-sm text-[#EF4444] flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Could not load contacts.</div>
+        ) : isLoading ? (
+          <div className="flex justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-[#F95C4B]" /></div>
+        ) : contacts.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-sm font-semibold text-[#111111] dark:text-white">No contacts match</p>
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">This company hasn't uploaded or been given any contacts yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
+              <thead className="bg-[#FAFAF9] dark:bg-[#111111] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+                <tr>
+                  {['Name / Phone', 'Scheme / Address', 'Status', 'Assigned To'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
+                {contacts.map((c) => {
+                  const meta = CONTACT_STATUS_META[c.status] ?? CONTACT_STATUS_META.unassigned
+                  return (
+                    <tr key={c._id} className="hover:bg-[#FAFAF9] dark:hover:bg-[#111111]">
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-semibold text-[#111111] dark:text-white">{c.name}</p>
+                        <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] font-mono">{c.phone ?? '—'}</p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate max-w-[220px]">{c.sectionalScheme || c.address || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: meta.color }} />{meta.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#111111] dark:text-white">
+                        {c.assignedTo ? `${c.assignedTo.firstName} ${c.assignedTo.lastName}` : <span className="italic text-[#F59E0B]">Unassigned</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A]">
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Page {page} of {totalPages}</p>
+            <div className="flex gap-2">
+              <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] disabled:opacity-40">Previous</button>
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] disabled:opacity-40">Next</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─── Excel Files of this company ─────────────────────────────────────────── */
+
+function fmtBytes(b) {
+  if (!b) return '—'
+  if (b < 1024 * 1024) return `${Math.max(1, Math.round(b / 1024))} KB`
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function CompanyExcelFiles({ agencyId }) {
+  const [search, setSearch] = useState('')
+
+  const { data: files = [], isLoading, isError } = useQuery({
+    queryKey: ['agency-excel-files-admin', agencyId],
+    queryFn: () => contactsApi.listFiles({ agencyId }).then((r) => r.data.data.files),
+  })
+
+  const q = search.trim().toLowerCase()
+  const visible = files.filter((f) => !q || f.displayName.toLowerCase().includes(q))
+  const totalContacts = files.reduce((sum, f) => sum + (f.contactCount ?? 0), 0)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search spreadsheets…"
+            className={`${inputCls(false)} pl-9 pr-8`} />
+          {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111]"><X className="w-3.5 h-3.5" /></button>}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[#6B7280] dark:text-[#A1A1AA] lg:ml-auto">
+          <Layers className="w-3.5 h-3.5" /> {files.length} file{files.length === 1 ? '' : 's'} · {totalContacts.toLocaleString()} contacts total
+        </div>
+      </div>
+
+      {isError ? (
+        <div className="p-5 text-sm text-[#EF4444] flex items-center gap-2 bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A]"><AlertTriangle className="w-4 h-4" /> Could not load this company's spreadsheets.</div>
+      ) : isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-32 rounded-2xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] animate-pulse" />)}
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="py-16 text-center bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A]">
+          <p className="text-sm font-semibold text-[#111111] dark:text-white">No spreadsheets match</p>
+          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">{files.length === 0 ? "This company hasn't uploaded any spreadsheets yet." : 'Try a different search.'}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {visible.map((f) => (
+            <div key={f.batchId} className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center flex-shrink-0">
+                  <FileSpreadsheet className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[#111111] dark:text-white truncate" title={f.displayName}>{f.displayName}</p>
+                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 truncate">
+                    {fmtBytes(f.size)} · {formatDistanceToNow(new Date(f.createdAt), { addSuffix: true })}
+                    {f.uploadedByName && <> · {f.uploadedByName}</>}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-[#FAFAF9] dark:bg-[#111111] px-3.5 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Contacts</p>
+                  <p className="text-lg font-bold text-[#111111] dark:text-white leading-tight">{f.contactCount.toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl bg-[#FAFAF9] dark:bg-[#111111] px-3.5 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Assigned</p>
+                  <p className="text-lg font-bold text-[#111111] dark:text-white leading-tight">{f.assignedCount.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── Delete (typed confirmation) ─────────────────────────────────────────── */
 
 function DeleteCompanyModal({ agency, onClose, onDeleted }) {
@@ -401,6 +592,8 @@ export default function AgencyDetailPage() {
   const managers = team.filter((m) => m.isAgencyManager && m.isActive).length
   const tabs = [
     { key: 'team', label: 'Team', count: team.length, icon: Users },
+    { key: 'contacts', label: 'Contacts', count: stats.contacts ?? 0, icon: BookUser },
+    { key: 'excel-files', label: 'Excel Files', icon: FileSpreadsheet },
     { key: 'leads', label: 'Leads', count: stats.leads ?? 0, icon: TrendingUp },
     { key: 'appointments', label: 'Appointments', count: stats.upcomingAppointments ?? 0, icon: CalendarCheck },
   ]
@@ -457,7 +650,9 @@ export default function AgencyDetailPage() {
                   active ? 'border-[#F95C4B] text-[#F95C4B] bg-[#F95C4B]/5' : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'
                 }`}>
                 <Icon className="w-3.5 h-3.5" /> {t.label}
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-[#F95C4B]/15' : 'bg-[#F5F5F4] dark:bg-[#202020]'}`}>{t.count}</span>
+                {t.count != null && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-[#F95C4B]/15' : 'bg-[#F5F5F4] dark:bg-[#202020]'}`}>{t.count}</span>
+                )}
               </button>
             )
           })}
@@ -466,9 +661,10 @@ export default function AgencyDetailPage() {
 
       {/* Stats */}
       <div className="px-5 sm:px-8 py-4 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <StatTile icon={Users} label="Team" value={stats.agents ?? 0} sub={`${stats.activeAgents ?? 0} active`} color="#3B82F6" />
           <StatTile icon={ShieldCheck} label="Company logins" value={managers} sub={managers ? 'Can run the company' : 'None yet — add one from Team'} color="#F95C4B" />
+          <StatTile icon={BookUser} label="Contacts" value={(stats.contacts ?? 0).toLocaleString()} sub="Uploaded or assigned" color="#06B6D4" />
           <StatTile icon={TrendingUp} label="Leads" value={(stats.leads ?? 0).toLocaleString()} sub="Attached to this company" color="#10B981" />
           <StatTile icon={CalendarCheck} label="Upcoming visits" value={stats.upcomingAppointments ?? 0} sub="Scheduled or confirmed" color="#8B5CF6" />
         </div>
@@ -487,6 +683,8 @@ export default function AgencyDetailPage() {
             showAdd
           />
         )}
+        {tab === 'contacts' && <CompanyContacts agencyId={id} team={team} />}
+        {tab === 'excel-files' && <CompanyExcelFiles agencyId={id} />}
         {tab === 'leads' && <CompanyLeads agencyId={id} team={team} onOpen={(lid) => navigate(`/admin/leads/${lid}`)} />}
         {tab === 'appointments' && <CompanyAppointments agencyId={id} team={team} />}
       </div>

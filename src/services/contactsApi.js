@@ -7,7 +7,7 @@ export const contactsApi = {
   update:    (id, data) => axiosClient.patch(`/contacts/${id}`, data),
   remove:    (id)     => axiosClient.delete(`/contacts/${id}`),
   listSchemes: ()     => axiosClient.get('/contacts/schemes'),
-  listFiles:  ()      => axiosClient.get('/contacts/files'),
+  listFiles:  (params) => axiosClient.get('/contacts/files', { params }),
   import:    (formData) => axiosClient.post('/contacts/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
@@ -22,4 +22,6 @@ export const contactsApi = {
   deleteFile: (batchId) => axiosClient.delete(`/contacts/files/${batchId}`),
   assignFileArea: (batchId, areaId) => axiosClient.patch(`/contacts/files/${batchId}/area`, { areaId }),
   callerWorkload: () => axiosClient.get('/contacts/caller-workload'),
+  assignToAgent: (data) => axiosClient.post('/contacts/assign-to-agent', data),
+  agencyWorkload: () => axiosClient.get('/contacts/agency-workload'),
 }

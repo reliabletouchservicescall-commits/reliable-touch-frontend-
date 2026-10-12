@@ -11,19 +11,30 @@ const ROLE_LABEL = { admin: 'Admin', agency: 'Agency', cold_caller: 'Cold Caller
 
 /**
  * Books an Appointment record against a specific lead. Reused from the lead detail views
- * (admin + cold caller) so every appointment is created already linked to its lead.
+ * (admin, cold caller, agency) so every appointment is created already linked to its lead.
+ *
+ * `agencyMode` is agency-only: pass `{ isManager, teamMembers, currentUserId }` to skip the
+ * global GET /appointments/assignees picker entirely (that endpoint lists every admin/cold
+ * caller/agency user system-wide — fine for admin/cold_caller, a real cross-company data
+ * leak for an agency user). A plain agent (`isManager: false`) gets no picker at all — always
+ * booked for themselves; a manager gets a picker scoped to just their own team.
  */
-export default function BookAppointmentDrawer({ lead, onClose, onBooked }) {
+export default function BookAppointmentDrawer({ lead, onClose, onBooked, agencyMode }) {
   const qc = useQueryClient()
   const [errors, setErrors] = useState({})
-  const [form, setForm] = useState({ agentId: '', scheduledDate: '', scheduledTime: '', adminNotes: '' })
+  const [form, setForm] = useState({
+    agentId: agencyMode && !agencyMode.isManager ? agencyMode.currentUserId : '',
+    scheduledDate: '', scheduledTime: '', adminNotes: '',
+  })
 
   const { data: assigneesData, isLoading: loadingAssignees } = useQuery({
     queryKey: ['appointment-assignees'],
     queryFn: () => appointmentsApi.assignees().then((r) => r.data.data?.users ?? []),
     staleTime: 60_000,
+    enabled: !agencyMode,
   })
-  const assignees = assigneesData ?? []
+  const assignees = agencyMode ? (agencyMode.teamMembers ?? []) : (assigneesData ?? [])
+  const showPicker = !agencyMode || agencyMode.isManager
 
   const mut = useMutation({
     mutationFn: (payload) => appointmentsApi.create(payload),
@@ -99,21 +110,32 @@ export default function BookAppointmentDrawer({ lead, onClose, onBooked }) {
         </div>
 
         <form id="book-appointment-form" onSubmit={handleSubmit} className="space-y-5">
-          <Field label="Assign To" required error={errors.agentId}>
-            <select
-              value={form.agentId}
-              onChange={(e) => setField('agentId', e.target.value)}
-              disabled={loadingAssignees}
-              className={inputCls(errors.agentId)}
-            >
-              <option value="">{loadingAssignees ? 'Loading…' : '-- Select a person --'}</option>
-              {assignees.map((a) => (
-                <option key={a._id} value={a._id}>
-                  {a.firstName} {a.lastName} — {ROLE_LABEL[a.role] ?? a.role}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {showPicker ? (
+            <Field label="Assign To" required error={errors.agentId}>
+              <select
+                value={form.agentId}
+                onChange={(e) => setField('agentId', e.target.value)}
+                disabled={loadingAssignees}
+                className={inputCls(errors.agentId)}
+              >
+                <option value="">{loadingAssignees ? 'Loading…' : '-- Select a person --'}</option>
+                {assignees.map((a) => (
+                  <option key={a._id} value={a._id}>
+                    {a.firstName} {a.lastName}
+                    {agencyMode
+                      ? (a._id === agencyMode.currentUserId ? ' (you)' : '')
+                      : ` — ${ROLE_LABEL[a.role] ?? a.role}`}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <Field label="Assign To">
+              <div className="px-4 py-2.5 rounded-xl text-sm bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white">
+                Yourself
+              </div>
+            </Field>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Date" required error={errors.scheduledDate}>

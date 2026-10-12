@@ -67,6 +67,7 @@ export default function AgencyLeadDetailPage() {
       canComment
       currentUserId={user?._id}
       currentUserRole={user?.role}
+      showSourceBadge
     />
   )
 }
