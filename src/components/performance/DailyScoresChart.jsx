@@ -50,22 +50,29 @@ function CustomTooltip({ active, payload }) {
  * Defaults to daily granularity; a Weekly toggle re-buckets the same 30-day payload
  * into ~7-day sums client-side (no extra request) for a smoother trend when the daily
  * view gets spiky.
+ *
+ * `endpoint` swaps in the company-scoped /performance/agency/daily-scores series, whose
+ * payload names its people `agents` instead of `callers` — both are read below.
  */
-export default function DailyScoresChart({ days = 30, currentUserId, height = 320 }) {
+export default function DailyScoresChart({
+  days = 30, currentUserId, height = 320,
+  endpoint = '/performance/daily-scores', emptyMessage = 'No cold callers to show yet.',
+}) {
   const [hidden, setHidden] = useState(() => new Set())
   const [granularity, setGranularity] = useState('day')
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ['performance', 'daily-scores', days],
-    queryFn: () => axiosClient.get('/performance/daily-scores', { params: { days } }).then((r) => r.data.data),
+    queryKey: ['performance', 'daily-scores', endpoint, days],
+    queryFn: () => axiosClient.get(endpoint, { params: { days } }).then((r) => r.data.data),
     staleTime: 60_000,
   })
 
-  const callers = data?.callers ?? []
+  const callers = data?.callers ?? data?.agents ?? []
 
   const dayRows = useMemo(() => (data?.series ?? []).map((day) => {
     const row = { date: day.date }
-    day.callers.forEach((c) => { row[c.userId] = c.score })
+    const people = day.callers ?? day.agents ?? []
+    people.forEach((c) => { row[c.userId] = c.score })
     return row
   }), [data])
 
@@ -74,7 +81,7 @@ export default function DailyScoresChart({ days = 30, currentUserId, height = 32
   // oldest bucket instead of cutting off the most recent trend.
   const weekRows = useMemo(() => {
     const series = data?.series ?? []
-    const callerList = data?.callers ?? []
+    const callerList = data?.callers ?? data?.agents ?? []
     if (!series.length) return []
     const chunks = []
     let end = series.length
@@ -87,7 +94,7 @@ export default function DailyScoresChart({ days = 30, currentUserId, height = 32
       const row = { date: weekDays[0].date, weekEnd: weekDays[weekDays.length - 1].date }
       callerList.forEach((c) => {
         row[c.userId] = weekDays.reduce((sum, day) => {
-          const entry = day.callers.find((x) => x.userId === c.userId)
+          const entry = (day.callers ?? day.agents ?? []).find((x) => x.userId === c.userId)
           return sum + (entry?.score ?? 0)
         }, 0)
       })
@@ -152,7 +159,7 @@ export default function DailyScoresChart({ days = 30, currentUserId, height = 32
   if (!callers.length) {
     return (
       <div style={{ height: Math.min(height, 180) }} className="flex items-center justify-center text-sm text-[#6B7280] dark:text-[#A1A1AA]">
-        No cold callers to show yet.
+        {emptyMessage}
       </div>
     )
   }

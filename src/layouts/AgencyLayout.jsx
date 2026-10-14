@@ -37,6 +37,7 @@ const NAV = [
     group: 'Overview',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/agency', end: true },
+      { label: 'My Leads',  icon: TrendingUp,      to: '/agency/leads' },
     ],
   },
   {
@@ -49,7 +50,6 @@ const NAV = [
       { label: 'Areas',        icon: MapPin,        to: '/agency/areas', managerOnly: true },
       { label: 'Campaigns',    icon: Megaphone,     to: '/agency/campaigns' },
       { label: 'Appointments', icon: CalendarCheck, to: '/agency/appointments' },
-      { label: 'My Leads',     icon: TrendingUp,    to: '/agency/leads' },
       { label: 'Team',         icon: Users,         to: '/agency/team', managerOnly: true },
     ],
   },
@@ -57,8 +57,9 @@ const NAV = [
     group: 'Performance',
     items: [
       { label: 'Leaderboard', icon: Trophy, to: '/agency/leaderboard' },
-      { label: 'My Activity', icon: UserCircle, to: '/agency/agents', selfLink: true },
-      { label: 'Login Activity', icon: ShieldCheck, to: '/agency/login-activity', managerOnly: true },
+      // Hidden from the sidebar for now — routes still work; drop `hidden` to bring them back.
+      { label: 'My Activity', icon: UserCircle, to: '/agency/agents', selfLink: true, hidden: true },
+      { label: 'Login Activity', icon: ShieldCheck, to: '/agency/login-activity', managerOnly: true, hidden: true },
     ],
   },
   {
@@ -167,7 +168,7 @@ function Sidebar({ collapsed, onClose, isMobile }) {
               </p>
             )}
             <ul className="space-y-0.5">
-              {items.filter((item) => !item.managerOnly || user?.isAgencyManager).map((item) => (
+              {items.filter((item) => !item.hidden && (!item.managerOnly || user?.isAgencyManager)).map((item) => (
                 <li key={item.to}>
                   <NavItem
                     {...item}
