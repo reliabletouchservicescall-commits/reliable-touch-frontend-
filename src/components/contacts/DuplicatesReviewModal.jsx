@@ -46,6 +46,9 @@ export default function DuplicatesReviewModal({ duplicates, onClose, onDone }) {
       toast.success(`${resolved} updated, ${created} created, ${skipped} skipped${errors ? `, ${errors} failed` : ''}`)
       qc.invalidateQueries({ queryKey: ['contacts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
+      qc.invalidateQueries({ queryKey: ['agency-contacts'] })
+      qc.invalidateQueries({ queryKey: ['agent-contacts'] })
+      qc.invalidateQueries({ queryKey: ['agency-workload'] })
       onDone()
     },
     onError: (e) => toast.error(e.response?.data?.message ?? 'Failed to resolve duplicates'),

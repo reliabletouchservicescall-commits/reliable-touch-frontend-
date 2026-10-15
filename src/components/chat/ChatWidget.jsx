@@ -280,6 +280,12 @@ export default function ChatWidget() {
     if (!sock) return
 
     sock.emit('join_conversation', convId)
+    // Rooms don't survive a reconnect — re-join and catch up on anything missed meanwhile.
+    const onReconnect = () => {
+      sock.emit('join_conversation', convId)
+      queryClient.invalidateQueries({ queryKey: ['chat', 'messages', convId] })
+    }
+    sock.on('connect', onReconnect)
 
     const unsubMsg = registerMessageHandler(convId, (msg) => {
       setMessages((prev) => {
@@ -306,7 +312,7 @@ export default function ChatWidget() {
       setIsTyping(t)
     })
 
-    return () => { unsubMsg(); unsubTyping() }
+    return () => { sock.off('connect', onReconnect); unsubMsg(); unsubTyping() }
   }, [convId, getSocket, registerMessageHandler, isOpen, queryClient])
 
   // Mark read on open
@@ -375,14 +381,17 @@ export default function ChatWidget() {
       let attachments = []
       if (pendingFiles.length) {
         attachments = await chatApi.uploadAttachments(convId, pendingFiles, (pct) => setUploadPct(pct))
-        setPendingFiles([])
       }
 
-      sock.emit('send_message', { conversationId: convId, content: text, attachments })
+      // Only clear the composer once the server confirms the message was saved.
+      const res = await sock.timeout(10_000).emitWithAck('send_message', { conversationId: convId, content: text, attachments })
+      if (!res?.ok) throw new Error(res?.error ?? 'Message not sent')
+      setMessages((prev) => prev.some((m) => m._id === res.message._id) ? prev : [...prev, res.message])
+      setPendingFiles([])
       setInput('')
       setUploadPct(0)
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to send')
+      toast.error(err?.response?.data?.message || (err?.message === 'operation has timed out' ? 'Message not sent — check your connection' : err?.message) || 'Failed to send')
     } finally {
       setIsSending(false)
       inputRef.current?.focus()

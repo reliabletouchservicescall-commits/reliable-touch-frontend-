@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 import {
-  Search, X, Upload, CloudUpload, FileSpreadsheet, Loader2, Users, CheckCircle2,
+  Search, X, Upload, Loader2, Users, CheckCircle2,
   PhoneCall, PhoneMissed, Voicemail, Clock, ThumbsDown, AlertCircle, PhoneOff, Phone,
   BarChart3, BookUser, UserCheck, RefreshCw, Sparkles,
 } from 'lucide-react'
@@ -17,6 +17,8 @@ import { inputCls, getApiErrorMessage } from '../../components/leads/leadShared'
 import { CALL_OUTCOME_META, DEFAULT_OUTCOME_META } from '../../constants/callOutcomes'
 import SidePanel from '../../components/common/SidePanel'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
+import SharedImportModal from '../../components/contacts/ImportExcelModal'
+import DuplicatesReviewModal from '../../components/contacts/DuplicatesReviewModal'
 
 const STATUS_META = {
   unassigned: { label: 'Unassigned', color: '#6B7280' },
@@ -37,150 +39,29 @@ const OUTCOMES = [
 ]
 
 function cleanPhone(phone) { return phone?.replace(/\s+/g, '') ?? '' }
-function fmtBytes(bytes) {
-  if (!bytes) return '—'
-  const kb = bytes / 1024
-  return kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(1)} MB`
-}
 
-/* ─── Import Excel (agency-scoped — no Area step; manager uploads stay in the
-   company pool, an agent's own upload auto-assigns straight to them) ────── */
+/* ─── Import Excel — the same modal and formats as admin (shared component), in
+   agency mode: Area is optional, a manager's upload lands in the company pool and an
+   agent's is assigned straight to them. Duplicates are checked within the company's own
+   pool and can be reviewed right here, exactly like admin. ─────────────────── */
 export function ImportModal({ onClose, onDone, isManager }) {
-  const qc = useQueryClient()
-  const [dragOver, setDragOver] = useState(false)
-  const [file, setFile] = useState(null)
-  const [result, setResult] = useState(null)
-  const fileRef = useRef(null)
-
-  const mut = useMutation({
-    mutationFn: (f) => {
-      const fd = new FormData()
-      fd.append('file', f)
-      return contactsApi.import(fd)
-    },
-    onSuccess: (res) => {
-      setResult(res.data.data)
-      qc.invalidateQueries({ queryKey: ['agency-contacts'] })
-      qc.invalidateQueries({ queryKey: ['agency-workload'] })
-      toast.success('Import complete!')
-    },
-    onError: (e) => toast.error(getApiErrorMessage(e, 'Import failed')),
-  })
-
-  function handleFile(f) {
-    if (!f) return
-    if (!f.name.match(/\.(xlsx|xls)$/i)) { toast.error('Only Excel files (.xlsx / .xls)'); return }
-    setFile(f); setResult(null)
-  }
-  function handleDrop(e) { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }
-  const busy = mut.isPending
-
+  const [duplicates, setDuplicates] = useState(null)
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]" onClick={!busy ? onClose : undefined} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg max-h-[90vh] flex flex-col bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl">
-          <div className="flex items-center justify-between px-6 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
-                <FileSpreadsheet className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-[#111111] dark:text-white">Import Excel</h2>
-                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-                  {isManager ? 'New contacts land in your company pool, ready to assign' : 'New contacts are assigned straight to you'}
-                </p>
-              </div>
-            </div>
-            {!busy && (
-              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          <div className="p-5 sm:p-6 space-y-5 overflow-y-auto">
-            {!result ? (
-              <>
-                <div
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={handleDrop}
-                  onClick={() => fileRef.current?.click()}
-                  className={[
-                    'border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all',
-                    dragOver ? 'border-[#F95C4B] bg-[#F95C4B]/5' : file
-                      ? 'border-[#F95C4B]/50 bg-[#F95C4B]/5'
-                      : 'border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/50 hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
-                  ].join(' ')}
-                >
-                  <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
-                  {file ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <FileSpreadsheet className="w-10 h-10 text-[#F95C4B]" />
-                      <p className="text-sm font-semibold text-[#111111] dark:text-white">{file.name}</p>
-                      <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{fmtBytes(file.size)}</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <CloudUpload className="w-10 h-10 text-[#6B7280] dark:text-[#A1A1AA]" />
-                      <p className="text-sm font-semibold text-[#111111] dark:text-white">Drop Excel file here</p>
-                      <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">or click to browse</p>
-                      <span className="text-[10px] px-2.5 py-1 rounded-full bg-[#F5F5F4] dark:bg-[#202020] text-[#6B7280] dark:text-[#A1A1AA]">.xlsx / .xls — max 20 MB</span>
-                    </div>
-                  )}
-                </div>
-                <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed">
-                  Needs a <strong>Name</strong> column and a phone number column (any common header — "Phone", "Contact", "Cell", etc.). Rows with no usable phone number are counted but not saved.
-                </p>
-                <div className="flex gap-3">
-                  <button type="button" onClick={onClose} disabled={busy}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-50">
-                    Cancel
-                  </button>
-                  <button onClick={() => file && mut.mutate(file)} disabled={!file || busy}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                    {busy ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</> : <><Upload className="w-4 h-4" /> Import</>}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
-                  <CheckCircle2 className="w-6 h-6 text-[#10B981] flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-bold text-[#10B981]">Import successful</p>
-                    <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-                      {isManager ? 'Added to your company pool' : 'Assigned straight to your queue'}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Rows detected',    value: result.stats.total,       color: '#111111' },
-                    { label: 'With phone',       value: result.stats.withPhone,   color: '#3B82F6' },
-                    { label: 'Without phone',    value: result.stats.withoutPhone, color: '#F59E0B' },
-                    { label: 'Saved',            value: result.stats.created,     color: '#10B981' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{label}</span>
-                      <span className="text-xl font-bold" style={{ color }}>{value}</span>
-                    </div>
-                  ))}
-                </div>
-                {result.stats.duplicates > 0 && (
-                  <p className="text-xs text-[#8B5CF6] bg-[#8B5CF6]/8 border border-[#8B5CF6]/25 rounded-xl p-3">
-                    {result.stats.duplicates} row{result.stats.duplicates !== 1 ? 's' : ''} matched a phone number already in the system and were not imported.
-                  </p>
-                )}
-                <button onClick={onDone} className="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> Done
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <SharedImportModal
+        agencyMode
+        isManager={isManager}
+        onClose={onClose}
+        onDone={onDone}
+        onReviewDuplicates={setDuplicates}
+      />
+      {duplicates && (
+        <DuplicatesReviewModal
+          duplicates={duplicates}
+          onClose={() => setDuplicates(null)}
+          onDone={() => { setDuplicates(null); onDone() }}
+        />
+      )}
     </>
   )
 }
@@ -267,7 +148,6 @@ function ManagerContactsPanel({ team }) {
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState(new Set())
   const [targetAgent, setTargetAgent] = useState('')
-  const [showImport, setShowImport] = useState(false)
 
   const params = { search: search.trim() || undefined, status: status || undefined, assignedTo: assignedTo || undefined, page, limit: 20 }
   const { data, isLoading, isFetching } = useQuery({
@@ -304,26 +184,40 @@ function ManagerContactsPanel({ team }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
-          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search name or phone…"
-            className={`${inputCls(false)} pl-9 pr-8`} />
-          {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111]"><X className="w-3.5 h-3.5" /></button>}
+      {/* Toolbar — search fills the row, agent filter fixed width, status as chips */}
+      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search by name or phone number…"
+              className={`${inputCls(false)} pl-10 pr-9`} />
+            {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111] dark:hover:text-white"><X className="w-3.5 h-3.5" /></button>}
+          </div>
+          <div className="relative sm:w-64 flex-shrink-0">
+            <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF] pointer-events-none" />
+            <select value={assignedTo} onChange={(e) => { setAssignedTo(e.target.value); setPage(1) }} className={`${inputCls(false)} pl-10 cursor-pointer`}>
+              <option value="">Everyone</option>
+              <option value="unassigned">Unassigned (pool)</option>
+              {team.map((m) => <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyManager ? ' (you)' : ''}</option>)}
+            </select>
+          </div>
         </div>
-        <select value={assignedTo} onChange={(e) => { setAssignedTo(e.target.value); setPage(1) }} className={`${inputCls(false)} w-auto`}>
-          <option value="">Everyone</option>
-          <option value="unassigned">Unassigned (pool)</option>
-          {team.map((m) => <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyManager ? ' (you)' : ''}</option>)}
-        </select>
-        <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }} className={`${inputCls(false)} w-auto`}>
-          <option value="">Any status</option>
-          {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <button onClick={() => setShowImport(true)}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] transition-colors shadow-sm lg:ml-auto">
-          <Upload className="w-4 h-4" /> Import Excel
-        </button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF] mr-1">Status</span>
+          {[['', { label: 'All', color: '#F95C4B' }], ...Object.entries(STATUS_META)].map(([k, v]) => {
+            const active = status === k
+            return (
+              <button key={k || 'all'} type="button" onClick={() => { setStatus(k); setPage(1) }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  active ? 'shadow-sm' : 'border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#D4D4D8] dark:hover:border-[#3F3F46]'
+                }`}
+                style={active ? { color: v.color, backgroundColor: `${v.color}12`, borderColor: `${v.color}55` } : undefined}>
+                {k && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: v.color }} />}
+                {v.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {selected.size > 0 && (
@@ -405,9 +299,6 @@ function ManagerContactsPanel({ team }) {
         )}
       </div>
 
-      {showImport && (
-        <ImportModal isManager onClose={() => setShowImport(false)} onDone={() => setShowImport(false)} />
-      )}
     </div>
   )
 }
@@ -655,6 +546,7 @@ export default function ContactsPage() {
   const { user } = useAuthStore()
   const isManager = Boolean(user?.isAgencyManager)
   const [tab, setTab] = useState('contacts')
+  const [showImport, setShowImport] = useState(false)
 
   const { data: teamData } = useQuery({
     queryKey: ['agency-team-mine'],
@@ -669,9 +561,21 @@ export default function ContactsPage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-5 sm:px-8 pt-6 pb-0 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight flex items-center gap-2.5 mb-4">
-          <BookUser className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} /> Contacts
-        </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-[#F95C4B]/10 flex items-center justify-center flex-shrink-0">
+              <BookUser className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">Contacts</h1>
+              <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">Your company's contact pool — import, assign and track calling</p>
+            </div>
+          </div>
+          <button onClick={() => setShowImport(true)}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] transition-colors shadow-sm shadow-[#F95C4B]/30 whitespace-nowrap self-start sm:self-auto">
+            <Upload className="w-4 h-4" /> Import Excel
+          </button>
+        </div>
         <div className="flex gap-1">
           {[
             { key: 'contacts', label: 'Company Contacts', icon: Users },
@@ -693,6 +597,7 @@ export default function ContactsPage() {
       <div className="flex-1 overflow-y-auto px-5 sm:px-8 py-6">
         {tab === 'contacts' ? <ManagerContactsPanel team={team} /> : <CallingPerformancePanel />}
       </div>
+      {showImport && <ImportModal isManager onClose={() => setShowImport(false)} onDone={() => setShowImport(false)} />}
     </div>
   )
 }

@@ -41,6 +41,11 @@ export function SocketProvider({ children }) {
       setChatUnread(count)
     })
 
+    // Everyone already online at the moment we connect (user_status only covers changes after).
+    socket.on('online_users', (userIds = []) => {
+      setOnlineUsers(new Set(userIds))
+    })
+
     socket.on('user_status', ({ userId, online }) => {
       setOnlineUsers((prev) => {
         const next = new Set(prev)
@@ -50,19 +55,24 @@ export function SocketProvider({ children }) {
       })
     })
 
-    // Forward new_message to any registered handler (active chat windows)
+    // Forward new_message to any registered handler (active chat windows). The server
+    // delivers every message to each participant's personal room too, so this fires even
+    // when the conversation isn't open — keep the inbox list fresh and toast the user.
     socket.on('new_message', (message) => {
       const convId = message.conversationId
+      qc.invalidateQueries({ queryKey: ['chat', 'conversations'] })
       const handler = messageHandlers.current.get(convId)
       if (handler) {
         handler(message)
-      } else {
-        // User not viewing this conversation — show toast
-        const name = `${message.senderId?.firstName ?? ''} ${message.senderId?.lastName ?? ''}`.trim()
-        toast.message(`New message from ${name}`, {
-          description: message.content.slice(0, 80),
-        })
+        return
       }
+      qc.invalidateQueries({ queryKey: ['chat', 'messages', convId] })
+      const senderId = message.senderId?._id ?? message.senderId
+      if (senderId && senderId === useAuthStore.getState().user?._id) return // own message from another tab
+      const name = `${message.senderId?.firstName ?? ''} ${message.senderId?.lastName ?? ''}`.trim()
+      toast.message(`New message from ${name || 'a teammate'}`, {
+        description: message.content ? message.content.slice(0, 80) : `📎 ${message.attachments?.length ?? 0} attachment(s)`,
+      })
     })
 
     socket.on('user_typing', ({ userId, conversationId, isTyping }) => {

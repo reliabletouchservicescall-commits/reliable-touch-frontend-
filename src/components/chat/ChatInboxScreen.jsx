@@ -60,8 +60,12 @@ const ROLE_META = {
   agency:            { label: 'Agency',              color: '#10B981', Icon: Building2 },
 }
 
-function roleBadge(role) {
-  const meta = ROLE_META[role] ?? { label: role, color: '#6B7280', Icon: User }
+// Within a company, "Agency" says nothing — label people as the Manager or an Agent.
+function roleBadge(role, isAgencyManager) {
+  const base = ROLE_META[role] ?? { label: role, color: '#6B7280', Icon: User }
+  const meta = role === 'agency' && isAgencyManager !== undefined
+    ? { ...base, label: isAgencyManager ? 'Manager' : 'Agent' }
+    : base
   const { Icon } = meta
   return (
     <span
@@ -418,14 +422,19 @@ function ComposeBar({ conversationId, onSent, pendingLead, onClearPendingLead })
       if (files.length) {
         attachments = await chatApi.uploadAttachments(conversationId, files, setProgress)
       }
-      sock.emit('send_message', { conversationId, content: trimmed, attachments, relatedLead: pendingLead?._id ?? null })
+      // Wait for the server to confirm it saved the message; only then clear the composer,
+      // so a failed send keeps the text for a retry instead of silently losing it.
+      const res = await sock.timeout(10_000).emitWithAck('send_message', {
+        conversationId, content: trimmed, attachments, relatedLead: pendingLead?._id ?? null,
+      })
+      if (!res?.ok) throw new Error(res?.error ?? 'Message not sent')
       setText('')
       setFiles([])
       onClearPendingLead?.()
       inputRef.current?.focus()
-      onSent?.()
+      onSent?.(res.message)
     } catch (err) {
-      toast.error(err.response?.data?.message ?? 'Upload failed')
+      toast.error(err.response?.data?.message ?? (err.message === 'operation has timed out' ? 'Message not sent — check your connection' : err.message) ?? 'Message not sent')
     } finally {
       setUploading(false)
       setProgress(0)
@@ -539,8 +548,18 @@ function ChatWindow({ conversation, currentUserId, leadsBasePath, pendingLead, o
     const sock = getSocket()
     if (!sock) return
 
-    sock.emit('join_conversation', convId)
-    sock.emit('mark_read', { conversationId: convId })
+    const join = () => {
+      sock.emit('join_conversation', convId)
+      sock.emit('mark_read', { conversationId: convId })
+    }
+    join()
+    // Rooms don't survive a reconnect (server restart, network drop) — re-join, and
+    // re-fetch in case messages arrived while we were disconnected.
+    const onReconnect = () => {
+      join()
+      queryClient.invalidateQueries({ queryKey: ['chat', 'messages', convId] })
+    }
+    sock.on('connect', onReconnect)
 
     const unsubMsg = registerMessageHandler(convId, (msg) => {
       setMessages((prev) => prev.some((m) => m._id === msg._id) ? prev : [...prev, msg])
@@ -559,7 +578,7 @@ function ChatWindow({ conversation, currentUserId, leadsBasePath, pendingLead, o
       setMessages((prev) => prev.map((m) => ({ ...m, readAt: m.readAt ?? new Date().toISOString() })))
     })
 
-    return () => { unsubMsg(); unsubTyping(); unsubRead() }
+    return () => { sock.off('connect', onReconnect); unsubMsg(); unsubTyping(); unsubRead() }
   }, [convId, getSocket, registerMessageHandler, queryClient])
 
   useEffect(() => {
@@ -620,7 +639,7 @@ function ChatWindow({ conversation, currentUserId, leadsBasePath, pendingLead, o
             {other ? `${other.firstName} ${other.lastName}` : 'Unknown'}
           </p>
           <div className="flex items-center gap-2">
-            {other && roleBadge(other.role)}
+            {other && roleBadge(other.role, other.isAgencyManager)}
             <span className={`text-[10px] font-medium ${isOnline ? 'text-emerald-500' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
               {isOnline ? 'Online' : 'Offline'}
             </span>
@@ -676,7 +695,10 @@ function ChatWindow({ conversation, currentUserId, leadsBasePath, pendingLead, o
 
       <ComposeBar
         conversationId={convId}
-        onSent={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+        onSent={(msg) => {
+          if (msg) setMessages((prev) => prev.some((m) => m._id === msg._id) ? prev : [...prev, msg])
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        }}
         pendingLead={pendingLead}
         onClearPendingLead={onClearPendingLead}
       />
@@ -720,7 +742,7 @@ function ConversationItem({ conv, isActive, onClick, onlineUsers, currentUserId 
         </div>
 
         <div className="flex items-center gap-1 mt-0.5">
-          {other && roleBadge(other.role)}
+          {other && roleBadge(other.role, other.isAgencyManager)}
         </div>
 
         <div className="flex items-center justify-between gap-2 mt-1">
@@ -738,21 +760,56 @@ function ConversationItem({ conv, isActive, onClick, onlineUsers, currentUserId 
   )
 }
 
-/* ─── New chat picker ────────────────────────────────────────────────── */
+/* ─── People you can message ─────────────────────────────────────────── */
 
-function NewChatPicker({ currentUserId, currentRole, onSelect, onClose }) {
-  const [search, setSearch] = useState('')
-  // Agency users can't list every user (that's admin-only) — their people are their own
-  // company's team, so that's what they can message.
-  const { data } = useQuery({
+// Agency users can't list every user (that's admin-only) — their people are their own
+// company's team, so that's who they can start a chat with. Inactive accounts are left out.
+function useChatPeople(currentRole) {
+  const { data, isLoading } = useQuery({
     queryKey: ['users', 'all', currentRole],
     queryFn: () => (currentRole === 'agency'
       ? agenciesApi.myTeam().then((r) => r.data.data.team)
       : usersApi.list({ limit: 100 }).then((r) => r.data.data?.users ?? [])),
     staleTime: 60_000,
+    enabled: !!currentRole,
   })
+  return { people: (data ?? []).filter((u) => u.isActive !== false), isLoading }
+}
 
-  const users = (data ?? []).filter(
+function TeamMemberItem({ member, online, onClick, busy }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className="w-full text-left flex items-center gap-3 px-4 py-3 transition-colors border-b border-[#F5F5F4] dark:border-[#202020] last:border-0 hover:bg-[#F9F9F8] dark:hover:bg-[#1C1C1C] disabled:opacity-60 group"
+    >
+      <div className="relative flex-shrink-0">
+        <div className="w-10 h-10 rounded-full bg-[#F5F5F4] dark:bg-[#202020] flex items-center justify-center">
+          <span className="text-[13px] font-bold text-[#6B7280] dark:text-[#A1A1AA]">{initials(member)}</span>
+        </div>
+        {online && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-[#181818]" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{member.firstName} {member.lastName}</p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {roleBadge(member.role ?? 'agency', member.isAgencyManager ?? false)}
+          <span className={`text-[10px] font-medium ${online ? 'text-emerald-500' : 'text-[#9CA3AF]'}`}>{online ? 'Online' : 'Offline'}</span>
+        </div>
+      </div>
+      {busy
+        ? <Loader2 className="w-4 h-4 animate-spin text-[#F95C4B] flex-shrink-0" />
+        : <span className="text-[10px] font-semibold text-[#F95C4B] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">Message</span>}
+    </button>
+  )
+}
+
+/* ─── New chat picker ────────────────────────────────────────────────── */
+
+function NewChatPicker({ currentUserId, currentRole, onSelect, onClose }) {
+  const [search, setSearch] = useState('')
+  const { people } = useChatPeople(currentRole)
+
+  const users = people.filter(
     (u) => u._id !== currentUserId && (
       !search ||
       `${u.firstName} ${u.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
@@ -786,7 +843,7 @@ function NewChatPicker({ currentUserId, currentRole, onSelect, onClose }) {
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-xs font-semibold text-[#111111] dark:text-white truncate">{u.firstName} {u.lastName}</p>
                 <div className="flex items-center gap-1 mt-0.5">
-                  {roleBadge(u.role)}
+                  {roleBadge(u.role ?? currentRole, currentRole === 'agency' ? Boolean(u.isAgencyManager) : undefined)}
                   <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate">{u.email}</span>
                 </div>
               </div>
@@ -799,6 +856,14 @@ function NewChatPicker({ currentUserId, currentRole, onSelect, onClose }) {
 }
 
 /* ─── Main screen ─────────────────────────────────────────────────────── */
+
+function SectionLabel({ children }) {
+  return (
+    <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF] bg-[#FAFAF9] dark:bg-[#141414] border-b border-[#F5F5F4] dark:border-[#202020]">
+      {children}
+    </p>
+  )
+}
 
 export default function ChatInboxScreen({ leadsBasePath }) {
   const { user } = useAuthStore()
@@ -851,13 +916,27 @@ export default function ChatInboxScreen({ leadsBasePath }) {
 
   const conversations = data?.conversations ?? []
   const activeConv    = conversations.find((c) => c._id === activeConvId) ?? null
+  const q = search.trim().toLowerCase()
 
   const filtered = conversations.filter((c) => {
-    if (!search) return true
+    if (!q) return true
     const other = c.participants?.find((p) => p._id?.toString() !== user?._id?.toString())
     const name  = `${other?.firstName ?? ''} ${other?.lastName ?? ''}`.toLowerCase()
-    return name.includes(search.toLowerCase())
+    return name.includes(q)
   })
+
+  // Company people (manager + agents) are listed right in the inbox — no need to hit "+"
+  // first. Anyone you already have a conversation with shows up there instead, so each
+  // person appears once. Online teammates first, then alphabetical.
+  const isAgency = user?.role === 'agency'
+  const { people: team } = useChatPeople(isAgency ? 'agency' : null)
+  const inConversation = new Set(conversations.flatMap((c) => (c.participants ?? []).map((p) => p._id?.toString())))
+  const teammates = (isAgency ? team : [])
+    .filter((m) => m._id !== user?._id && !inConversation.has(m._id))
+    .filter((m) => !q || `${m.firstName} ${m.lastName}`.toLowerCase().includes(q))
+    .sort((a, b) => (Number(onlineUsers.has(b._id)) - Number(onlineUsers.has(a._id))) || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+  const onlineTeammates = team.filter((m) => m._id !== user?._id && onlineUsers.has(m._id)).length
+  const nothingToShow = filtered.length === 0 && teammates.length === 0
 
   useEffect(() => {
     const unsub = registerMessageHandler('__conversations_refresh__', () => {
@@ -882,7 +961,9 @@ export default function ChatInboxScreen({ leadsBasePath }) {
         <div className="px-4 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A] flex items-center justify-between">
           <div>
             <h1 className="text-base font-bold text-[#111111] dark:text-white">Messages</h1>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">Chat with your team</p>
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
+              Chat with your team{isAgency && team.length > 1 ? ` · ${onlineTeammates} online` : ''}
+            </p>
           </div>
           <button
             onClick={() => setShowNewChat(true)}
@@ -898,7 +979,7 @@ export default function ChatInboxScreen({ leadsBasePath }) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA]" />
             <input
               value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search conversations…"
+              placeholder={isAgency ? 'Search people and conversations…' : 'Search conversations…'}
               className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] text-[#111111] dark:text-white placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#F95C4B]/30 focus:border-[#F95C4B]"
             />
           </div>
@@ -909,24 +990,37 @@ export default function ChatInboxScreen({ leadsBasePath }) {
             <div className="flex items-center justify-center py-12">
               <div className="w-5 h-5 border-2 border-[#F95C4B] border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : nothingToShow ? (
             <div className="flex flex-col items-center justify-center py-12 gap-2 text-center px-4">
               <MessageSquare className="w-8 h-8 text-[#6B7280]/30 dark:text-[#A1A1AA]/30" strokeWidth={1.5} />
               <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-                {search ? 'No conversations match your search' : 'No conversations yet'}
+                {search ? 'Nobody matches your search' : 'No conversations yet'}
               </p>
             </div>
           ) : (
-            filtered.map((conv) => (
-              <ConversationItem
-                key={conv._id}
-                conv={conv}
-                isActive={conv._id === activeConvId}
-                onClick={() => setActiveConvId(conv._id)}
-                onlineUsers={onlineUsers}
-                currentUserId={user?._id}
-              />
-            ))
+            <>
+              {isAgency && filtered.length > 0 && <SectionLabel>Conversations</SectionLabel>}
+              {filtered.map((conv) => (
+                <ConversationItem
+                  key={conv._id}
+                  conv={conv}
+                  isActive={conv._id === activeConvId}
+                  onClick={() => setActiveConvId(conv._id)}
+                  onlineUsers={onlineUsers}
+                  currentUserId={user?._id}
+                />
+              ))}
+              {teammates.length > 0 && <SectionLabel>Your team · start a chat</SectionLabel>}
+              {teammates.map((m) => (
+                <TeamMemberItem
+                  key={m._id}
+                  member={m}
+                  online={onlineUsers.has(m._id)}
+                  busy={openConvMutation.isPending && openConvMutation.variables === m._id}
+                  onClick={() => openConvMutation.mutate(m._id)}
+                />
+              ))}
+            </>
           )}
         </div>
       </div>

@@ -15,7 +15,10 @@ export function fmtBytes(bytes) {
   return `${(kb / 1024).toFixed(1)} MB`
 }
 
-export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
+// Shared by admin and agency (company manager / agent) uploads — same parser, same two
+// formats. `agencyMode` makes the Area optional (the backend only requires it for admin)
+// and words things for a company pool; the backend scopes the upload to the user's company.
+export default function ImportModal({ onClose, onDone, onReviewDuplicates, agencyMode = false, isManager = false }) {
   const qc = useQueryClient()
   const [dragOver, setDragOver] = useState(false)
   const [file, setFile]         = useState(null)
@@ -34,7 +37,7 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
     mutationFn: (f) => {
       const fd = new FormData()
       fd.append('file', f)
-      fd.append('areaId', areaId)
+      if (areaId) fd.append('areaId', areaId)
       return contactsApi.import(fd)
     },
     onSuccess: (res) => {
@@ -43,6 +46,10 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
       qc.invalidateQueries({ queryKey: ['contact-schemes'] })
       qc.invalidateQueries({ queryKey: ['contact-files'] })
+      qc.invalidateQueries({ queryKey: ['agency-contacts'] })
+      qc.invalidateQueries({ queryKey: ['agent-contacts'] })
+      qc.invalidateQueries({ queryKey: ['agency-workload'] })
+      qc.invalidateQueries({ queryKey: ['agency-excel-files'] })
       toast.success('Import complete!')
     },
     onError: (e) => toast.error(e.response?.data?.message ?? 'Import failed'),
@@ -60,7 +67,8 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
     handleFile(e.dataTransfer.files[0])
   }
 
-  function handleUpload() { if (file && areaId) mut.mutate(file) }
+  const areaRequired = !agencyMode
+  function handleUpload() { if (file && (areaId || !areaRequired)) mut.mutate(file) }
 
   const busy = mut.isPending
 
@@ -78,7 +86,11 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-[#111111] dark:text-white">Import Excel</h2>
-                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Contacts will be saved & file stored in Firebase</p>
+                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+                  {!agencyMode
+                    ? 'Contacts will be saved & file stored in Firebase'
+                    : isManager ? 'New contacts land in your company pool, ready to assign' : 'New contacts are assigned straight to you'}
+                </p>
               </div>
             </div>
             {!busy && (
@@ -127,7 +139,9 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
                 {/* Area — required: every contact in this spreadsheet is tagged with it */}
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">
-                    Area<span className="text-[#F95C4B] ml-0.5">*</span>
+                    Area{areaRequired
+                      ? <span className="text-[#F95C4B] ml-0.5">*</span>
+                      : <span className="ml-1 normal-case tracking-normal font-medium">(optional)</span>}
                   </label>
                   <SearchableAreaSelect
                     areas={areas}
@@ -137,7 +151,11 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
                     allowAdd
                   />
                   <p className="mt-1.5 text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
-                    {areaId ? 'Every contact in this spreadsheet will be tagged with this area.' : "Pick the area first — can't import without one. Can't find it? Add it right here."}
+                    {areaId
+                      ? 'Every contact in this spreadsheet will be tagged with this area.'
+                      : areaRequired
+                        ? "Pick the area first — can't import without one. Can't find it? Add it right here."
+                        : "Tag every contact with an area, or leave it blank. Can't find it? Add it right here."}
                   </p>
                 </div>
 
@@ -169,7 +187,7 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-50">
                     Cancel
                   </button>
-                  <button onClick={handleUpload} disabled={!file || !areaId || busy}
+                  <button onClick={handleUpload} disabled={!file || (areaRequired && !areaId) || busy}
                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#10B981] hover:bg-[#059669] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                     {busy ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</> : <><Upload className="w-4 h-4" /> Import</>}
                   </button>
@@ -224,7 +242,7 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates }) {
                 {/* Duplicates — a phone number that already exists on another contact was
                     dropped from creation entirely unless reviewed here, so this needs a
                     dedicated CTA rather than a bare number admin can't act on. */}
-                {result.stats.duplicates > 0 && (
+                {result.stats.duplicates > 0 && onReviewDuplicates && (
                   <button
                     onClick={() => onReviewDuplicates(result.duplicates)}
                     className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#8B5CF6]/8 border border-[#8B5CF6]/25 hover:bg-[#8B5CF6]/12 transition-colors text-left"
