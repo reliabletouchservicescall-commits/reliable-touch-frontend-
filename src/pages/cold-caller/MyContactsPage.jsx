@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useCallFlow, telHref } from '../../lib/useCallFlow'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -10,7 +11,6 @@ import {
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { contactsApi } from '../../services/contactsApi'
-import { callLogsApi } from '../../services/callLogsApi'
 import { contactRequestsApi } from '../../services/contactRequestsApi'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import SidePanel from '../../components/common/SidePanel'
@@ -45,9 +45,6 @@ function timeAgo(date) {
   return formatDistanceToNow(new Date(date), { addSuffix: true })
 }
 
-function cleanPhone(phone) {
-  return phone?.replace(/\s+/g, '') ?? ''
-}
 
 /* ─── Request More Contacts Modal ───────────────────────────────────────── */
 
@@ -158,24 +155,22 @@ function RequestModal({ onClose, existing }) {
 
 /* ─── Outcome Panel ─────────────────────────────────────────────────────── */
 
-function OutcomeSheet({ contact, logId, onClose, onSaved }) {
+// `onSubmit({ outcome, notes })` comes from useCallFlow — it saves against this call's log
+// whether or not the placeholder log made it to the server, and resolves to the log id.
+function OutcomeSheet({ contact, onSubmit, onClose, onSaved }) {
   const [selected, setSelected] = useState(null)
   const [notes, setNotes]       = useState('')
   const [showNotes, setShowNotes] = useState(false)
-  const qc = useQueryClient()
 
   const selectedMeta = OUTCOMES.find((o) => o.value === selected)
 
   const mut = useMutation({
-    mutationFn: () => callLogsApi.update(logId, { outcome: selected, notes: notes || undefined }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['my-contacts'] })
-      qc.invalidateQueries({ queryKey: ['my-contacts-called-today-count'] })
-      qc.invalidateQueries({ queryKey: ['call-logs'] })
+    mutationFn: () => onSubmit({ outcome: selected, notes }),
+    onSuccess: (logId) => {
       toast.success('Call outcome saved')
-      onSaved(selectedMeta)
+      onSaved(selectedMeta, logId)
     },
-    onError: () => toast.error('Failed to save outcome'),
+    onError: () => toast.error('Could not save the outcome — check your connection and tap Save again'),
   })
 
   return (
@@ -498,8 +493,8 @@ function ContactCard({ contact, onCallInitiated, showOutcome }) {
               </button>
             </div>
             <a
-              href={`tel:${cleanPhone(preferredPhone)}`}
-              onClick={(e) => { e.preventDefault(); onCallInitiated(contact) }}
+              href={telHref(preferredPhone)}
+              onClick={() => onCallInitiated(contact, undefined, preferredPhone)}
               className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-semibold text-[#10B981] border border-dashed border-[#10B981]/40 hover:bg-[#10B981]/5 transition-colors"
             >
               <Phone className="w-3.5 h-3.5" strokeWidth={2} />
@@ -510,8 +505,8 @@ function ContactCard({ contact, onCallInitiated, showOutcome }) {
           <>
             <div className="flex items-center gap-2">
               <a
-                href={`tel:${cleanPhone(preferredPhone)}`}
-                onClick={(e) => { e.preventDefault(); onCallInitiated(contact) }}
+                href={telHref(preferredPhone)}
+                onClick={() => onCallInitiated(contact, undefined, preferredPhone)}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#10B981] hover:bg-[#059669] active:scale-[0.98] transition-all shadow-sm"
               >
                 <Phone className="w-4 h-4" strokeWidth={2} />
@@ -529,8 +524,8 @@ function ContactCard({ contact, onCallInitiated, showOutcome }) {
             {/* Alt phone (if preferred is primary) */}
             {contact.altPhone && contact.preferredPhone !== 'alt' && (
               <a
-                href={`tel:${cleanPhone(contact.altPhone)}`}
-                onClick={(e) => { e.preventDefault(); onCallInitiated({ ...contact, phone: contact.altPhone }, 'alt') }}
+                href={telHref(contact.altPhone)}
+                onClick={() => onCallInitiated(contact, 'alt', contact.altPhone)}
                 className="flex items-center justify-center gap-2 w-full mt-2 py-2 rounded-xl text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] border border-dashed border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#10B981]/40 hover:text-[#10B981] transition-colors"
               >
                 <Phone className="w-3.5 h-3.5" />
@@ -631,11 +626,11 @@ export default function MyContactsPage() {
   const [viewMode, setViewMode]         = useState('todo') // 'todo' | 'today'
   const [unreachableOnly, setUnreachableOnly] = useState(false)
   const [page, setPage]                 = useState(1)
-  const [outcomeState, setOutcomeState] = useState(null)
   const [leadPrompt, setLeadPrompt]     = useState(null)
+  const callFlow = useCallFlow([['my-contacts'], ['my-contacts-called-today-count'], ['call-logs']])
+  const { startCall } = callFlow
   const [historyContact, setHistoryContact] = useState(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
-  const qc = useQueryClient()
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['my-contacts', { search, status: statusFilter, page, view: viewMode, lastCallOutcome: unreachableOnly ? 'unreachable' : undefined }],
@@ -673,32 +668,12 @@ export default function MyContactsPage() {
   const total      = data?.total ?? 0
   const totalPages = data?.totalPages ?? 1
 
-  // The contact is threaded straight through the mutation's own variables — NOT
-  // re-derived from the `contacts` list afterward. Dialing out via `tel:` backgrounds
-  // the browser tab (the phone app takes over); React Query's default
-  // refetchOnWindowFocus then refetches `my-contacts` the moment she returns to the
-  // tab, and since a just-called contact now drops out of the "To Call" view (see the
-  // Called Today feature), that refetch can beat this mutation's own onSuccess and
-  // remove the contact from the array a `contacts.find()` lookup would have used —
-  // silently handing the outcome sheet `contact: undefined` and breaking it. Passing
-  // the contact by value sidesteps that race entirely.
-  const initiateCallMut = useMutation({
-    mutationFn: ({ contact }) =>
-      callLogsApi.create({ contactId: contact._id, outcome: 'no_answer', calledAt: new Date().toISOString() }),
-    onSuccess: (res, vars) => {
-      const logId = res.data?.data?.callLog?._id
-      qc.invalidateQueries({ queryKey: ['my-contacts'] })
-      qc.invalidateQueries({ queryKey: ['my-contacts-called-today-count'] })
-      setOutcomeState({ contact: vars.contact, logId })
-    },
-    onError: () => toast.error('Could not log call — check your connection'),
-  })
-
-  const handleCallInitiated = useCallback((contact, mode) => {
+  // The dialer opens from the Call link itself (a real tel: tap — see useCallFlow);
+  // this only records the call and puts the outcome sheet up for when she comes back.
+  const handleCallInitiated = useCallback((contact, mode, dialedPhone) => {
     if (mode === 'history') { setHistoryContact(contact); return }
-    window.location.href = `tel:${cleanPhone(contact.phone)}`
-    initiateCallMut.mutate({ contact })
-  }, [])
+    startCall(contact, dialedPhone)
+  }, [startCall])
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -920,16 +895,17 @@ export default function MyContactsPage() {
         />
       )}
 
-      {outcomeState && (
+      {callFlow.activeCall && (
         <OutcomeSheet
-          contact={outcomeState.contact}
-          logId={outcomeState.logId}
-          onClose={() => setOutcomeState(null)}
-          onSaved={(outcomeMeta) => {
+          key={callFlow.activeCall.startedAt}
+          contact={callFlow.activeCall.contact}
+          onSubmit={callFlow.saveOutcome}
+          onClose={callFlow.skip}
+          onSaved={(outcomeMeta, logId) => {
             if (outcomeMeta?.requiresLead) {
-              setLeadPrompt({ contact: outcomeState.contact, logId: outcomeState.logId, outcome: outcomeMeta.value })
+              setLeadPrompt({ contact: callFlow.activeCall.contact, logId, outcome: outcomeMeta.value })
             }
-            setOutcomeState(null)
+            callFlow.finish()
           }}
         />
       )}

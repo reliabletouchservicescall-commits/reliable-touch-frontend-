@@ -105,7 +105,7 @@ function FileContactsPanel({ file, onClose }) {
                     <td className="px-3.5 py-2.5 text-xs font-mono text-[#111111] dark:text-white whitespace-nowrap">{c.phone ?? '—'}</td>
                     <td className="px-3.5 py-2.5 text-xs whitespace-nowrap">
                       {c.assignedTo
-                        ? <span className="flex items-center gap-1.5 text-[#111111] dark:text-white"><UserCheck className="w-3.5 h-3.5 text-[#3B82F6]" />{c.assignedTo.firstName} {c.assignedTo.lastName}</span>
+                        ? <span className="flex items-center gap-1.5 text-[#111111] dark:text-white"><UserCheck className="w-3.5 h-3.5 text-[#F95C4B]" />{c.assignedTo.firstName} {c.assignedTo.lastName}</span>
                         : <span className="italic text-[#F59E0B]">Unassigned</span>}
                     </td>
                     <td className="px-3.5 py-2.5"><ContactStatusPill status={c.status} /></td>
@@ -364,7 +364,7 @@ export default function ExcelFilesPage() {
       <div className="px-5 sm:px-8 py-4 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
         <div className="grid grid-cols-3 gap-3">
           <StatCard icon={Layers} label="Spreadsheets" value={files.length} color="#F95C4B" />
-          <StatCard icon={Users} label="Contacts" value={totalContacts.toLocaleString()} color="#3B82F6" />
+          <StatCard icon={Users} label="Contacts" value={totalContacts.toLocaleString()} color="#F95C4B" />
           <StatCard icon={UserCheck} label="Unassigned" value={totalUnassigned.toLocaleString()} color={totalUnassigned > 0 ? '#F59E0B' : '#10B981'} />
         </div>
       </div>

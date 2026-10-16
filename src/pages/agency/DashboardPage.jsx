@@ -177,7 +177,7 @@ function AgentDashboard() {
           My Pipeline
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={TrendingUp}    label="Total Leads"         value={agentDash?.totalLeads}         sub="Assigned to me"     color="#3B82F6" loading={!agentDash} />
+          <StatCard icon={TrendingUp}    label="Total Leads"         value={agentDash?.totalLeads}         sub="Assigned to me"     color="#FF8C7A" loading={!agentDash} />
           <StatCard icon={ClipboardList} label="Active Leads"        value={agentDash?.activeLeads}        sub="Warm & hot"          color="#F95C4B" loading={!agentDash} />
           <StatCard icon={Home}          label="Total Visits"        value={agentDash?.totalVisits}        sub="All property visits"  color="#10B981" loading={!agentDash} />
           <StatCard icon={DollarSign}    label="Pending Commissions" value={agentDash?.pendingCommissions} sub="Awaiting payment"     color="#F59E0B" loading={!agentDash} />
@@ -226,9 +226,9 @@ function AgentDashboard() {
 
             {/* Stats pills */}
             <div className="flex flex-wrap gap-2 flex-1">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3B82F6]/10">
-                <Home className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.75} />
-                <span className="text-xs font-bold text-[#3B82F6]">{myPerfStats.totalVisits ?? 0}</span>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F95C4B]/10">
+                <Home className="w-3.5 h-3.5 text-[#F95C4B]" strokeWidth={1.75} />
+                <span className="text-xs font-bold text-[#F95C4B]">{myPerfStats.totalVisits ?? 0}</span>
                 <span className="text-[10px] text-[#6B7280]">visits</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#10B981]/10">
@@ -364,7 +364,7 @@ function AgentDashboard() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <QuickAction icon={CalendarCheck} label="All Appointments"  description="View your full appointment schedule" to="/agency/appointments"  color="#F95C4B" />
-          <QuickAction icon={TrendingUp}    label="My Leads"          description="Leads assigned to you"               to="/agency/leads"         color="#3B82F6" />
+          <QuickAction icon={TrendingUp}    label="My Leads"          description="Leads assigned to you"               to="/agency/leads"         color="#F95C4B" />
           <QuickAction icon={Trophy}        label="Leaderboard"       description="See your rank among agents"          to="/agency/leaderboard"   color="#F59E0B" />
           <QuickAction icon={Bell}          label="Notifications"     description="Team updates and alerts"              to="/agency/notifications" color="#8B5CF6" />
         </div>

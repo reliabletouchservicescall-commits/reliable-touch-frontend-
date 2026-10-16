@@ -420,7 +420,7 @@ export function AgentOrAgencyPicker({ assignedAgent, agencyId, onChange, classNa
 // elsewhere on these pages, so a new filter type doesn't introduce a new interaction
 // pattern. `from`/`to` are 'yyyy-MM-dd' strings or ''; onChange fires once, on Apply/Clear
 // (not per-keystroke), matching how every other filter here commits.
-export function CreatedDateRangeFilter({ from, to, onChange }) {
+export function CreatedDateRangeFilter({ from, to, onChange, accent = '#3B82F6' }) {
   const [open, setOpen] = useState(false)
   const [draftFrom, setDraftFrom] = useState(from)
   const [draftTo, setDraftTo] = useState(to)
@@ -457,9 +457,10 @@ export function CreatedDateRangeFilter({ from, to, onChange }) {
         className={[
           'flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap border transition-all',
           active
-            ? 'bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/30'
-            : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#3B82F6]/40 hover:text-[#3B82F6]',
+            ? ''
+            : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:opacity-90',
         ].join(' ')}
+        style={active ? { color: accent, backgroundColor: `${accent}1A`, borderColor: `${accent}4D` } : undefined}
       >
         <CalendarDays className="w-3.5 h-3.5 flex-shrink-0" />
         {label}
@@ -479,7 +480,7 @@ export function CreatedDateRangeFilter({ from, to, onChange }) {
             <button type="button" onClick={clear} className="flex-1 py-2 rounded-lg text-xs font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
               Clear
             </button>
-            <button type="button" onClick={apply} className="flex-1 py-2 rounded-lg text-xs font-semibold text-white bg-[#3B82F6] hover:bg-[#2563EB]">
+            <button type="button" onClick={apply} className="flex-1 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90" style={{ backgroundColor: accent }}>
               Apply
             </button>
           </div>
@@ -706,8 +707,12 @@ export function SearchableAreaSelect({ areas, value, onChange, placeholder = 'Se
  * type (debounced) and resolves the current `value`'s label with its own lookup, so it
  * still displays the right name even when that contact isn't in the latest search
  * results (e.g. right after opening an existing lead to edit it).
+ *
+ * `onAddNew(searchText)` (optional) adds an "Add new contact" action to the dropdown, for
+ * flows where the person isn't in the system yet — the typed search is handed over so it
+ * can prefill the new contact's name or phone.
  */
-export function SearchableContactSelect({ value, onChange, placeholder = 'Select contact…' }) {
+export function SearchableContactSelect({ value, onChange, placeholder = 'Select contact…', onAddNew }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const debounced = useDebounce(search)
@@ -778,6 +783,7 @@ export function SearchableContactSelect({ value, onChange, placeholder = 'Select
             ) : list.length === 0 ? (
               <p className="px-4 py-4 text-xs text-[#6B7280] dark:text-[#A1A1AA] text-center">
                 {search ? `No contacts match "${search}"` : 'No contacts found'}
+                {onAddNew && <span className="block mt-0.5 text-[#9CA3AF]">Not in your contacts yet? Add them below.</span>}
               </p>
             ) : (
               list.map((c) => (
@@ -797,6 +803,16 @@ export function SearchableContactSelect({ value, onChange, placeholder = 'Select
               ))
             )}
           </div>
+          {onAddNew && (
+            <button
+              type="button"
+              onClick={() => { const typed = search.trim(); setOpen(false); setSearch(''); onAddNew(typed) }}
+              className="w-full flex items-center gap-2 px-4 py-3 text-xs font-semibold text-[#F95C4B] border-t border-[#E5E7EB] dark:border-[#2A2A2A] hover:bg-[#F95C4B]/5 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {search.trim() ? `Add "${search.trim()}" as a new contact` : 'Add new contact'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1118,7 +1134,7 @@ export function LeadStatusBadge({ status, size }) {
 // should make the distinction visible at a glance.
 export const LEAD_SOURCE_META = {
   agency_self_sourced: { label: 'Self-Sourced', icon: Building2, color: '#8B5CF6', bg: '#8B5CF618' },
-  reliable_touch:       { label: 'From Reliable Touch', icon: UserCheck, color: '#3B82F6', bg: '#3B82F618' },
+  reliable_touch:       { label: 'From Reliable Touch', icon: UserCheck, color: '#F95C4B', bg: '#F95C4B18' },
 }
 
 export function LeadSourceBadge({ source, size }) {

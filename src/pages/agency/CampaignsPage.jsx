@@ -49,7 +49,7 @@ function getTimeline(campaign) {
   const end = endDate ? new Date(endDate) : null
 
   if (start && isFuture(start)) {
-    return { label: `Starts in ${differenceInDays(start, now)}d`, color: '#3B82F6', bg: '#3B82F618', Icon: Clock, progress: null }
+    return { label: `Starts in ${differenceInDays(start, now)}d`, color: '#F95C4B', bg: '#F95C4B18', Icon: Clock, progress: null }
   }
   if (start && end) {
     if (isPast(end)) return { label: 'Ended', color: '#9CA3AF', bg: '#9CA3AF18', Icon: CheckCircle2, progress: 100 }
@@ -77,7 +77,7 @@ function ScopeBadge({ campaign, user }) {
       <Building2 className="w-2.5 h-2.5" strokeWidth={2.5} /> Your Company
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3B82F6]/10 text-[#3B82F6]">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#6B7280]/10 text-[#6B7280] dark:text-[#A1A1AA]">
       <Globe2 className="w-2.5 h-2.5" strokeWidth={2.5} /> System-wide
     </span>
   )
@@ -272,7 +272,7 @@ function EditDrawer({ campaign, onClose, onSaved }) {
   }
 
   return (
-    <DrawerShell title="Edit Campaign" subtitle={campaign.name} icon={<Pencil className="w-5 h-5 text-[#3B82F6]" strokeWidth={1.75} />} iconBg="bg-[#3B82F6]/10" formId="edit-campaign" submitLabel="Save Changes" isPending={mut.isPending} onClose={onClose}>
+    <DrawerShell title="Edit Campaign" subtitle={campaign.name} icon={<Pencil className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />} iconBg="bg-[#F95C4B]/10" formId="edit-campaign" submitLabel="Save Changes" isPending={mut.isPending} onClose={onClose}>
       <CampaignForm id="edit-campaign" initial={initial} onSubmit={(p) => mut.mutate(p)} />
     </DrawerShell>
   )
@@ -299,7 +299,7 @@ function ViewPanel({ campaign, user, onClose, onEdit }) {
           </div>
           <div className="flex items-center gap-2">
             {manageable && (
-              <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#3B82F6] bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 transition-all">
+              <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#F95C4B] bg-[#F95C4B]/10 hover:bg-[#F95C4B]/20 transition-all">
                 <Pencil className="w-3 h-3" /> Edit
               </button>
             )}
@@ -434,7 +434,7 @@ function CampaignCard({ campaign, user, onView, onEdit, onDelete, onToggle, isTo
             </button>
             {manageable && (
               <>
-                <button title="Edit" onClick={onEdit} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#3B82F6]/10 hover:text-[#3B82F6] transition-all">
+                <button title="Edit" onClick={onEdit} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F95C4B]/10 hover:text-[#F95C4B] transition-all">
                   <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
                 </button>
                 <button title="Delete" onClick={onDelete} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-all">
@@ -613,7 +613,7 @@ export default function CampaignsPage() {
         <StatCard label="Total" value={total} icon={Megaphone} color="#F95C4B" isLoading={isLoading} />
         <StatCard label="Active" value={activeCount} icon={CheckCircle2} color="#10B981" isLoading={isLoading} />
         <StatCard label="Inactive" value={inactiveCount} icon={XCircle} color="#6B7280" isLoading={isLoading} />
-        <StatCard label="Your Company's" value={ownCount} icon={Building2} color="#3B82F6" isLoading={isLoading} />
+        <StatCard label="Your Company's" value={ownCount} icon={Building2} color="#FF8C7A" isLoading={isLoading} />
       </div>
 
       <div className="flex gap-1">

@@ -140,8 +140,8 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
       <div className="px-5 py-5 space-y-5">
         {/* Source context */}
         <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
-            <User className="w-4 h-4 text-[#3B82F6]" strokeWidth={1.75} />
+          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#F95C4B]/10 flex items-center justify-center">
+            <User className="w-4 h-4 text-[#F95C4B]" strokeWidth={1.75} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-[#111111] dark:text-white truncate">{contact.name}</p>

@@ -271,7 +271,7 @@ export default function AgentDetailPage() {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
           <StatCard icon={Star} label="Score (This Month)" value={scoreStats?.score ?? 0} color="#F95C4B" delay={0} />
           <StatCard icon={Trophy} label="Company Rank" value={scoreStats?.rank ? `#${scoreStats.rank}` : '—'} sub={scoreStats?.total ? `of ${scoreStats.total} agents` : undefined} color="#F59E0B" delay={40} />
-          <StatCard icon={Phone} label="Calls (This Month)" value={scoreStats?.totalCalls ?? 0} color="#3B82F6" delay={80} />
+          <StatCard icon={Phone} label="Calls (This Month)" value={scoreStats?.totalCalls ?? 0} color="#FF8C7A" delay={80} />
           <StatCard icon={TrendingUp} label="Leads Closed" value={scoreStats?.leadsClosed ?? 0} color="#8B5CF6" delay={120} />
           <StatCard icon={CalendarCheck} label="Appointments Attended" value={scoreStats?.appointmentsAttended ?? 0} color="#10B981" delay={160} />
         </div>
@@ -330,7 +330,7 @@ export default function AgentDetailPage() {
                 <Tooltip content={<TrendTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="leads" name="Leads" fill={BRAND} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={900} />
-                <Bar dataKey="appointments" name="Appointments" fill="#3B82F6" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={900} />
+                <Bar dataKey="appointments" name="Appointments" fill="#F59E0B" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={900} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -345,7 +345,7 @@ export default function AgentDetailPage() {
         <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">Assigned Work</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard icon={FileText} label="Leads Assigned" value={leads.total} color={BRAND} delay={0} />
-          <StatCard icon={CalendarCheck} label="Appointments" value={appointments.total} color="#3B82F6" delay={40} />
+          <StatCard icon={CalendarCheck} label="Appointments" value={appointments.total} color="#FF8C7A" delay={40} />
           <StatCard icon={CheckCircle2} label="Completed" value={appointments.byStatus.completed ?? 0} color="#10B981" delay={80} />
           <StatCard icon={Home} label="Hot / Listed" value={(leads.byStatus.hot ?? 0) + (leads.byStatus.listed ?? 0)} color="#EF4444" delay={120} />
         </div>

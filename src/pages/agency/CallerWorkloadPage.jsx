@@ -156,16 +156,16 @@ export default function CallerWorkloadPage() {
         {!isLoading && !isError && unassigned > 0 && (
           <button
             onClick={() => navigate('/agency/contacts?status=unassigned')}
-            className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#3B82F6]/8 border border-[#3B82F6]/20 mb-6 text-left hover:bg-[#3B82F6]/12 transition-colors"
+            className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#F95C4B]/8 border border-[#F95C4B]/20 mb-6 text-left hover:bg-[#F95C4B]/12 transition-colors"
           >
-            <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/15 flex items-center justify-center flex-shrink-0">
-              <Inbox className="w-5 h-5 text-[#3B82F6]" strokeWidth={1.75} />
+            <div className="w-10 h-10 rounded-xl bg-[#F95C4B]/15 flex items-center justify-center flex-shrink-0">
+              <Inbox className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-[#111111] dark:text-white">{unassigned} contact{unassigned !== 1 ? 's' : ''} waiting in your pool</p>
               <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Not yet assigned to any agent — hand these out to balance the team's workload.</p>
             </div>
-            <ArrowRight className="w-4 h-4 text-[#3B82F6] flex-shrink-0" />
+            <ArrowRight className="w-4 h-4 text-[#F95C4B] flex-shrink-0" />
           </button>
         )}
 

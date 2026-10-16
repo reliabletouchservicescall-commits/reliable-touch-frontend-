@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useCallFlow, telHref } from '../../lib/useCallFlow'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -9,7 +10,6 @@ import {
   BarChart3, BookUser, UserCheck, RefreshCw, Sparkles,
 } from 'lucide-react'
 import { contactsApi } from '../../services/contactsApi'
-import { callLogsApi } from '../../services/callLogsApi'
 import { agenciesApi } from '../../services/agenciesApi'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
@@ -38,7 +38,6 @@ const OUTCOMES = [
   { value: 'remove_me',          label: 'Remove Me (DNC)',    icon: PhoneOff,     color: '#EF4444' },
 ]
 
-function cleanPhone(phone) { return phone?.replace(/\s+/g, '') ?? '' }
 
 /* ─── Import Excel — the same modal and formats as admin (shared component), in
    agency mode: Area is optional, a manager's upload lands in the company pool and an
@@ -67,21 +66,19 @@ export function ImportModal({ onClose, onDone, isManager }) {
 }
 
 /* ─── Outcome sheet — logs the real outcome for a just-initiated call ────── */
-function OutcomeSheet({ contact, logId, onClose, onSaved }) {
+// `onSubmit` comes from useCallFlow — see the cold caller's OutcomeSheet for why.
+function OutcomeSheet({ contact, onSubmit, onClose, onSaved }) {
   const [selected, setSelected] = useState(null)
   const [notes, setNotes] = useState('')
-  const qc = useQueryClient()
   const selectedMeta = OUTCOMES.find((o) => o.value === selected)
 
   const mut = useMutation({
-    mutationFn: () => callLogsApi.update(logId, { outcome: selected, notes: notes || undefined }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['agent-contacts'] })
-      qc.invalidateQueries({ queryKey: ['agent-contacts-today-count'] })
+    mutationFn: () => onSubmit({ outcome: selected, notes }),
+    onSuccess: (logId) => {
       toast.success('Call outcome saved')
-      onSaved(selectedMeta)
+      onSaved(selectedMeta, logId)
     },
-    onError: () => toast.error('Failed to save outcome'),
+    onError: () => toast.error('Could not save the outcome — check your connection and tap Save again'),
   })
 
   return (
@@ -364,12 +361,11 @@ function CallingPerformancePanel() {
 
 /* ─── Agent: call queue ──────────────────────────────────────────────────── */
 function AgentQueuePanel() {
-  const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState('todo')
   const [page, setPage] = useState(1)
-  const [outcomeState, setOutcomeState] = useState(null)
   const [leadPrompt, setLeadPrompt] = useState(null)
+  const callFlow = useCallFlow([['agent-contacts'], ['agent-contacts-today-count']])
   const [showImport, setShowImport] = useState(false)
 
   const { data, isLoading, isFetching, refetch } = useQuery({
@@ -386,20 +382,6 @@ function AgentQueuePanel() {
   const total = data?.total ?? 0
   const totalPages = data?.totalPages ?? 1
 
-  const callMut = useMutation({
-    mutationFn: (contact) => callLogsApi.create({ contactId: contact._id, outcome: 'no_answer', calledAt: new Date().toISOString() }),
-    onSuccess: (res, contact) => {
-      qc.invalidateQueries({ queryKey: ['agent-contacts'] })
-      qc.invalidateQueries({ queryKey: ['agent-contacts-today-count'] })
-      setOutcomeState({ contact, logId: res.data?.data?.callLog?._id })
-    },
-    onError: () => toast.error('Could not log call — check your connection'),
-  })
-
-  function handleCall(contact) {
-    window.location.href = `tel:${cleanPhone(contact.phone)}`
-    callMut.mutate(contact)
-  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -494,7 +476,7 @@ function AgentQueuePanel() {
                         <OutcomeIcon className="w-3.5 h-3.5" /> {outcomeMeta.label}
                       </span>
                     ) : (
-                      <a href={`tel:${cleanPhone(c.phone)}`} onClick={(e) => { e.preventDefault(); handleCall(c) }}
+                      <a href={telHref(c.phone)} onClick={() => callFlow.startCall(c)}
                         className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-[#10B981] hover:bg-[#059669] active:scale-[0.98] transition-all shadow-sm">
                         <Phone className="w-4 h-4" strokeWidth={2} /> Call Now
                       </a>
@@ -514,16 +496,17 @@ function AgentQueuePanel() {
         )}
       </div>
 
-      {outcomeState && (
+      {callFlow.activeCall && (
         <OutcomeSheet
-          contact={outcomeState.contact}
-          logId={outcomeState.logId}
-          onClose={() => setOutcomeState(null)}
-          onSaved={(outcomeMeta) => {
+          key={callFlow.activeCall.startedAt}
+          contact={callFlow.activeCall.contact}
+          onSubmit={callFlow.saveOutcome}
+          onClose={callFlow.skip}
+          onSaved={(outcomeMeta, logId) => {
             if (outcomeMeta?.requiresLead) {
-              setLeadPrompt({ contact: outcomeState.contact, logId: outcomeState.logId, outcome: outcomeMeta.value })
+              setLeadPrompt({ contact: callFlow.activeCall.contact, logId, outcome: outcomeMeta.value })
             }
-            setOutcomeState(null)
+            callFlow.finish()
           }}
         />
       )}

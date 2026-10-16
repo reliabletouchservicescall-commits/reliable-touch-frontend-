@@ -10,4 +10,5 @@ export const agenciesApi = {
   myTeam:    ()           => axiosClient.get('/agencies/mine/team'),
   addTeamMember:       (id, data)          => axiosClient.post(`/agencies/${id}/team`, data),
   setTeamMemberActive: (id, userId, isActive) => axiosClient.patch(`/agencies/${id}/team/${userId}`, { isActive }),
+  resetTeamMemberPassword: (id, userId, password) => axiosClient.patch(`/agencies/${id}/team/${userId}/password`, { password }),
 }

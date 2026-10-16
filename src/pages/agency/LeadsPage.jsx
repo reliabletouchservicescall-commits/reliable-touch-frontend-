@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { format } from 'date-fns'
 import {
   TrendingUp, Search, X, ChevronLeft, ChevronRight, Loader2,
-  MapPin, Phone, User, Clock, Home, AlertCircle, Plus,
+  MapPin, Phone, User, Clock, Home, AlertCircle, Plus, UserPlus, ArrowLeft,
 } from 'lucide-react'
 import { agentsApi } from '../../services/agentsApi'
 import { agenciesApi } from '../../services/agenciesApi'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
+import { areasApi } from '../../services/areasApi'
 import {
   ListingBadge, ListingTypeFilter, LastFollowUpCommentCell, FollowUpActivityFilters, CreatedDateRangeFilter,
-  LeadSourceBadge, SearchableContactSelect, Field,
+  LeadSourceBadge, SearchableContactSelect, SearchableAreaSelect, Field, inputCls, getApiErrorMessage,
 } from '../../components/leads/leadShared'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import SidePanel from '../../components/common/SidePanel'
@@ -62,7 +64,7 @@ function LeadCard({ lead, onClick, currentUserId }) {
   return (
     <button
       onClick={onClick}
-      className="group w-full text-left bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#3B82F6]/40 hover:shadow-sm transition-all p-5"
+      className="group w-full text-left bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40 hover:shadow-sm transition-all p-5"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
@@ -123,7 +125,7 @@ function LeadCard({ lead, onClick, currentUserId }) {
       </div>
 
       <div className="flex items-center justify-end mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
-        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#3B82F6] group-hover:gap-1.5 transition-all">
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B] group-hover:gap-1.5 transition-all">
           View details <ChevronRight className="w-3.5 h-3.5" />
         </span>
       </div>
@@ -131,9 +133,116 @@ function LeadCard({ lead, onClick, currentUserId }) {
   )
 }
 
-/* ─── New Lead: pick a contact first, then the full create form ─────────── */
+/* ─── Quick-add contact (person not in the system yet) ──────────────────── */
+// Only what a lead needs: name + phone, plus the property details that the lead form
+// would otherwise ask for straight after. A manager's contact lands in the company pool;
+// an agent's is assigned to them (handled server-side) — either way it's then selectable.
+function QuickAddContactForm({ prefill, onBack, onCreated }) {
+  const qc = useQueryClient()
+  const looksLikePhone = /^[+\d\s()-]{6,}$/.test(prefill ?? '')
+  const [form, setForm] = useState({
+    name: looksLikePhone ? '' : (prefill ?? ''),
+    phone: looksLikePhone ? prefill : '',
+    altPhone: '', sectionalScheme: '', unitNumber: '', address: '', area: '',
+  })
+  const [errors, setErrors] = useState({})
+
+  const { data: areas } = useQuery({
+    queryKey: ['areas-select'],
+    queryFn: () => areasApi.list({ limit: 100, isActive: true }).then((r) => r.data.data.areas),
+    staleTime: 60_000,
+  })
+
+  const mut = useMutation({
+    mutationFn: (payload) => contactsApi.create(payload).then((r) => r.data.data.contact),
+    onSuccess: (contact) => {
+      qc.invalidateQueries({ queryKey: ['contacts-search'] })
+      qc.invalidateQueries({ queryKey: ['agency-contacts'] })
+      qc.invalidateQueries({ queryKey: ['agent-contacts'] })
+      toast.success(`${contact.name} added — now fill in the lead`)
+      onCreated(contact)
+    },
+    onError: (e) => {
+      const msg = getApiErrorMessage(e, 'Could not add contact')
+      if (e.response?.status === 409) setErrors((x) => ({ ...x, phone: msg }))
+      toast.error(msg)
+    },
+  })
+
+  function set(k, v) {
+    setForm((f) => ({ ...f, [k]: v }))
+    if (errors[k]) setErrors((x) => ({ ...x, [k]: null }))
+  }
+
+  function submit(e) {
+    e.preventDefault()
+    const errs = {}
+    if (form.name.trim().length < 2) errs.name = 'Enter the contact\'s full name'
+    if (!form.phone.trim()) errs.phone = 'A phone number is required'
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    const payload = { source: 'manual' }
+    Object.entries(form).forEach(([k, v]) => { if (String(v).trim()) payload[k] = String(v).trim() })
+    mut.mutate(payload)
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <button type="button" onClick={onBack}
+        className="flex items-center gap-1.5 text-xs font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B]">
+        <ArrowLeft className="w-3.5 h-3.5" /> Back to contact search
+      </button>
+
+      <Field label="Full name" required error={errors.name}>
+        <input autoFocus={!looksLikePhone} value={form.name} onChange={(e) => set('name', e.target.value)}
+          placeholder="e.g. Thabo Nkosi" className={inputCls(errors.name)} />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Phone" required error={errors.phone}>
+          <input autoFocus={looksLikePhone} value={form.phone} onChange={(e) => set('phone', e.target.value)}
+            placeholder="082 123 4567" inputMode="tel" className={inputCls(errors.phone)} />
+        </Field>
+        <Field label="Alt phone">
+          <input value={form.altPhone} onChange={(e) => set('altPhone', e.target.value)}
+            placeholder="Optional" inputMode="tel" className={inputCls(false)} />
+        </Field>
+      </div>
+
+      <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-3.5 space-y-3">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1.5">
+          <Home className="w-3.5 h-3.5" /> Property — optional, saves a step on the lead
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Sectional scheme">
+            <input value={form.sectionalScheme} onChange={(e) => set('sectionalScheme', e.target.value)}
+              placeholder="e.g. Phoenix View" className={inputCls(false)} />
+          </Field>
+          <Field label="Unit">
+            <input value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)}
+              placeholder="e.g. 14" className={inputCls(false)} />
+          </Field>
+        </div>
+        <Field label="Address">
+          <input value={form.address} onChange={(e) => set('address', e.target.value)}
+            placeholder="Street address" className={inputCls(false)} />
+        </Field>
+        <Field label="Area">
+          <SearchableAreaSelect areas={areas ?? []} value={form.area} onChange={(v) => set('area', v)} placeholder="Select area…" allowAdd />
+        </Field>
+      </div>
+
+      <button type="submit" disabled={mut.isPending}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-50">
+        {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+        Add contact & continue to lead
+      </button>
+    </form>
+  )
+}
+
+/* ─── New Lead: pick (or add) a contact first, then the full create form ── */
 function NewLeadFlow({ team, isManager, currentUserId, onClose, onCreated }) {
   const [contactId, setContactId] = useState('')
+  const [adding, setAdding] = useState(null) // null = picking; string = quick-add, prefilled with the search text
   const { data: contact, isFetching } = useQuery({
     queryKey: ['new-lead-contact', contactId],
     queryFn: () => contactsApi.getById(contactId).then((r) => r.data.data.contact),
@@ -152,14 +261,39 @@ function NewLeadFlow({ team, isManager, currentUserId, onClose, onCreated }) {
   }
 
   return (
-    <SidePanel onClose={onClose} icon={TrendingUp} iconColor="#3B82F6" title="New Lead" subtitle="Pick which contact this lead is for" widthClass="sm:max-w-sm">
+    <SidePanel
+      onClose={onClose}
+      icon={adding !== null ? UserPlus : TrendingUp}
+      iconColor="#F95C4B"
+      title={adding !== null ? 'New Contact' : 'New Lead'}
+      subtitle={adding !== null ? 'Add the person, then carry on with the lead' : 'Pick which contact this lead is for'}
+      widthClass="sm:max-w-sm"
+    >
       <div className="px-5 py-5">
         {isFetching ? (
-          <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#3B82F6]" /></div>
+          <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#F95C4B]" /></div>
+        ) : adding !== null ? (
+          <QuickAddContactForm
+            prefill={adding}
+            onBack={() => setAdding(null)}
+            onCreated={(c) => { setAdding(null); setContactId(c._id) }}
+          />
         ) : (
-          <Field label="Contact" required hint="Search by name or phone — only your own contacts appear here">
-            <SearchableContactSelect value={contactId} onChange={setContactId} placeholder="Select contact…" />
-          </Field>
+          <div className="space-y-4">
+            <Field label="Contact" required hint="Search by name or phone — only your own contacts appear here">
+              <SearchableContactSelect value={contactId} onChange={setContactId} placeholder="Select contact…" onAddNew={setAdding} />
+            </Field>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-[#E5E7EB] dark:bg-[#2A2A2A]" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF]">or</span>
+              <div className="flex-1 h-px bg-[#E5E7EB] dark:bg-[#2A2A2A]" />
+            </div>
+            <button type="button" onClick={() => setAdding('')}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border-2 border-dashed border-[#F95C4B]/40 text-[#F95C4B] hover:bg-[#F95C4B]/5 hover:border-[#F95C4B]/70 transition-colors">
+              <UserPlus className="w-4 h-4" /> Add a new contact
+            </button>
+            <p className="text-[11px] text-center text-[#9CA3AF]">For someone who isn't in your contacts yet</p>
+          </div>
         )}
       </div>
     </SidePanel>
@@ -277,8 +411,8 @@ export default function AgencyLeadsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-[#3B82F6]" strokeWidth={1.75} />
+          <div className="w-9 h-9 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
           </div>
           <div>
             <h1 className="text-base font-bold text-[#111111] dark:text-white">{isManager ? 'Company leads' : 'My Leads'}</h1>
@@ -290,7 +424,7 @@ export default function AgencyLeadsPage() {
 
         <button
           onClick={() => setShowNewLead(true)}
-          className="sm:ml-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#3B82F6] hover:bg-[#2563EB] shadow-sm transition-all"
+          className="sm:ml-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-sm transition-all"
         >
           <Plus className="w-4 h-4" strokeWidth={2.5} /> New Lead
         </button>
@@ -299,7 +433,7 @@ export default function AgencyLeadsPage() {
           <select
             value={agentFilter}
             onChange={(e) => changeAgentFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none focus:border-[#3B82F6] cursor-pointer"
+            className="w-full sm:w-auto px-3 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none focus:border-[#F95C4B] cursor-pointer"
           >
             <option value="">Whole company</option>
             <option value="unassigned">Not yet with anyone</option>
@@ -315,7 +449,7 @@ export default function AgencyLeadsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search leads…"
-            className="w-full sm:w-64 pl-8 pr-4 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 outline-none focus:border-[#3B82F6] transition-all"
+            className="w-full sm:w-64 pl-8 pr-4 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 outline-none focus:border-[#F95C4B] transition-all"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111]">
@@ -334,8 +468,8 @@ export default function AgencyLeadsPage() {
               onClick={() => handleTabChange(t.key)}
               className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 status === t.key
-                  ? 'bg-[#3B82F6] text-white shadow-sm'
-                  : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#3B82F6]/40 hover:text-[#3B82F6]'
+                  ? 'bg-[#F95C4B] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40 hover:text-[#F95C4B]'
               }`}
             >
               {t.label}
@@ -350,14 +484,14 @@ export default function AgencyLeadsPage() {
           ))}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <ListingTypeFilter value={listingTypeFilter} onChange={handleListingTypeChange} accent="#3B82F6" />
+          <ListingTypeFilter value={listingTypeFilter} onChange={handleListingTypeChange} accent="#F95C4B" />
           <FollowUpActivityFilters
             hasFollowUp={hasFollowUpFilter}
             onHasFollowUpChange={handleHasFollowUpChange}
             hasComment={hasCommentFilter}
             onHasCommentChange={handleHasCommentChange}
           />
-          <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={handleCreatedDateChange} />
+          <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={handleCreatedDateChange} accent="#F95C4B" />
         </div>
       </div>
 
@@ -373,8 +507,8 @@ export default function AgencyLeadsPage() {
             onClick={() => { setSourceFilter(t.key); setPage(1) }}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               sourceFilter === t.key
-                ? 'bg-[#8B5CF6] text-white shadow-sm'
-                : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#8B5CF6]/40 hover:text-[#8B5CF6]'
+                ? 'bg-[#F95C4B]/10 text-[#F95C4B] border border-[#F95C4B]/40 shadow-sm'
+                : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40 hover:text-[#F95C4B]'
             }`}
           >
             {t.label}
@@ -392,12 +526,12 @@ export default function AgencyLeadsPage() {
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 text-[#3B82F6] animate-spin" />
+          <Loader2 className="w-6 h-6 text-[#F95C4B] animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-[#3B82F6]/10 flex items-center justify-center">
-            <TrendingUp className="w-7 h-7 text-[#3B82F6]" strokeWidth={1.5} />
+          <div className="w-14 h-14 rounded-2xl bg-[#F95C4B]/10 flex items-center justify-center">
+            <TrendingUp className="w-7 h-7 text-[#F95C4B]" strokeWidth={1.5} />
           </div>
           <p className="text-sm font-semibold text-[#111111] dark:text-white">
             {search ? 'No matching leads' : 'No leads assigned yet'}

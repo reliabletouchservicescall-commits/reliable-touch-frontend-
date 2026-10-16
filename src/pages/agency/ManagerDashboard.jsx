@@ -23,7 +23,7 @@ function StatTile({ icon: Icon, label, value, sub, color, onClick }) {
     <Wrapper
       onClick={onClick}
       className={`bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4 flex items-start gap-3.5 text-left ${
-        onClick ? 'hover:shadow-md hover:border-[#3B82F6]/30 transition-all cursor-pointer' : ''
+        onClick ? 'hover:shadow-md hover:border-[#F95C4B]/30 transition-all cursor-pointer' : ''
       }`}
     >
       <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${color}15` }}>
@@ -43,7 +43,7 @@ function MemberTile({ member, companyLeads, onViewLeads }) {
   return (
     <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
       <div className="flex items-start gap-3">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0 ${member.isAgencyManager ? 'bg-[#F95C4B]' : 'bg-[#3B82F6]'}`}>
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0 ${member.isAgencyManager ? 'bg-[#F95C4B]' : 'bg-[#111111] dark:bg-[#3F3F46]'}`}>
           {initialsOf(member)}
         </div>
         <div className="min-w-0 flex-1">
@@ -77,7 +77,7 @@ function MemberTile({ member, companyLeads, onViewLeads }) {
           <p className="text-[9px] uppercase tracking-wide font-semibold text-[#6B7280] dark:text-[#A1A1AA]">Hot</p>
         </div>
         <div className="rounded-xl bg-[#FAFAF9] dark:bg-[#111111] py-2">
-          <p className="text-sm font-bold text-[#3B82F6]">{member.upcomingAppointments}</p>
+          <p className="text-sm font-bold text-[#F59E0B]">{member.upcomingAppointments}</p>
           <p className="text-[9px] uppercase tracking-wide font-semibold text-[#6B7280] dark:text-[#A1A1AA]">Visits</p>
         </div>
       </div>
@@ -85,7 +85,7 @@ function MemberTile({ member, companyLeads, onViewLeads }) {
       <button
         onClick={onViewLeads}
         disabled={member.leads === 0}
-        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-[#3B82F6] border border-[#3B82F6]/30 hover:bg-[#3B82F6]/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-[#F95C4B] border border-[#F95C4B]/30 hover:bg-[#F95C4B]/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         View their leads <ArrowRight className="w-3.5 h-3.5" />
       </button>
@@ -151,7 +151,7 @@ export default function ManagerDashboard() {
 
       {/* Company numbers */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatTile icon={TrendingUp} label="Company leads" value={company.totalLeads} sub={`${company.activeLeads} warm or hot`} color="#3B82F6" onClick={() => navigate('/agency/leads')} />
+        <StatTile icon={TrendingUp} label="Company leads" value={company.totalLeads} sub={`${company.activeLeads} warm or hot`} color="#F95C4B" onClick={() => navigate('/agency/leads')} />
         <StatTile icon={UserX} label="Not yet with anyone" value={company.unassignedLeads} sub={company.unassignedLeads ? 'Ready to hand out' : 'Everything is assigned'} color="#F59E0B" onClick={() => navigate('/agency/leads?agent=unassigned')} />
         <StatTile icon={Flame} label="Hot leads" value={company.hotLeads} sub="Most urgent right now" color="#EF4444" onClick={() => navigate('/agency/leads')} />
         <StatTile icon={CalendarCheck} label="Visits today" value={company.todaysAppointments} sub="Across the whole team" color="#8B5CF6" onClick={() => navigate('/agency/appointments')} />
@@ -162,7 +162,7 @@ export default function ManagerDashboard() {
         <div className="xl:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#111111] dark:text-white">Your team</h2>
-            <button onClick={() => navigate('/agency/team')} className="text-xs font-semibold text-[#3B82F6] hover:underline">Manage logins</button>
+            <button onClick={() => navigate('/agency/team')} className="text-xs font-semibold text-[#F95C4B] hover:underline">Manage logins</button>
           </div>
           {team.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[#E5E7EB] dark:border-[#2A2A2A] p-10 text-center">
@@ -188,7 +188,7 @@ export default function ManagerDashboard() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#111111] dark:text-white">Visits today</h2>
-            <button onClick={() => navigate('/agency/appointments')} className="text-xs font-semibold text-[#3B82F6] hover:underline">All visits</button>
+            <button onClick={() => navigate('/agency/appointments')} className="text-xs font-semibold text-[#F95C4B] hover:underline">All visits</button>
           </div>
           <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] divide-y divide-[#F5F5F4] dark:divide-[#202020]">
             {visits.length === 0 ? (

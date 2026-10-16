@@ -50,7 +50,8 @@ export default function AgencyTeamPage() {
           currentUserId={user?._id}
           canManage={isManager}
           canMakeManager={false}
-          canReset={false}
+          canReset={isManager ? (m) => !m.isAgencyManager : false}
+          resetFn={(m, password) => agenciesApi.resetTeamMemberPassword(user?.agencyId, m._id, password)}
           canMessage
           onMessage={(m) => navigate('/agency/chat', { state: { openUserId: m._id } })}
           onViewActivity={isManager ? (m) => navigate(`/agency/agents/${m._id}`, { state: { from: 'team' } }) : undefined}

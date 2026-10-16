@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 import {
   Plus, Loader2, X, Eye, EyeOff, Copy, Check, KeyRound, Power, PowerOff, ShieldCheck,
-  UserCircle2, MessageSquare, Mail, Phone, Users, AlertTriangle, Activity,
+  UserCircle2, MessageSquare, Mail, Phone, Users, AlertTriangle, Activity, Clock,
 } from 'lucide-react'
 import { agenciesApi } from '../../services/agenciesApi'
 import { usersApi } from '../../services/usersApi'
@@ -259,11 +259,13 @@ export function AddPersonModal({ agencyId, agencyName, canMakeManager, onClose }
 
 /* ─── Reset a person's password ────────────────────────────────────────────── */
 
-export function ResetPasswordModal({ person, onClose }) {
+// `resetFn(person, password)` picks the endpoint: admin's /admin/users reset by default,
+// or the company-scoped one when a company manager resets one of their agents.
+export function ResetPasswordModal({ person, onClose, resetFn }) {
   const [password, setPassword] = useState(generatePassword())
   const [done, setDone] = useState(false)
   const mut = useMutation({
-    mutationFn: () => usersApi.resetPassword(person._id, password),
+    mutationFn: () => (resetFn ? resetFn(person, password) : usersApi.resetPassword(person._id, password)),
     onSuccess: () => { setDone(true); toast.success('Password reset') },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Could not reset the password')),
   })
@@ -283,7 +285,7 @@ export function ResetPasswordModal({ person, onClose }) {
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-60">
             Cancel
           </button>
-          <button onClick={() => mut.mutate()} disabled={mut.isPending || password.length < 8}
+          <button onClick={() => mut.mutate()} disabled={mut.isPending || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 flex items-center justify-center gap-2">
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             Set new password
@@ -308,7 +310,9 @@ export function ResetPasswordModal({ person, onClose }) {
               Regenerate
             </button>
           </div>
-          {password.length < 8 && <p className="text-xs text-[#EF4444]">At least 8 characters.</p>}
+          {!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password) && (
+            <p className="text-xs text-[#EF4444]">At least 8 characters, with an uppercase letter, a lowercase letter and a number.</p>
+          )}
         </>
       )}
     </ModalShell>
@@ -323,16 +327,19 @@ function initialsOf(m) {
 
 function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle, onMessage, toggling, onViewActivity }) {
   const active = member.isActive
+  const fullName = `${member.firstName} ${member.lastName}`
+  const hasFooter = canManage || canReset || onViewActivity
   return (
-    <div className={`bg-white dark:bg-[#181818] rounded-2xl border p-5 flex flex-col gap-4 transition-shadow hover:shadow-md ${
-      active ? 'border-[#E5E7EB] dark:border-[#2A2A2A]' : 'border-[#E5E7EB]/70 dark:border-[#2A2A2A]/70 opacity-70'
+    <div className={`bg-white dark:bg-[#181818] rounded-2xl border p-5 flex flex-col gap-4 transition-all hover:shadow-md ${
+      active ? 'border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/30' : 'border-[#E5E7EB]/70 dark:border-[#2A2A2A]/70 opacity-70'
     }`}>
+      {/* Identity + quick chat */}
       <div className="flex items-start gap-3">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0 ${member.isAgencyManager ? 'bg-[#F95C4B]' : 'bg-[#6B7280]'}`}>
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0 ${member.isAgencyManager ? 'bg-[#F95C4B]' : 'bg-[#111111] dark:bg-[#3F3F46]'}`}>
           {initialsOf(member)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{member.firstName} {member.lastName}</p>
+          <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{fullName}</p>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
               member.isAgencyManager ? 'bg-[#F95C4B]/10 text-[#F95C4B]' : 'bg-[#6B7280]/10 text-[#6B7280] dark:text-[#A1A1AA]'
@@ -343,45 +350,56 @@ function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
               active ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#6B7280]/10 text-[#6B7280]'
             }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-[#10B981]' : 'bg-[#9CA3AF]'}`} />
               {active ? 'Active' : 'Deactivated'}
             </span>
           </div>
         </div>
+        {canMessage && (
+          <button
+            onClick={onMessage}
+            disabled={!active}
+            title={active ? `Message ${member.firstName}` : `${member.firstName} is deactivated`}
+            aria-label={`Message ${fullName}`}
+            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-[#F95C4B] bg-[#F95C4B]/10 hover:bg-[#F95C4B] hover:text-white disabled:opacity-40 disabled:hover:bg-[#F95C4B]/10 disabled:hover:text-[#F95C4B] transition-colors"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
+      {/* Contact details */}
       <div className="space-y-1.5 text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-        <p className="flex items-center gap-2 truncate"><Mail className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{member.email}</span></p>
+        <p className="flex items-center gap-2 min-w-0"><Mail className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{member.email}</span></p>
         {member.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 flex-shrink-0" /> {member.phone}</p>}
-        <p className="text-[11px]">
+        <p className="flex items-center gap-2 text-[11px]">
+          <Clock className="w-3.5 h-3.5 flex-shrink-0" />
           {member.lastLoginAt ? `Last signed in ${formatDistanceToNow(new Date(member.lastLoginAt), { addSuffix: true })}` : 'Has not signed in yet'}
         </p>
       </div>
 
-      {(canManage || canReset || canMessage || onViewActivity) && (
-        <div className="flex items-center gap-2 pt-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A]">
+      {/* Actions — one row: primary View activity, then outlined secondary actions */}
+      {hasFooter && (
+        <div className="flex flex-wrap items-center gap-2 pt-3 mt-auto border-t border-[#E5E7EB] dark:border-[#2A2A2A]">
           {onViewActivity && (
             <button onClick={onViewActivity}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-[#10B981] bg-[#10B981]/8 hover:bg-[#10B981]/15 transition-colors">
-              <Activity className="w-3.5 h-3.5" /> View Activity
-            </button>
-          )}
-          {canMessage && (
-            <button onClick={onMessage} disabled={!active}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-[#3B82F6] bg-[#3B82F6]/8 hover:bg-[#3B82F6]/15 disabled:opacity-40 transition-colors">
-              <MessageSquare className="w-3.5 h-3.5" /> Message
+              className="flex-1 min-w-[7.5rem] flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap text-white bg-[#F95C4B] hover:bg-[#E84B3A] transition-colors">
+              <Activity className="w-3.5 h-3.5" /> View activity
             </button>
           )}
           {canReset && (
             <button onClick={onReset}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-[#111111] dark:text-white bg-[#F5F5F4] dark:bg-[#202020] hover:bg-[#E5E7EB] dark:hover:bg-[#2A2A2A] transition-colors">
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors">
               <KeyRound className="w-3.5 h-3.5" /> Reset password
             </button>
           )}
           {canManage && (
             <button onClick={onToggle} disabled={toggling}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60 ${
-                active ? 'text-[#EF4444] bg-[#EF4444]/8 hover:bg-[#EF4444]/15' : 'text-[#10B981] bg-[#10B981]/8 hover:bg-[#10B981]/15'
-              }`}>
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap border transition-colors disabled:opacity-60 ${
+                active
+                  ? 'border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/8'
+                  : 'border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/8'
+              } ${onViewActivity ? '' : 'flex-1'}`}>
               {toggling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : active ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
               {active ? 'Deactivate' : 'Activate'}
             </button>
@@ -397,7 +415,9 @@ function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle
  * company's own manager (on their Team page). What each viewer may do is passed in as flags
  * rather than inferred here, so the two screens can't drift apart.
  */
-export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canMakeManager, canReset, canMessage, onMessage, onViewActivity, showAdd = true, embedded = false }) {
+// `canReset` is either a flag or a per-member check (a company manager may reset agents'
+// passwords but not another manager's); `resetFn` is handed to ResetPasswordModal.
+export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canMakeManager, canReset, resetFn, canMessage, onMessage, onViewActivity, showAdd = true, embedded = false }) {
   const qc = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [resetting, setResetting] = useState(null)
@@ -474,7 +494,7 @@ export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canM
               key={m._id}
               member={m}
               canManage={canManage && m._id !== currentUserId}
-              canReset={canReset && m._id !== currentUserId}
+              canReset={m._id !== currentUserId && (typeof canReset === 'function' ? canReset(m) : Boolean(canReset))}
               canMessage={canMessage}
               onMessage={() => onMessage?.(m)}
               onReset={() => setResetting(m)}
@@ -494,7 +514,7 @@ export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canM
           onClose={() => setAdding(false)}
         />
       )}
-      {resetting && <ResetPasswordModal person={resetting} onClose={() => setResetting(null)} />}
+      {resetting && <ResetPasswordModal person={resetting} resetFn={resetFn} onClose={() => setResetting(null)} />}
     </div>
   )
 }

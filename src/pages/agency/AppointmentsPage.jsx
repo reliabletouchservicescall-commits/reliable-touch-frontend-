@@ -413,7 +413,7 @@ function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, on
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-2">
               Note from Admin
             </p>
-            <div className="bg-[#3B82F6]/8 border border-[#3B82F6]/20 rounded-xl p-4">
+            <div className="bg-[#F95C4B]/8 border border-[#F95C4B]/20 rounded-xl p-4">
               <p className="text-sm text-[#111111] dark:text-white leading-relaxed">{appointment.adminNotes}</p>
             </div>
           </div>
