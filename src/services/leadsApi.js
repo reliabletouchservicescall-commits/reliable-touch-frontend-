@@ -11,5 +11,8 @@ export const leadsApi = {
   getComments: (id) => axiosClient.get(`/leads/${id}/comments`),
   followUpManagers: () => axiosClient.get('/leads/follow-up-managers'),
   getStats: (params) => axiosClient.get('/leads/stats', { params }),
+  // Role-scoped report for the leads screen's insight panels (see LeadsHub.jsx)
+  insights: (params) => axiosClient.get('/leads/insights', { params }),
+  agencyCounts: (params) => axiosClient.get('/leads/agency-counts', { params }),
   getLinkPreview: (url) => axiosClient.get('/leads/link-preview', { params: { url } }),
 }

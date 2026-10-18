@@ -18,20 +18,12 @@ import {
 } from '../../components/leads/leadShared'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 import { useAuthStore } from '../../store/authStore'
+import {
+  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
+  ActiveFilterChips, FetchBar, TableSkeleton, AgencyFilter, AgencyBreakdown, FOCUS_LABELS, LEAD_STATUS_TILES,
+} from '../../components/leads/LeadsHub'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
-
-const STATUS_TABS = [
-  { key: '',                  label: 'All' },
-  { key: 'cold',               label: 'Cold' },
-  { key: 'warm',                label: 'Warm' },
-  { key: 'hot',                 label: 'Hot' },
-  { key: 'still_negotiating',  label: 'Negotiating' },
-  { key: 'listed',              label: 'Listed' },
-  { key: 'rented_out',          label: 'Rented Out' },
-  { key: 'sold',                label: 'Sold' },
-  { key: 'lost',                label: 'Lost' },
-]
 
 const LEAD_STATUS_META = {
   cold:              { label: 'Cold',              color: '#6B7280', bg: '#6B728018' },
@@ -43,6 +35,9 @@ const LEAD_STATUS_META = {
   sold:              { label: 'Sold',                color: '#F95C4B', bg: '#F95C4B18' },
   lost:              { label: 'Lost',                color: '#9CA3AF', bg: '#9CA3AF18' },
 }
+
+// Leads load in batches of 300 ("Load more" fetches the next 300 and appends them).
+const PAGE_SIZE = 300
 
 const SORT_OPTIONS = [
   { value: '-createdAt',   label: 'Newest first' },
@@ -792,6 +787,9 @@ export default function LeadsPage() {
   const [createdFrom,   setCreatedFrom] = useState('')
   const [createdTo,     setCreatedTo]   = useState('')
   const [sort,          setSort]        = useState('-createdAt')
+  const [focus,         setFocus]       = useState('') // one-click Quick insight filter
+  const [place,         setPlace]       = useState(null) // { kind: 'province', value, label } from Top provinces
+  const [agency,        setAgency]      = useState(null) // { value: agencyId | 'none', label }
   const [drawer,        setDrawer]      = useState(null)
   const [toDelete,      setToDelete]    = useState(null)
 
@@ -811,18 +809,27 @@ export default function LeadsPage() {
     lastFollowUpBy: fumFilter    || undefined,
     createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
     createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
+    focus:       focus || undefined,
+    province:    place?.kind === 'province' ? place.value : undefined,
+    agencyId:    agency?.value || undefined,
   }
+  // Agency counts follow every other filter (incl. status) but not the agency itself
+  const { agencyId: _agencyId, ...agencyCountParams } = { ...sharedFilterParams, status: statusFilter || undefined }
 
-  // Loaded 500 leads at a time rather than classic page-number pagination — "Load More"
-  // below the table fetches the next 500 and appends them, so an admin can keep going past
-  // 500/1000/5000+ leads instead of silently being capped at the first page.
+  // The report follows the person filters (a chosen cold caller / follow-up manager)
+  // but not the narrower list filters, so it always answers "where are we overall".
+  const { data: insights } = useLeadInsights({ createdBy: callerFilter || undefined, lastFollowUpBy: fumFilter || undefined })
+
+  // Loaded PAGE_SIZE (300) leads at a time rather than classic page-number pagination —
+  // "Load more" below the table fetches the next batch and appends it, so an admin can keep
+  // going past the first batch instead of silently being capped at it.
   const {
-    data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage,
+    data, isLoading, isError, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ['leads', { ...sharedFilterParams, status: statusFilter, sort }],
     queryFn: ({ pageParam }) =>
       leadsApi
-        .list({ ...sharedFilterParams, status: statusFilter || undefined, sort, limit: 500, page: pageParam })
+        .list({ ...sharedFilterParams, status: statusFilter || undefined, sort, limit: PAGE_SIZE, page: pageParam })
         .then((r) => r.data.data),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => (lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined),
@@ -834,78 +841,52 @@ export default function LeadsPage() {
     queryFn: () => leadsApi.getStats(sharedFilterParams).then((r) => r.data.data),
     placeholderData: keepPreviousData,
   })
-  const statusCounts = statsData?.byStatus ?? {}
 
   const leads = data?.pages?.flatMap((p) => p.leads) ?? []
   const total = data?.pages?.[0]?.total ?? 0
-  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || callerFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
+  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || callerFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo || focus || place || agency)
+  // A filter change keeps the current rows on screen (dimmed, with a loading bar) until the
+  // new ones arrive, instead of blanking the table — "Load more" has its own spinner.
+  const refreshing = isFetching && !isLoading && !isFetchingNextPage
+
+  const chips = [
+    focus && { key: 'focus', label: 'Insight', value: FOCUS_LABELS[focus], onClear: () => setFocus('') },
+    statusFilter && { key: 'status', label: 'Status', value: LEAD_STATUS_TILES.find((t) => t.key === statusFilter)?.label ?? statusFilter, onClear: () => setStatus('') },
+    place && { key: 'place', label: 'Province', value: place.label, onClear: () => setPlace(null) },
+    agency && { key: 'agency', label: 'Agency', value: agency.label, onClear: () => setAgency(null) },
+    listingTypeFilter && { key: 'intent', label: 'Intent', value: listingTypeFilter === 'sale' ? 'For sale' : 'For rental', onClear: () => setListingTypeFilter('') },
+  ].filter(Boolean)
+  function clearAllFilters() {
+    setFocus(''); setStatus(''); setPlace(null); setAgency(null); setListingTypeFilter('')
+    setCallerFilter(''); setFumFilter(''); setFollowedUpFilter(''); setHasFollowUpFilter(false); setHasCommentFilter(false)
+    setCreatedFrom(''); setCreatedTo(''); setSearch('')
+  }
 
   function handleFollowUpSaved() {
     qc.invalidateQueries({ queryKey: ['leads'] })
     qc.invalidateQueries({ queryKey: ['leads-stats'] })
+    qc.invalidateQueries({ queryKey: ['lead-insights'] })
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="h-full overflow-y-auto bg-[#FAFAF9] dark:bg-[#0B0B0B]">
+      <div className="p-4 sm:p-6 xl:p-8 space-y-5">
+        <LeadsHeader
+          icon={FileText}
+          title="Leads"
+          subtitle={isLoading ? 'Loading…' : `${(statsData?.total ?? total).toLocaleString()} lead${(statsData?.total ?? total) !== 1 ? 's' : ''}${hasFilters ? ' match your filters' : ' in the system'}`}
+          insights={insights}
+          action={<PrimaryButton icon={Plus} onClick={() => setDrawer({ mode: 'create' })}>Add Lead</PrimaryButton>}
+        />
 
-      {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 pt-6 pb-0 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
-          <div>
-            <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight flex items-center gap-2.5">
-              <FileText className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
-              Leads
-            </h1>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
-              {isLoading ? 'Loading...' : `${total} lead${total !== 1 ? 's' : ''} total`}
-            </p>
-          </div>
-          <button
-            onClick={() => setDrawer({ mode: 'create' })}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            Add Lead
-          </button>
-        </div>
+        <CountTiles items={statusTileItems(statsData)} value={statusFilter} onChange={setStatus} />
 
-        {/* Status tabs */}
-        <div className="flex gap-0.5 overflow-x-auto">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatus(tab.key)}
-              className={[
-                'flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap',
-                'border-b-2 transition-all rounded-t-lg',
-                statusFilter === tab.key
-                  ? 'border-[#F95C4B] text-[#F95C4B] bg-[#F95C4B]/5 dark:bg-[#F95C4B]/8'
-                  : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
-              ].join(' ')}
-            >
-              {tab.key && (
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: LEAD_STATUS_META[tab.key]?.color }}
-                />
-              )}
-              {tab.label}
-              <span
-                className={[
-                  'text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center',
-                  statusFilter === tab.key ? 'bg-[#F95C4B]/15 text-[#F95C4B]' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#6B7280] dark:text-[#A1A1AA]',
-                ].join(' ')}
-              >
-                {tab.key ? (statusCounts[tab.key] ?? 0) : statsData?.total ?? 0}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+          <div className="space-y-4 min-w-0">
+            <ActiveFilterChips chips={chips} count={chips.length ? total : null} onClearAll={clearAllFilters} />
 
-      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 py-3.5 flex flex-col gap-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="relative w-full sm:max-w-sm">
+            <Panel className="p-4 flex flex-col gap-3" delay={140}>
+              <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
           <input
             value={search}
@@ -924,6 +905,8 @@ export default function LeadsPage() {
           <UserFilterDropdown role="cold_caller" label="Cold Caller" filterKey="createdBy" value={callerFilter} onChange={setCallerFilter} />
 
           <UserFilterDropdown role="follow_up_manager" label="Follow Up Manager" filterKey="lastFollowUpBy" value={fumFilter} onChange={setFumFilter} />
+
+          <AgencyFilter params={agencyCountParams} agency={agency} onAgency={setAgency} />
 
           <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
 
@@ -971,11 +954,11 @@ export default function LeadsPage() {
             </select>
           </div>
         </div>
-      </div>
+            </Panel>
 
-      {/* ── Table area ──────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto px-5 sm:px-8 py-5">
-        {isError && (
+            <div className="space-y-2">
+              <FetchBar active={refreshing} />
+              {isError && (
           <div className="flex items-center gap-2.5 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444] mb-4">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             Failed to load leads. Please try refreshing the page.
@@ -983,13 +966,11 @@ export default function LeadsPage() {
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-28">
-            <Loader2 className="w-6 h-6 animate-spin text-[#F95C4B]" />
-          </div>
+          <TableSkeleton rows={8} />
         ) : !Array.isArray(leads) || leads.length === 0 ? (
           <EmptyState hasFilters={hasFilters} onAdd={() => setDrawer({ mode: 'create' })} />
         ) : (
-          <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
+          <div className={`bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1250px]">
                 <thead className="bg-[#FAFAF9] dark:bg-[#111111] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
@@ -1035,11 +1016,18 @@ export default function LeadsPage() {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-60 transition-colors"
               >
                 {isFetchingNextPage && <Loader2 className="w-4 h-4 animate-spin" />}
-                Load 500 More
+                Load {Math.min(PAGE_SIZE, total - leads.length)} more
               </button>
             )}
           </div>
         )}
+            </div>
+          </div>
+
+          <LeadsRail role="admin" insights={insights} focus={focus} onFocus={setFocus} places="provinces" place={place} onPlace={setPlace}>
+            <AgencyBreakdown params={agencyCountParams} agency={agency} onAgency={setAgency} />
+          </LeadsRail>
+        </div>
       </div>
 
       {/* ── Drawers / panels ─────────────────────────────────────────────── */}

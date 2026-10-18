@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -7,7 +7,6 @@ import {
   TrendingUp, Search, X, ChevronLeft, ChevronRight, Loader2,
   MapPin, Phone, User, Clock, Home, AlertCircle, Plus, UserPlus, ArrowLeft,
 } from 'lucide-react'
-import { agentsApi } from '../../services/agentsApi'
 import { agenciesApi } from '../../services/agenciesApi'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
@@ -19,6 +18,10 @@ import {
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import SidePanel from '../../components/common/SidePanel'
 import { useAuthStore } from '../../store/authStore'
+import {
+  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
+  ActiveFilterChips, FetchBar, CardGridSkeleton, FOCUS_LABELS, LEAD_STATUS_TILES,
+} from '../../components/leads/LeadsHub'
 
 const STATUS_META = {
   cold:              { label: 'Cold',              color: '#6B7280', bg: '#6B728018' },
@@ -30,18 +33,6 @@ const STATUS_META = {
   sold:              { label: 'Sold',                color: '#F95C4B', bg: '#F95C4B18' },
   lost:              { label: 'Lost',                color: '#9CA3AF', bg: '#9CA3AF18' },
 }
-
-const STATUS_TABS = [
-  { key: '', label: 'All' },
-  { key: 'cold', label: 'Cold' },
-  { key: 'warm', label: 'Warm' },
-  { key: 'hot', label: 'Hot' },
-  { key: 'still_negotiating', label: 'Negotiating' },
-  { key: 'listed', label: 'Listed' },
-  { key: 'rented_out', label: 'Rented Out' },
-  { key: 'sold', label: 'Sold' },
-  { key: 'lost', label: 'Lost' },
-]
 
 function StatusBadge({ status }) {
   const meta = STATUS_META[status] ?? { label: status, color: '#6B7280', bg: '#6B728018' }
@@ -300,8 +291,18 @@ function NewLeadFlow({ team, isManager, currentUserId, onClose, onCreated }) {
   )
 }
 
+function useDebounce(value, delay = 350) {
+  const [v, setV] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return v
+}
+
 export default function AgencyLeadsPage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { user } = useAuthStore()
   const [status, setStatus] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
@@ -311,11 +312,14 @@ export default function AgencyLeadsPage() {
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo,   setCreatedTo]   = useState('')
   const [search, setSearch] = useState('')
+  const [focus, setFocus] = useState('') // one-click Quick insight filter
+  const [place, setPlace] = useState(null) // { kind: 'area', value: areaId, label } from Top areas
   const [page, setPage] = useState(1)
   const [showNewLead, setShowNewLead] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const isManager = Boolean(user?.isAgencyManager)
   const agentFilter = isManager ? (searchParams.get('agent') ?? '') : ''
+  const debouncedSearch = useDebounce(search.trim())
 
   const { data: teamData } = useQuery({
     queryKey: ['agency-team', user?.agencyId],
@@ -335,8 +339,11 @@ export default function AgencyLeadsPage() {
     setSearchParams(value ? { agent: value } : {}, { replace: true })
   }
 
+  // GET /leads is scoped server-side exactly like the old /agents/me/leads (company for a
+  // manager, own leads for an agent) and also honours search, the date range and focus —
+  // search now covers every lead, not just the 20 on screen.
   const params = {
-    page, limit: 20,
+    page, limit: 24,
     ...scopeParams,
     ...(status ? { status } : {}),
     ...(sourceFilter ? { source: sourceFilter } : {}),
@@ -345,14 +352,16 @@ export default function AgencyLeadsPage() {
     ...(hasCommentFilter ? { hasComment: 'true' } : {}),
     ...(createdFrom ? { createdAfter: new Date(createdFrom).toISOString() } : {}),
     ...(createdTo ? { createdBefore: new Date(createdTo).toISOString() } : {}),
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+    ...(focus ? { focus } : {}),
+    ...(place ? { area: place.value } : {}),
   }
-  // Same as params but without status — feeds the per-status tab counts, which need
-  // every OTHER active filter applied but obviously can't themselves be status-filtered.
-  const { status: _status, ...statsParams } = params
+  // Same as params but without status/page — feeds the per-status tile counts.
+  const { status: _status, page: _page, limit: _limit, ...statsParams } = params
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ['agent-leads', params],
-    queryFn: () => agentsApi.myLeads(params).then((r) => r.data.data),
+    queryFn: () => leadsApi.list(params).then((r) => r.data.data),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   })
@@ -363,77 +372,44 @@ export default function AgencyLeadsPage() {
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   })
-  const statusCounts = statsData?.byStatus ?? {}
+
+  // Report for the right rail: the whole company (or the one agent a manager picked).
+  const { data: insights } = useLeadInsights(agentFilter && agentFilter !== 'unassigned' ? { assignedAgent: agentFilter } : {})
 
   const leads = data?.leads ?? []
   const total = data?.total ?? 0
   const totalPages = data?.totalPages ?? 1
+  const hasFilters = Boolean(status || sourceFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo || debouncedSearch || focus || place)
+  const refreshing = isFetching && !isLoading
 
-  const filtered = search.trim()
-    ? leads.filter((l) => {
-        const q = search.toLowerCase()
-        return (
-          (l.landlordName ?? '').toLowerCase().includes(q) ||
-          (l.propertyAddress ?? '').toLowerCase().includes(q) ||
-          (l.phone ?? '').toLowerCase().includes(q)
-        )
-      })
-    : leads
-
-  function handleTabChange(key) {
-    setStatus(key)
-    setPage(1)
-  }
-
-  function handleListingTypeChange(key) {
-    setListingTypeFilter(key)
-    setPage(1)
-  }
-
-  function handleHasFollowUpChange(value) {
-    setHasFollowUpFilter(value)
-    setPage(1)
-  }
-
-  function handleHasCommentChange(value) {
-    setHasCommentFilter(value)
-    setPage(1)
-  }
-
-  function handleCreatedDateChange({ from, to }) {
-    setCreatedFrom(from)
-    setCreatedTo(to)
-    setPage(1)
+  function reset(fn) { return (...args) => { fn(...args); setPage(1) } }
+  const setStatusR = reset(setStatus)
+  const setFocusR = reset(setFocus)
+  const setPlaceR = reset(setPlace)
+  const chips = [
+    focus && { key: 'focus', label: 'Insight', value: FOCUS_LABELS[focus], onClear: () => setFocusR('') },
+    status && { key: 'status', label: 'Status', value: LEAD_STATUS_TILES.find((t) => t.key === status)?.label ?? status, onClear: () => setStatusR('') },
+    place && { key: 'place', label: 'Area', value: place.label, onClear: () => setPlaceR(null) },
+    sourceFilter && { key: 'source', label: 'Source', value: sourceFilter === 'reliable_touch' ? 'From Reliable Touch' : 'Self-sourced', onClear: () => { setSourceFilter(''); setPage(1) } },
+    listingTypeFilter && { key: 'intent', label: 'Intent', value: listingTypeFilter === 'sale' ? 'For sale' : 'For rental', onClear: () => { setListingTypeFilter(''); setPage(1) } },
+  ].filter(Boolean)
+  function clearAllFilters() {
+    setFocus(''); setStatus(''); setPlace(null); setSourceFilter(''); setListingTypeFilter('')
+    setHasFollowUpFilter(false); setHasCommentFilter(false); setCreatedFrom(''); setCreatedTo(''); setSearch(''); setPage(1)
   }
 
   return (
-    <div className="min-h-full bg-[#FAFAF9] dark:bg-[#0B0B0B] p-4 sm:p-6 space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-[#111111] dark:text-white">{isManager ? 'Company leads' : 'My Leads'}</h1>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-              {total} lead{total !== 1 ? 's' : ''} {isManager ? 'attached to your company' : 'assigned to you'}
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowNewLead(true)}
-          className="sm:ml-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-sm transition-all"
-        >
-          <Plus className="w-4 h-4" strokeWidth={2.5} /> New Lead
-        </button>
-
-        {isManager && (
+    <div className="min-h-full bg-[#FAFAF9] dark:bg-[#0B0B0B] p-4 sm:p-6 xl:p-8 space-y-5">
+      <LeadsHeader
+        icon={TrendingUp}
+        title={isManager ? 'Company leads' : 'My Leads'}
+        subtitle={`${(statsData?.total ?? total).toLocaleString()} lead${(statsData?.total ?? total) !== 1 ? 's' : ''} ${isManager ? (agentFilter ? 'in this view' : 'attached to your company') : 'assigned to you'}`}
+        insights={insights}
+        extra={isManager && (
           <select
             value={agentFilter}
             onChange={(e) => changeAgentFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none focus:border-[#F95C4B] cursor-pointer"
+            className="px-3 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none focus:border-[#F95C4B] cursor-pointer"
           >
             <option value="">Whole company</option>
             <option value="unassigned">Not yet with anyone</option>
@@ -442,133 +418,124 @@ export default function AgencyLeadsPage() {
             ))}
           </select>
         )}
+        action={<PrimaryButton icon={Plus} onClick={() => setShowNewLead(true)}>New Lead</PrimaryButton>}
+      />
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280]" strokeWidth={2} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search leads…"
-            className="w-full sm:w-64 pl-8 pr-4 py-2 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 outline-none focus:border-[#F95C4B] transition-all"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111]">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
+      <CountTiles items={statusTileItems(statsData)} value={status} onChange={setStatusR} />
 
-      {/* Status tabs */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-1 overflow-x-auto pb-1">
-          {STATUS_TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => handleTabChange(t.key)}
-              className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                status === t.key
-                  ? 'bg-[#F95C4B] text-white shadow-sm'
-                  : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40 hover:text-[#F95C4B]'
-              }`}
-            >
-              {t.label}
-              <span
-                className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                  status === t.key ? 'bg-white/20 text-white' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#6B7280] dark:text-[#A1A1AA]'
-                }`}
-              >
-                {t.key ? (statusCounts[t.key] ?? 0) : statsData?.total ?? 0}
-              </span>
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <ListingTypeFilter value={listingTypeFilter} onChange={handleListingTypeChange} accent="#F95C4B" />
-          <FollowUpActivityFilters
-            hasFollowUp={hasFollowUpFilter}
-            onHasFollowUpChange={handleHasFollowUpChange}
-            hasComment={hasCommentFilter}
-            onHasCommentChange={handleHasCommentChange}
-          />
-          <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={handleCreatedDateChange} accent="#F95C4B" />
-        </div>
-      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+        <div className="space-y-4 min-w-0">
+          <ActiveFilterChips chips={chips} count={chips.length ? total : null} onClearAll={clearAllFilters} />
+          <FetchBar active={refreshing} />
 
-      {/* Source tabs — where each lead came from */}
-      <div className="flex items-center gap-1">
-        {[
-          { key: '', label: 'All Leads' },
-          { key: 'agency_self_sourced', label: 'Self-Sourced' },
-          { key: 'reliable_touch', label: 'From Reliable Touch' },
-        ].map((t) => (
-          <button
-            key={t.key}
-            onClick={() => { setSourceFilter(t.key); setPage(1) }}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              sourceFilter === t.key
-                ? 'bg-[#F95C4B]/10 text-[#F95C4B] border border-[#F95C4B]/40 shadow-sm'
-                : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40 hover:text-[#F95C4B]'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+          <Panel className="p-4 space-y-3" delay={140}>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+                <input
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                  placeholder="Search landlord, address or phone…"
+                  className="w-full pl-10 pr-9 py-2.5 rounded-xl text-sm bg-[#F5F5F4] dark:bg-[#202020] border border-transparent text-[#111111] dark:text-white placeholder:text-[#9CA3AF] outline-none focus:border-[#F95C4B] focus:bg-white dark:focus:bg-[#181818] transition-all"
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111] dark:hover:text-white">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <ListingTypeFilter value={listingTypeFilter} onChange={reset(setListingTypeFilter)} accent="#F95C4B" />
+              <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={reset(({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) })} accent="#F95C4B" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <FollowUpActivityFilters
+                hasFollowUp={hasFollowUpFilter}
+                onHasFollowUpChange={reset(setHasFollowUpFilter)}
+                hasComment={hasCommentFilter}
+                onHasCommentChange={reset(setHasCommentFilter)}
+              />
+              <span className="w-px h-6 bg-[#E5E7EB] dark:bg-[#2A2A2A] mx-1 hidden sm:block" />
+              {[
+                { key: '', label: 'All sources' },
+                { key: 'agency_self_sourced', label: 'Self-sourced' },
+                { key: 'reliable_touch', label: 'From Reliable Touch' },
+              ].map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => { setSourceFilter(t.key); setPage(1) }}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    sourceFilter === t.key
+                      ? 'bg-[#F95C4B]/10 text-[#F95C4B] border border-[#F95C4B]/40'
+                      : 'bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40 hover:text-[#F95C4B]'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </Panel>
 
-      {/* Content */}
-      {isError && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444]">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          Failed to load leads. Please try again.
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 text-[#F95C4B] animate-spin" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-[#F95C4B]/10 flex items-center justify-center">
-            <TrendingUp className="w-7 h-7 text-[#F95C4B]" strokeWidth={1.5} />
-          </div>
-          <p className="text-sm font-semibold text-[#111111] dark:text-white">
-            {search ? 'No matching leads' : 'No leads assigned yet'}
-          </p>
-          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-            {search ? 'Try a different search term' : 'Leads will appear here once assigned to you'}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((lead) => (
-              <LeadCard key={lead._id} lead={lead} onClick={() => navigate(`/agency/leads/${lead._id}`)} currentUserId={user?._id} />
-            ))}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="w-9 h-9 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-white dark:hover:bg-[#181818] disabled:opacity-40"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Page {page} of {totalPages}</span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="w-9 h-9 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-white dark:hover:bg-[#181818] disabled:opacity-40"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+          {isError && (
+            <div className="flex items-center gap-2.5 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444]">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              Failed to load leads. Please try again.
             </div>
           )}
-        </>
-      )}
+
+          {isLoading ? (
+            <CardGridSkeleton count={6} />
+          ) : leads.length === 0 ? (
+            <Panel className="flex flex-col items-center justify-center py-20 gap-3 text-center" delay={180}>
+              <div className="w-14 h-14 rounded-2xl bg-[#F95C4B]/10 flex items-center justify-center">
+                <TrendingUp className="w-7 h-7 text-[#F95C4B]" strokeWidth={1.5} />
+              </div>
+              <p className="text-sm font-semibold text-[#111111] dark:text-white">
+                {hasFilters ? 'No leads match these filters' : isManager ? 'No leads attached to your company yet' : 'No leads assigned to you yet'}
+              </p>
+              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+                {hasFilters ? 'Try clearing a filter or the quick insight' : 'Add one with New Lead, or wait for Reliable Touch to send some'}
+              </p>
+            </Panel>
+          ) : (
+            <>
+              <div className={`grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
+                {leads.map((lead, i) => (
+                  <div key={lead._id} className="mac-in" style={{ '--d': `${Math.min(i, 12) * 30}ms` }}>
+                    <LeadCard lead={lead} onClick={() => navigate(`/agency/leads/${lead._id}`)} currentUserId={user?._id} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+                  Showing {(page - 1) * params.limit + 1}–{Math.min(page * params.limit, total)} of {total.toLocaleString()} lead{total !== 1 ? 's' : ''}
+                </p>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="w-9 h-9 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40 disabled:opacity-40"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-semibold text-[#111111] dark:text-white tabular-nums">{page} / {totalPages}</span>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="w-9 h-9 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:border-[#F95C4B]/40 disabled:opacity-40"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <LeadsRail role={isManager ? 'agency_manager' : 'agent'} insights={insights} focus={focus} onFocus={setFocusR} places="areas" place={place} onPlace={setPlaceR} />
+      </div>
 
       {showNewLead && (
         <NewLeadFlow
@@ -576,7 +543,12 @@ export default function AgencyLeadsPage() {
           isManager={isManager}
           currentUserId={user?._id}
           onClose={() => setShowNewLead(false)}
-          onCreated={() => setShowNewLead(false)}
+          onCreated={() => {
+            setShowNewLead(false)
+            qc.invalidateQueries({ queryKey: ['agent-leads'] })
+            qc.invalidateQueries({ queryKey: ['agent-leads-stats'] })
+            qc.invalidateQueries({ queryKey: ['lead-insights'] })
+          }}
         />
       )}
     </div>

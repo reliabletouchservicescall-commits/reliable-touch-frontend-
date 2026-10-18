@@ -21,6 +21,7 @@ export const contactsApi = {
   returnFileToPool: (batchId) => axiosClient.post(`/contacts/files/${batchId}/return`),
   deleteFile: (batchId) => axiosClient.delete(`/contacts/files/${batchId}`),
   assignFileArea: (batchId, areaId) => axiosClient.patch(`/contacts/files/${batchId}/area`, { areaId }),
+  fileHistory: (batchId) => axiosClient.get(`/contacts/files/${batchId}/history`),
   callerWorkload: () => axiosClient.get('/contacts/caller-workload'),
   assignToAgent: (data) => axiosClient.post('/contacts/assign-to-agent', data),
   agencyWorkload: () => axiosClient.get('/contacts/agency-workload'),

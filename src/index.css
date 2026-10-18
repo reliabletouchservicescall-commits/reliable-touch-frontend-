@@ -65,3 +65,68 @@
 @keyframes shimmer-sweep {
   100% { transform: translateX(100%); }
 }
+
+/* ─── macOS-style motion ─────────────────────────────────────────────────────
+   Quick, springy entrances (scale up from 96% with a soft de-blur, like a macOS window
+   opening) on Apple's "ease-out-expo"-ish curve. Stagger with style={{ '--d': '80ms' }}.
+   Everything collapses to an instant fade for people who ask the OS for reduced motion. */
+:root {
+  --ease-mac: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes mac-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); filter: blur(6px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+@keyframes mac-slide-in {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes mac-pop {
+  0%   { opacity: 0; transform: scale(0.6); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes mac-grow-x {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes mac-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+@keyframes mac-ken-burns {
+  from { transform: scale(1.08); }
+  to   { transform: scale(1); }
+}
+.mac-in       { animation: mac-in 560ms var(--ease-mac) both; animation-delay: var(--d, 0ms); }
+.mac-slide-in { animation: mac-slide-in 520ms var(--ease-mac) both; animation-delay: var(--d, 0ms); }
+.mac-pop      { animation: mac-pop 420ms var(--ease-spring) both; animation-delay: var(--d, 0ms); }
+.mac-grow-x   { transform-origin: left; animation: mac-grow-x 900ms var(--ease-mac) both; animation-delay: var(--d, 0ms); }
+.mac-float    { animation: mac-float 3.2s ease-in-out infinite; }
+.mac-ken-burns { animation: mac-ken-burns 1600ms var(--ease-mac) both; }
+/* Hover lift — the subtle raise a macOS card/dock item gives under the pointer */
+.mac-lift {
+  transition: transform 260ms var(--ease-spring), box-shadow 260ms var(--ease-mac), border-color 200ms ease;
+}
+.mac-lift:hover { transform: translateY(-3px); box-shadow: 0 12px 28px -12px rgba(17, 17, 17, 0.18); }
+.dark .mac-lift:hover { box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.6); }
+.mac-press:active { transform: scale(0.97); }
+
+/* Chart entrances — done in CSS (clip-path) rather than with the chart library's own
+   animation, which can leave line/area/bar shapes undrawn. Lines "draw" left to right;
+   bars rise from the baseline. */
+@keyframes mac-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes mac-rise   { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+.mac-reveal { animation: mac-reveal 1400ms var(--ease-mac) both; animation-delay: var(--d, 250ms); }
+.mac-rise   { animation: mac-rise 1000ms var(--ease-mac) both; animation-delay: var(--d, 250ms); }
+
+/* Indeterminate loading bar (FetchBar) */
+@keyframes mac-indeterminate { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.mac-indeterminate { animation: mac-indeterminate 1.1s var(--ease-mac) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mac-in, .mac-slide-in, .mac-pop, .mac-grow-x, .mac-ken-burns, .mac-reveal, .mac-rise { animation: mac-fade 200ms ease both; }
+  .mac-float { animation: none; }
+  .mac-lift, .mac-lift:hover { transform: none; }
+}
+@keyframes mac-fade { from { opacity: 0; } to { opacity: 1; } }

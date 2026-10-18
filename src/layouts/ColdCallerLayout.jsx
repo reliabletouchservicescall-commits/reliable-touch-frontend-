@@ -142,7 +142,7 @@ function Sidebar({ collapsed, onClose, isMobile }) {
             <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm">
               Reliable Touch
             </p>
-            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#3B82F6]">
+            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#F95C4B]">
               Cold Caller
             </p>
           </div>
@@ -195,8 +195,8 @@ function Sidebar({ collapsed, onClose, isMobile }) {
 
         {(!collapsed || isMobile) && (
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#3B82F6]/15 flex items-center justify-center">
-              <span className="text-[10px] font-bold text-[#3B82F6]">{initials}</span>
+            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#F95C4B]/15 flex items-center justify-center">
+              <span className="text-[10px] font-bold text-[#F95C4B]">{initials}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-[#111111] dark:text-white truncate">

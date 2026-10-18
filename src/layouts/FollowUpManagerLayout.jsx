@@ -57,7 +57,7 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge }) {
       className={({ isActive }) =>
         `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
           isActive
-            ? 'bg-[#8B5CF6]/10 text-[#8B5CF6]'
+            ? 'bg-[#F95C4B]/10 text-[#F95C4B]'
             : 'text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white'
         }`
       }
@@ -65,7 +65,7 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge }) {
       <div className="relative flex-shrink-0">
         <Icon className={`w-[18px] h-[18px] ${collapsed ? 'mx-auto' : ''}`} strokeWidth={1.75} />
         {hasBadge && chatUnread > 0 && collapsed && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#8B5CF6] text-white text-[8px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">
             {chatUnread > 9 ? '9+' : chatUnread}
           </span>
         )}
@@ -74,7 +74,7 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge }) {
         <span className="flex-1 truncate flex items-center gap-2">
           {label}
           {hasBadge && chatUnread > 0 && (
-            <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#8B5CF6] text-white text-[9px] font-bold flex items-center justify-center">
+            <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#F95C4B] text-white text-[9px] font-bold flex items-center justify-center">
               {chatUnread > 99 ? '99+' : chatUnread}
             </span>
           )}
@@ -117,7 +117,7 @@ function Sidebar({ collapsed, onClose, isMobile }) {
             <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm">
               Reliable Touch
             </p>
-            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#8B5CF6]">
+            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#F95C4B]">
               Follow-Up Portal
             </p>
           </div>
@@ -170,8 +170,8 @@ function Sidebar({ collapsed, onClose, isMobile }) {
 
         {(!collapsed || isMobile) && (
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#8B5CF6]/15 flex items-center justify-center">
-              <span className="text-[10px] font-bold text-[#8B5CF6]">{initials}</span>
+            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#F95C4B]/15 flex items-center justify-center">
+              <span className="text-[10px] font-bold text-[#F95C4B]">{initials}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-[#111111] dark:text-white truncate">
@@ -182,7 +182,7 @@ function Sidebar({ collapsed, onClose, isMobile }) {
             <button
               onClick={handleLogout}
               title="Sign out"
-              className="flex-shrink-0 text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#8B5CF6] dark:hover:text-[#8B5CF6]"
+              className="flex-shrink-0 text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B] dark:hover:text-[#F95C4B]"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -193,7 +193,7 @@ function Sidebar({ collapsed, onClose, isMobile }) {
           <button
             onClick={handleLogout}
             title="Sign out"
-            className="w-full flex items-center justify-center py-2.5 rounded-xl text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#8B5CF6]"
+            className="w-full flex items-center justify-center py-2.5 rounded-xl text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#F95C4B]"
           >
             <LogOut className="w-[18px] h-[18px]" strokeWidth={1.75} />
           </button>
@@ -282,7 +282,7 @@ export default function FollowUpManagerLayout() {
           <button
             onClick={handleLogout}
             title="Sign out"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#8B5CF6] dark:hover:text-[#8B5CF6] border border-[#E5E7EB] dark:border-[#2A2A2A] transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#F95C4B] dark:hover:text-[#F95C4B] border border-[#E5E7EB] dark:border-[#2A2A2A] transition-colors"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sign out</span>

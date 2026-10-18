@@ -8,25 +8,19 @@ import {
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
-import {
-  LEAD_STATUS_META, LeadStatusBadge, FollowUpChip, ListingTypeFilter, ListingBadge,
+import { LeadStatusBadge, FollowUpChip, ListingTypeFilter, ListingBadge,
   LastFollowUpCommentCell, FollowUpActivityFilters, CreatedDateRangeFilter,
 } from '../../components/leads/leadShared'
 import SidePanel from '../../components/common/SidePanel'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import { useAuthStore } from '../../store/authStore'
+import {
+  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
+  ActiveFilterChips, FetchBar, CardGridSkeleton, FOCUS_LABELS, LEAD_STATUS_TILES,
+} from '../../components/leads/LeadsHub'
 
-const STATUS_TABS = [
-  { key: '',                  label: 'All' },
-  { key: 'cold',               label: 'Cold' },
-  { key: 'warm',                label: 'Warm' },
-  { key: 'hot',                 label: 'Hot' },
-  { key: 'still_negotiating',  label: 'Negotiating' },
-  { key: 'listed',              label: 'Listed' },
-  { key: 'rented_out',          label: 'Rented Out' },
-  { key: 'sold',                label: 'Sold' },
-  { key: 'lost',                label: 'Lost' },
-]
+// Leads load in batches of 300 ("Load more" appends the next batch).
+const PAGE_SIZE = 300
 
 function useDebounce(value, delay = 400) {
   const [d, setD] = useState(value)
@@ -54,7 +48,7 @@ function ContactPickerPanel({ onClose, onPick }) {
   const contacts = data?.contacts ?? []
 
   return (
-    <SidePanel onClose={onClose} icon={Users} iconColor="#3B82F6" title="Select a Contact" subtitle="Who is this lead for?">
+    <SidePanel onClose={onClose} icon={Users} iconColor="#F95C4B" title="Select a Contact" subtitle="Who is this lead for?">
       <div className="px-5 py-4">
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
@@ -63,7 +57,7 @@ function ContactPickerPanel({ onClose, onPick }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search your contacts…"
-            className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm bg-[#F5F5F4] dark:bg-[#202020] border border-transparent focus:border-[#3B82F6] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 outline-none"
+            className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm bg-[#F5F5F4] dark:bg-[#202020] border border-transparent focus:border-[#F95C4B] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 outline-none"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111] dark:hover:text-white">
@@ -74,7 +68,7 @@ function ContactPickerPanel({ onClose, onPick }) {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
-            <Loader2 className="w-5 h-5 animate-spin text-[#3B82F6]" />
+            <Loader2 className="w-5 h-5 animate-spin text-[#F95C4B]" />
           </div>
         ) : contacts.length === 0 ? (
           <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] text-center py-10">No contacts found.</p>
@@ -84,10 +78,10 @@ function ContactPickerPanel({ onClose, onPick }) {
               <li key={c._id}>
                 <button
                   onClick={() => onPick(c)}
-                  className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#3B82F6]/40 hover:bg-[#3B82F6]/5 text-left transition-all"
+                  className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40 hover:bg-[#F95C4B]/5 text-left transition-all"
                 >
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
-                    <span className="text-[10px] font-bold text-[#3B82F6]">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#F95C4B]/10 flex items-center justify-center">
+                    <span className="text-[10px] font-bold text-[#F95C4B]">
                       {c.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
                     </span>
                   </div>
@@ -148,7 +142,7 @@ function LeadCard({ lead, onOpen, currentUserId }) {
 
       <div className="flex items-center justify-between mt-3">
         <FollowUpChip date={lead.followUpDate} />
-        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#3B82F6]">
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B]">
           View details <ChevronRight className="w-3 h-3" />
         </span>
       </div>
@@ -198,6 +192,8 @@ export default function ColdCallerLeadsPage() {
   const [createdTo,   setCreatedTo]   = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [createContact, setCreateContact] = useState(null)
+  const [focus, setFocus] = useState('') // one-click Quick insight filter
+  const [place, setPlace] = useState(null) // { kind: 'area', value: areaId, label } from Top areas
 
   const debouncedSearch = useDebounce(search)
 
@@ -218,18 +214,23 @@ export default function ColdCallerLeadsPage() {
     hasComment:  hasCommentFilter  ? 'true' : undefined,
     createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
     createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
+    focus:         focus || undefined,
+    area:          place?.value || undefined,
   }
 
-  // Loaded 500 at a time via "Load More" rather than a hard-capped single page — a busy
+  // The caller's own report: everything they've created (server-scoped to createdBy = me).
+  const { data: insights } = useLeadInsights({})
+
+  // Loaded 300 at a time (PAGE_SIZE) via "Load more" rather than a hard-capped single page — a busy
   // cold caller's own lead list can exceed the old 100-lead cap, which silently hid leads
   // beyond it and under-reported the total.
   const {
-    data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage,
+    data, isLoading, isError, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ['leads', { ...sharedFilterParams, status: statusFilter, mine: true }],
     queryFn: ({ pageParam }) =>
       leadsApi
-        .list({ ...sharedFilterParams, status: statusFilter || undefined, limit: 500, page: pageParam })
+        .list({ ...sharedFilterParams, status: statusFilter || undefined, limit: PAGE_SIZE, page: pageParam })
         .then((r) => r.data.data),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => (lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined),
@@ -238,7 +239,18 @@ export default function ColdCallerLeadsPage() {
 
   const leads = data?.pages?.flatMap((p) => p.leads) ?? []
   const total = data?.pages?.[0]?.total ?? 0
-  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo)
+  const hasFilters = Boolean(search || statusFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo || focus || place)
+  const refreshing = isFetching && !isLoading && !isFetchingNextPage
+  const chips = [
+    focus && { key: 'focus', label: 'Insight', value: FOCUS_LABELS[focus], onClear: () => setFocus('') },
+    statusFilter && { key: 'status', label: 'Status', value: LEAD_STATUS_TILES.find((t) => t.key === statusFilter)?.label ?? statusFilter, onClear: () => setStatusFilter('') },
+    place && { key: 'place', label: 'Area', value: place.label, onClear: () => setPlace(null) },
+    listingTypeFilter && { key: 'intent', label: 'Intent', value: listingTypeFilter === 'sale' ? 'For sale' : 'For rental', onClear: () => setListingTypeFilter('') },
+  ].filter(Boolean)
+  function clearAllFilters() {
+    setFocus(''); setStatusFilter(''); setPlace(null); setListingTypeFilter('')
+    setHasFollowUpFilter(false); setHasCommentFilter(false); setCreatedFrom(''); setCreatedTo(''); setSearch('')
+  }
 
   // Real counts per status, scoped the same way the list itself is (own leads only) — not
   // derived from whatever page happens to be loaded, so a tab badge never undercounts.
@@ -247,7 +259,6 @@ export default function ColdCallerLeadsPage() {
     queryFn: () => leadsApi.getStats(sharedFilterParams).then((r) => r.data.data),
     placeholderData: keepPreviousData,
   })
-  const counts = statsData?.byStatus ?? {}
 
   function closeCreateFlow() {
     setCreateContact(null)
@@ -255,55 +266,24 @@ export default function ColdCallerLeadsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 pt-6 pb-0 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
-            <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight flex items-center gap-2.5">
-              <FileText className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
-              My Leads
-            </h1>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
-              {isLoading ? 'Loading…' : `${total} lead${total !== 1 ? 's' : ''} you've created`}
-            </p>
-          </div>
-          <button
-            onClick={() => setPickerOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-sm hover:shadow-md active:scale-[0.98] transition-all self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            New Lead
-          </button>
-        </div>
+    <div className="h-full overflow-y-auto bg-[#FAFAF9] dark:bg-[#0B0B0B]">
+      <div className="p-4 sm:p-6 xl:p-8 space-y-5">
+        <LeadsHeader
+          icon={FileText}
+          title="My Leads"
+          subtitle={isLoading ? 'Loading…' : `${(statsData?.total ?? total).toLocaleString()} lead${(statsData?.total ?? total) !== 1 ? 's' : ''} you've created${hasFilters ? ' · filtered' : ''}`}
+          insights={insights}
+          action={<PrimaryButton icon={Plus} onClick={() => setPickerOpen(true)}>New Lead</PrimaryButton>}
+        />
 
-        {/* Status tabs */}
-        <div className="flex gap-0.5 overflow-x-auto pb-px">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              className={[
-                'flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap',
-                'border-b-2 transition-all rounded-t-lg',
-                statusFilter === tab.key
-                  ? 'border-[#F95C4B] text-[#F95C4B] bg-[#F95C4B]/5 dark:bg-[#F95C4B]/8'
-                  : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
-              ].join(' ')}
-            >
-              {tab.key && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: LEAD_STATUS_META[tab.key]?.color }} />}
-              {tab.label}
-              {tab.key && counts[tab.key] > 0 && (
-                <span className="text-[10px] font-bold text-[#6B7280] dark:text-[#A1A1AA]">{counts[tab.key]}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+        <CountTiles items={statusTileItems(statsData)} value={statusFilter} onChange={setStatusFilter} />
 
-      {/* ── Search ───────────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 py-3 flex flex-col sm:flex-row gap-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="relative flex-1 max-w-sm">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+          <div className="space-y-4 min-w-0">
+            <ActiveFilterChips chips={chips} count={chips.length ? total : null} onClearAll={clearAllFilters} />
+
+            <Panel className="p-4 flex flex-col sm:flex-row sm:flex-wrap gap-3" delay={140}>
+              <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
           <input
             value={search}
@@ -331,11 +311,11 @@ export default function ColdCallerLeadsPage() {
           to={createdTo}
           onChange={({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) }}
         />
-      </div>
+            </Panel>
 
-      {/* ── List ─────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-5 sm:px-8 py-5">
-        {isError && (
+            <div className={`space-y-2 transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
+              <FetchBar active={refreshing} />
+              {isError && (
           <div className="flex items-center gap-2.5 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444] mb-4">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             Failed to load leads. Please try refreshing the page.
@@ -343,15 +323,11 @@ export default function ColdCallerLeadsPage() {
         )}
 
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-40 rounded-2xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] animate-pulse" />
-            ))}
-          </div>
+          <CardGridSkeleton count={6} />
         ) : leads.length === 0 ? (
           <EmptyState hasFilters={hasFilters} onAdd={() => setPickerOpen(true)} />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
             {leads.map((lead) => (
               <LeadCard key={lead._id} lead={lead} onOpen={() => navigate(`/cold-caller/leads/${lead._id}`)} currentUserId={user?._id} />
             ))}
@@ -370,11 +346,16 @@ export default function ColdCallerLeadsPage() {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020] disabled:opacity-60 transition-colors"
               >
                 {isFetchingNextPage && <Loader2 className="w-4 h-4 animate-spin" />}
-                Load 500 More
+                Load {Math.min(PAGE_SIZE, total - leads.length)} more
               </button>
             )}
           </div>
         )}
+            </div>
+          </div>
+
+          <LeadsRail role="cold_caller" insights={insights} focus={focus} onFocus={setFocus} places="areas" place={place} onPlace={setPlace} />
+        </div>
       </div>
 
       {/* ── Panels ───────────────────────────────────────────────────────── */}
