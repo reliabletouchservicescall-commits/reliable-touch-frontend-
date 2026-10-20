@@ -3,6 +3,7 @@ import { Bell, CheckCheck, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { notificationsApi } from '../../services/notificationsApi'
+import { NotificationOpenButton } from './notificationLink'
 
 function timeAgo(date) {
   const diff = Date.now() - new Date(date).getTime()
@@ -150,6 +151,7 @@ export default function NotificationBell() {
                       <p className="text-[10px] text-[#6B7280]/60 dark:text-[#A1A1AA]/50 mt-1">
                         {timeAgo(n.createdAt)}
                       </p>
+                      <NotificationOpenButton n={n} size="sm" onMarkRead={(id) => markReadMutation.mutate(id)} onNavigate={() => setOpen(false)} />
                     </div>
 
                     {!n.readAt && (

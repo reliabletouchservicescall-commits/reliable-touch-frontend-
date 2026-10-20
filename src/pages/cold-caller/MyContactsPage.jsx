@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useCallFlow, telHref } from '../../lib/useCallFlow'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  Phone, Search, X, PhoneCall, PhoneOff, PhoneMissed,
+  Phone, Search, X, PhoneCall, PhoneOff, PhoneMissed, PhoneIncoming,
   CheckCircle2, Clock, MapPin, MessageSquare, Voicemail,
   ChevronDown, Loader2, RefreshCw, BookUser, AlertCircle, ThumbsDown,
   UserCheck, RotateCcw, Sparkles, PlusCircle, Send, Bell, ChevronRight,
@@ -625,6 +626,11 @@ export default function MyContactsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [viewMode, setViewMode]         = useState('todo') // 'todo' | 'today'
   const [unreachableOnly, setUnreachableOnly] = useState(false)
+  // Callbacks: contacts whose last call ended "call me back". Called contacts leave the
+  // to-call queue for good, so this looks across every assigned contact (view 'all').
+  // The dashboard deep-links here with ?outcome=callback_requested.
+  const [searchParams] = useSearchParams()
+  const [callbacksOnly, setCallbacksOnly] = useState(() => searchParams.get('outcome') === 'callback_requested')
   const [page, setPage]                 = useState(1)
   const [leadPrompt, setLeadPrompt]     = useState(null)
   const callFlow = useCallFlow([['my-contacts'], ['my-contacts-called-today-count'], ['call-logs']])
@@ -633,15 +639,15 @@ export default function MyContactsPage() {
   const [showRequestModal, setShowRequestModal] = useState(false)
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['my-contacts', { search, status: statusFilter, page, view: viewMode, lastCallOutcome: unreachableOnly ? 'unreachable' : undefined }],
+    queryKey: ['my-contacts', { search, status: statusFilter, page, view: callbacksOnly ? 'all' : viewMode, lastCallOutcome: callbacksOnly ? 'callback_requested' : unreachableOnly ? 'unreachable' : undefined }],
     queryFn: () =>
       contactsApi
         .list({
           search: search || undefined,
           status: statusFilter || undefined,
           page, limit: 20,
-          view: viewMode === 'today' ? 'today' : undefined,
-          lastCallOutcome: unreachableOnly ? 'unreachable' : undefined,
+          view: callbacksOnly ? 'all' : viewMode === 'today' ? 'today' : undefined,
+          lastCallOutcome: callbacksOnly ? 'callback_requested' : unreachableOnly ? 'unreachable' : undefined,
         })
         .then((r) => r.data.data),
     placeholderData: keepPreviousData,
@@ -822,7 +828,7 @@ export default function MyContactsPage() {
         </div>
 
         <button
-          onClick={() => { setUnreachableOnly((v) => !v); setPage(1) }}
+          onClick={() => { setUnreachableOnly((v) => !v); setCallbacksOnly(false); setPage(1) }}
           className={[
             'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all flex-shrink-0',
             unreachableOnly
@@ -832,6 +838,19 @@ export default function MyContactsPage() {
         >
           <PhoneMissed className="w-3.5 h-3.5" />
           Unreachable
+        </button>
+
+        <button
+          onClick={() => { setCallbacksOnly((v) => !v); setUnreachableOnly(false); setPage(1) }}
+          className={[
+            'flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all flex-shrink-0',
+            callbacksOnly
+              ? 'bg-[#F95C4B]/10 text-[#F95C4B] border-[#F95C4B]/30'
+              : 'bg-white dark:bg-[#181818] text-[#6B7280] dark:text-[#A1A1AA] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40 hover:text-[#F95C4B]',
+          ].join(' ')}
+        >
+          <PhoneIncoming className="w-3.5 h-3.5" />
+          Callbacks
         </button>
       </div>
 
@@ -846,7 +865,7 @@ export default function MyContactsPage() {
         ) : contacts.length === 0 ? (
           viewMode === 'today' ? (
             <EmptyCalledToday />
-          ) : total === 0 && !search && !statusFilter && !unreachableOnly ? (
+          ) : total === 0 && !search && !statusFilter && !unreachableOnly && !callbacksOnly ? (
             calledTodayCount > 0
               ? <EmptyDoneForToday onViewToday={() => setViewMode('today')} onRequest={() => setShowRequestModal(true)} />
               : <EmptyQueue onRequest={() => setShowRequestModal(true)} />

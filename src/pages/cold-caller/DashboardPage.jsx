@@ -1,383 +1,285 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { format, formatDistanceToNow } from 'date-fns'
 import {
-  PhoneCall,
-  TrendingUp,
-  CalendarCheck,
-  Bell,
-  Clock,
-  ArrowRight,
-  CheckCircle2,
-  XCircle,
-  PhoneOff,
-  PhoneMissed,
-  Activity,
-  Trophy,
-  Star,
-  Crown,
-  Medal,
+  Phone, PhoneCall, PhoneIncoming, TrendingUp, Flame, CalendarClock, Target, RefreshCw, Trophy, Crown, Medal,
+  ArrowRight, Headphones, FileText,
 } from 'lucide-react'
-import { format } from 'date-fns'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
+import { useTheme } from '../../context/ThemeContext'
 import WorkingHoursSection from '../../components/performance/WorkingHoursSection'
+import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
+import {
+  Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, TemperatureDonut,
+  TrendChart, ChartLegend, CallsByHourChart, ScopedProvinceCard, TodaysTasks, PhotoCard, CallOutcomes,
+  UpcomingVisits, CompanySnapshot, OUTCOME_META, CORAL,
+} from '../../components/dashboard/DashboardKit'
 
-/* ─── Stat Card ────────────────────────────────────────────────────── */
-function StatCard({ icon: Icon, label, value, sub, color, loading, badge }) {
+// The cold caller's dashboard — the admin command centre's look, built around the job:
+// work the contact list, turn calls into leads, keep those leads followed up — plus where
+// the whole company stands. Data: GET /reports/my-overview (+ /performance/me for rank).
+
+const DAILY_SERIES = [
+  { key: 'calls',      name: 'Calls',              color: CORAL,     kind: 'area' },
+  { key: 'leads',      name: 'Leads created',      color: 'ink',     kind: 'line', axis: 'right' },
+  { key: 'interested', name: 'Interested answers', color: '#10B981', kind: 'line', axis: 'right', dashed: true },
+]
+
+/* ─── Rank ───────────────────────────────────────────────────────────────── */
+
+function RankCard({ day, month }) {
+  const navigate = useNavigate()
+  const rows = [
+    { key: 'day', label: 'Today', s: day },
+    { key: 'month', label: 'This month', s: month },
+  ]
   return (
-    <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex flex-col gap-4">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl" style={{ backgroundColor: `${color}18` }}>
-          <Icon className="w-5 h-5" style={{ color }} strokeWidth={1.75} />
+    <Card as="button" type="button" delay={160} onClick={() => navigate('/cold-caller/leaderboard')}
+      className="mac-lift mac-press group w-full text-left p-5 hover:border-[#F95C4B]/40">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-[15px] font-bold text-[#111111] dark:text-white tracking-tight">Your rank</h3>
+          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">On the cold caller leaderboard</p>
         </div>
-        {badge}
+        <ArrowRight className="w-4 h-4 text-[#D4D4D8] dark:text-[#3F3F46] group-hover:text-[#F95C4B] transition-colors" />
       </div>
-      <div>
-        {loading ? (
-          <div className="h-7 w-14 rounded-lg bg-[#F5F5F4] dark:bg-[#202020] animate-pulse mb-1" />
-        ) : (
-          <p className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">{value ?? '—'}</p>
-        )}
-        <p className="text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">{label}</p>
-        {sub && !loading && <p className="text-[10px] text-[#6B7280]/70 dark:text-[#A1A1AA]/60 mt-1">{sub}</p>}
+      <div className="grid grid-cols-2 gap-3">
+        {rows.map((r, i) => {
+          const rank = r.s?.rank
+          const Icon = rank === 1 ? Crown : rank && rank <= 3 ? Medal : Trophy
+          return (
+            <div key={r.key} className={`mac-pop rounded-xl p-3 ${rank === 1 ? 'bg-gradient-to-br from-[#F95C4B] to-[#FF8C7A] text-white' : 'bg-[#FAFAF9] dark:bg-[#111111]'}`} style={{ '--d': `${240 + i * 80}ms` }}>
+              <div className="flex items-center justify-between">
+                <p className={`text-[10px] font-semibold uppercase tracking-widest ${rank === 1 ? 'text-white/80' : 'text-[#9CA3AF]'}`}>{r.label}</p>
+                <Icon className={`w-4 h-4 ${rank === 1 ? 'text-white' : 'text-[#F95C4B]'}`} />
+              </div>
+              {r.s === undefined ? <Skeleton className="h-8 mt-2" /> : (
+                <>
+                  <p className={`text-2xl font-bold tracking-tight mt-1 ${rank === 1 ? '' : 'text-[#111111] dark:text-white'}`}>
+                    {rank ? <>#{rank}<span className={`text-xs font-medium ${rank === 1 ? 'text-white/75' : 'text-[#9CA3AF]'}`}> of {r.s.total}</span></> : '—'}
+                  </p>
+                  <p className={`text-[11px] ${rank === 1 ? 'text-white/80' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
+                    {rank ? <><AnimatedNumber value={r.s.score} /> pts</> : 'No points yet'}
+                  </p>
+                </>
+              )}
+            </div>
+          )
+        })}
       </div>
-    </div>
+    </Card>
   )
 }
 
-/* ─── Performance snapshot ────────────────────────────────────────── */
-function PerformanceSnapshot({ myStats, loading }) {
+/* ─── Recent calls ───────────────────────────────────────────────────────── */
+
+function RecentCalls({ calls }) {
   const navigate = useNavigate()
-  const rank = myStats?.rank
-  const rankColor = rank === 1 ? '#F59E0B' : rank === 2 ? '#9CA3AF' : rank === 3 ? '#B45309' : '#F95C4B'
+  if (!calls?.length) return <p className="text-xs text-[#9CA3AF] py-8 text-center">No calls yet — your first call shows up here</p>
   return (
-    <button
-      onClick={() => navigate('/cold-caller/leaderboard')}
-      className="group w-full flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-[#F95C4B]/5 to-transparent border border-[#F95C4B]/20 hover:border-[#F95C4B]/40 hover:shadow-sm transition-all text-left"
-    >
-      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
-        <Trophy className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-[#111111] dark:text-white">My Leaderboard Position</p>
-        {loading ? (
-          <div className="h-3 w-24 mt-1 rounded bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />
-        ) : (
-          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
-            {rank
-              ? <><span className="font-bold" style={{ color: rankColor }}>#{rank}</span> of {myStats.total} · {myStats.score} pts today</>
-              : 'No activity today — make some calls!'}
-          </p>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        {!loading && rank && rank <= 3 && (
-          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: `${rankColor}20` }}>
-            {rank === 1
-              ? <Crown  className="w-3.5 h-3.5" style={{ color: rankColor }} />
-              : <Medal  className="w-3.5 h-3.5" style={{ color: rankColor }} />
-            }
-          </div>
-        )}
-        <ArrowRight className="w-4 h-4 text-[#9CA3AF] group-hover:text-[#F95C4B] transition-colors" />
-      </div>
-    </button>
+    <ul className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
+      {calls.map((c, i) => {
+        const meta = OUTCOME_META[c.outcome] ?? { label: c.outcome, color: '#9CA3AF' }
+        return (
+          <li key={c._id}>
+            <button type="button" onClick={() => navigate(c.leadId ? `/cold-caller/leads/${c.leadId}` : '/cold-caller/call-logs')}
+              className="mac-in w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-[#FAFAF9] dark:hover:bg-[#1C1C1C] transition-colors text-left"
+              style={{ '--d': `${i * 40}ms` }}>
+              <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${meta.color}18` }}>
+                <PhoneCall className="w-4 h-4" style={{ color: meta.color }} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-xs font-semibold text-[#111111] dark:text-white truncate">{c.contactName}</span>
+                <span className="block text-[11px] text-[#9CA3AF] truncate">{c.phone ?? 'No number'} · {formatDistanceToNow(new Date(c.calledAt), { addSuffix: true })}</span>
+              </span>
+              {c.leadId && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#111111]/8 dark:bg-white/10 text-[#111111] dark:text-white">Lead</span>}
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>{meta.label}</span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
-/* ─── Outcome Badge ───────────────────────────────────────────────── */
-const OUTCOME_META = {
-  no_answer:          { label: 'No Answer',      color: '#6B7280', Icon: PhoneMissed },
-  voicemail:          { label: 'Voicemail',      color: '#6B7280', Icon: PhoneMissed },
-  wrong_number:       { label: 'Wrong No.',      color: '#8B5CF6', Icon: XCircle },
-  remove_me:          { label: 'Remove Me',      color: '#EF4444', Icon: PhoneOff },
-  not_interested:     { label: 'Not Interested', color: '#F97316', Icon: PhoneOff },
-  interested:         { label: 'Interested',     color: '#10B981', Icon: CheckCircle2 },
-  callback_requested: { label: 'Callback',       color: '#F59E0B', Icon: Clock },
-}
+/* ─── Page ───────────────────────────────────────────────────────────────── */
 
-function OutcomeBadge({ outcome }) {
-  const meta = OUTCOME_META[outcome] ?? { label: outcome, color: '#6B7280', Icon: PhoneCall }
-  const Icon = meta.Icon
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
-      style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
-      <Icon className="w-2.5 h-2.5" strokeWidth={2.5} />
-      {meta.label}
-    </span>
-  )
-}
-
-/* ─── Quick Action ────────────────────────────────────────────────── */
-function QuickAction({ icon: Icon, label, description, to, color }) {
-  const navigate = useNavigate()
-  return (
-    <button
-      onClick={() => navigate(to)}
-      className="group flex items-center gap-4 p-4 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] hover:border-[#F95C4B]/40 hover:shadow-sm transition-all text-left w-full"
-    >
-      <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl" style={{ backgroundColor: `${color}15` }}>
-        <Icon className="w-[18px] h-[18px]" style={{ color }} strokeWidth={1.75} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{label}</p>
-        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">{description}</p>
-      </div>
-      <ArrowRight className="w-4 h-4 text-[#6B7280]/40 group-hover:text-[#F95C4B] transition-colors flex-shrink-0" />
-    </button>
-  )
-}
-
-/* ─── Main ────────────────────────────────────────────────────────── */
 export default function ColdCallerDashboard() {
   const { user } = useAuthStore()
-  const now = new Date()
-  const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'
-
-  const [stats, setStats] = useState({ leads: null, callLogs: null, appointments: null, unread: null })
-  const [recentLogs, setRecentLogs] = useState([])
-  const [todayAppts, setTodayAppts] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  const { data: myStats, isLoading: statsLoading } = useQuery({
-    queryKey: ['performance', 'my-stats', 'day'],
-    queryFn: async () => {
-      const { data } = await axiosClient.get('/performance/me?period=day')
-      return data.data.stats
-    },
-    staleTime: 30_000,
-  })
+  const { theme } = useTheme() ?? {}
+  const isDark = theme === 'dark'
+  const navigate = useNavigate()
+  const [now, setNow] = useState(() => new Date())
+  const freshRef = useRef(false)
 
   useEffect(() => {
-    async function load() {
-      const [leadsRes, logsRes, apptRes, notiRes] = await Promise.allSettled([
-        axiosClient.get('/leads?limit=1'),
-        axiosClient.get('/call-logs?limit=1'),
-        axiosClient.get('/appointments/today'),
-        axiosClient.get('/notifications?unread=true&limit=1'),
-      ])
-
-      const [recentLogsRes] = await Promise.allSettled([
-        axiosClient.get('/call-logs?limit=5'),
-      ])
-
-      setStats({
-        leads:        leadsRes.status   === 'fulfilled' ? leadsRes.value.data?.data?.total        ?? 0 : null,
-        callLogs:     logsRes.status    === 'fulfilled' ? logsRes.value.data?.data?.total         ?? 0 : null,
-        appointments: apptRes.status    === 'fulfilled' ? (apptRes.value.data?.data?.appointments ?? apptRes.value.data?.data ?? []).length : null,
-        unread:       notiRes.status    === 'fulfilled' ? notiRes.value.data?.data?.total         ?? 0 : null,
-      })
-
-      setRecentLogs(
-        recentLogsRes.status === 'fulfilled'
-          ? recentLogsRes.value.data?.data?.callLogs ?? []
-          : []
-      )
-
-      setTodayAppts(
-        apptRes.status === 'fulfilled'
-          ? (apptRes.value.data?.data?.appointments ?? apptRes.value.data?.data ?? [])
-          : []
-      )
-
-      setLoading(false)
-    }
-    load()
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
   }, [])
 
+  const { data: o, isError, isFetching, refetch, dataUpdatedAt } = useQuery({
+    queryKey: ['my-overview', user?._id],
+    queryFn: () => axiosClient.get('/reports/my-overview', { params: freshRef.current ? { fresh: 'true' } : undefined }).then((r) => r.data.data),
+    staleTime: 55_000,
+    refetchInterval: 60_000,
+  })
+  // Rank comes from the leaderboard itself (heavier to build) — loaded alongside, not blocking
+  const rankQuery = (period) => ({
+    queryKey: ['performance', 'my-stats', period],
+    queryFn: () => axiosClient.get(`/performance/me?period=${period}`).then((r) => r.data.data.stats),
+    staleTime: 60_000,
+  })
+  const { data: dayRank } = useQuery(rankQuery('day'))
+  const { data: monthRank } = useQuery(rankQuery('month'))
+
+  function refreshNow() {
+    freshRef.current = true
+    refetch().finally(() => { freshRef.current = false })
+  }
+
+  const k = o?.kpis
+  const kpiCards = useMemo(() => [
+    { icon: Phone, label: 'Calls this week', value: k?.callsWeek, sub: `Today ${k?.callsToday ?? 0} · Month ${(k?.callsMonth ?? 0).toLocaleString()}`, to: '/cold-caller/call-logs' },
+    { icon: Headphones, label: 'Contacts to call', value: k?.toCall, sub: `${(k?.contacts ?? 0).toLocaleString()} assigned to you`, to: '/cold-caller/contacts', tone: '#111111' },
+    { icon: TrendingUp, label: 'Leads this month', value: k?.leadsMonth, sub: `Today ${k?.leadsToday ?? 0} · Week ${k?.leadsWeek ?? 0}`, to: '/cold-caller/leads', tone: '#8B5CF6' },
+    { icon: Flame, label: 'Hot leads', value: k?.hot, sub: `${k?.closed ?? 0} of yours closed`, to: '/cold-caller/leads?status=hot', tone: '#EF4444' },
+    { icon: CalendarClock, label: 'Follow-ups due', value: k?.followUpsDue, sub: `Today ${k?.followUpsToday ?? 0} · Overdue ${k?.followUpsOverdue ?? 0}`, to: '/cold-caller/leads?focus=overdue', tone: '#F59E0B' },
+    { icon: Target, label: 'Call → lead rate', value: k?.conversionMonth, suffix: '%', sub: `${k?.interestedMonth ?? 0} interested this month`, to: '/cold-caller/call-logs', tone: '#10B981' },
+  ], [k])
+
+  const stageTo = {
+    contacts: '/cold-caller/contacts',
+    called: '/cold-caller/call-logs',
+    leads: '/cold-caller/leads',
+    warm: '/cold-caller/leads?status=warm',
+    hot: '/cold-caller/leads?status=hot',
+    closed: '/cold-caller/leads',
+  }
+  const pickTemperature = (key) => {
+    if (!key) return
+    navigate(key === 'closed' ? '/cold-caller/leads?focus=closed_month' : `/cold-caller/leads?status=${key}`)
+  }
+
   return (
-    <div className="p-5 sm:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 xl:p-8">
+      <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
+        {/* ── Main column ─────────────────────────────────────────────── */}
+        <div className="space-y-6 min-w-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+            <Hero
+              user={user}
+              now={now}
+              eyebrow="Cold calling"
+              subtitle="Every call is a door. Here's your day at a glance."
+              stats={[
+                { icon: PhoneCall, label: 'calls today', value: k?.callsToday, to: '/cold-caller/call-logs' },
+                { icon: TrendingUp, label: 'leads today', value: k?.leadsToday, to: '/cold-caller/leads' },
+                { icon: PhoneIncoming, label: 'callbacks waiting', value: k?.callbacks, to: '/cold-caller/contacts?outcome=callback_requested' },
+              ]}
+            />
+            {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o.milestone} to="/cold-caller/leads" />}
+          </div>
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">
-            {greeting}, {user?.firstName} 👋
-          </h1>
-          <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            {format(now, "EEEE, d MMMM yyyy")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 self-start">
-          <Activity className="w-4 h-4 text-[#3B82F6]" />
-          <span className="text-xs font-semibold text-[#3B82F6]">Cold Caller Active</span>
-        </div>
-      </div>
+          {isError && !o && <ErrorBanner onRetry={() => refetch()} />}
 
-      {/* Stats */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          My Activity
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
+          <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
+            {!o
+              ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[140px]" />)
+              : kpiCards.map((c, i) => <Kpi key={c.label} delay={80 + i * 60} {...c} />)}
+          </div>
+
+          <Card delay={140} className="p-5">
+            <CardTitle title="Your pipeline" subtitle="From your contact list to a closed deal — tap a stage to open it" action={<LinkButton to="/cold-caller/leads">My leads</LinkButton>} />
+            {!o ? <Skeleton className="h-20" /> : <Pipeline stages={o.pipeline} isDark={isDark} stageTo={stageTo} />}
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] gap-6">
+            <div className="grid grid-cols-1 gap-6 content-start">
+              <Card delay={200} className="p-5">
+                <CardTitle title="Your leads by temperature" subtitle="Tap one to see those leads" />
+                {!o ? <Skeleton className="h-[170px]" /> : <TemperatureDonut temperature={o.temperature} total={k.totalLeads} isDark={isDark} onPick={pickTemperature} />}
+              </Card>
+              <Card delay={240} className="p-5">
+                <CardTitle title="How your calls end" subtitle={o ? `${o.callOutcomes.total.toLocaleString()} calls in the last 30 days` : 'Last 30 days'} action={<LinkButton to="/cold-caller/call-logs">Call logs</LinkButton>} />
+                {!o ? <Skeleton className="h-[220px]" /> : <CallOutcomes outcomes={o.callOutcomes} />}
+              </Card>
+            </div>
+            <ScopedProvinceCard
+              isDark={isDark}
+              loading={!o}
+              subtitle="Your leads and contacts, or the whole company · tap a province"
+              scopes={o ? [
+                { key: 'mine', label: 'Mine', provinces: o.provinces, provinceTo: (name) => `/cold-caller/leads?province=${encodeURIComponent(name)}` },
+                { key: 'company', label: 'Company', provinces: o.company.provinces },
+              ] : [{ key: 'mine', label: 'Mine' }]}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 2xl:grid-cols-[1.4fr_1fr] gap-6">
+            <Card delay={260} className="p-5">
+              <CardTitle title="Your last 30 days" subtitle="Calls (left axis) against leads created and interested answers (right axis)" action={<LinkButton to="/cold-caller/call-logs">Call logs</LinkButton>} />
+              {!o ? <Skeleton className="h-[250px]" /> : (
+                <>
+                  <TrendChart data={o.charts.daily} xKey="date" series={DAILY_SERIES} rightAxis isDark={isDark}
+                    xFormat={(d) => format(new Date(d), 'd MMM')} labelFormat={(d) => format(new Date(d), 'EEE, d MMM')} />
+                  <ChartLegend series={DAILY_SERIES} isDark={isDark} />
+                </>
+              )}
+            </Card>
+            <Card delay={300} className="p-5">
+              <CardTitle title="When you call" subtitle="Your calls by hour, last 30 days — peak hour in full coral" />
+              {!o ? <Skeleton className="h-[250px]" /> : <CallsByHourChart hours={o.charts.callsByHour} isDark={isDark} height={250} />}
+            </Card>
+          </div>
+
+          <CompanySnapshot company={o?.company} isDark={isDark} delay={320} />
+
+          <Card delay={340} className="p-5">
+            <CardTitle title="Your recent calls" subtitle="Tap a call to open its lead, or the call log" action={<LinkButton to="/cold-caller/call-logs">All calls</LinkButton>} />
+            {!o ? <Skeleton className="h-[260px]" /> : <RecentCalls calls={o.recentCalls} />}
+          </Card>
+
+          <div className="mac-in" style={{ '--d': '360ms' }}>
+            <WorkingHoursSection endpoint="/performance/working-hours/me" />
+          </div>
+        </div>
+
+        {/* ── Right rail ──────────────────────────────────────────────── */}
+        <aside className="space-y-6 min-w-0">
+          <Card delay={120} className="p-5">
+            <CardTitle
+              title="Today's tasks"
+              action={(
+                <button type="button" onClick={refreshNow} title="Refresh now"
+                  className="flex items-center gap-1 text-[11px] font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B]">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                  {dataUpdatedAt ? format(new Date(dataUpdatedAt), 'HH:mm') : ''}
+                </button>
+              )}
+            />
+            {!o ? <Skeleton className="h-[300px]" /> : <TodaysTasks tasks={o.tasks} />}
+          </Card>
+          <RankCard day={dayRank} month={monthRank} />
+          <Card delay={200} className="p-5">
+            <CardTitle title="Upcoming visits" subtitle={`${(k?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/cold-caller/appointments">All</LinkButton>} />
+            {!o ? <Skeleton className="h-[200px]" /> : <UpcomingVisits visits={o.upcomingVisits} leadPath={(id) => `/cold-caller/leads/${id}`} allTo="/cold-caller/appointments" />}
+          </Card>
+          <PhotoCard
+            eyebrow="Keep dialling"
+            title="Your next lead is one call away"
+            text={<><b className="text-white">{(k?.toCall ?? 0).toLocaleString()}</b> contacts are waiting in your list{k?.callbacks ? <> and <b className="text-white">{k.callbacks}</b> asked you to call back</> : ''}.</>}
+            to="/cold-caller/contacts"
+            buttonLabel="Start calling"
             icon={PhoneCall}
-            label="Total Call Logs"
-            value={stats.callLogs}
-            sub="All time"
-            color="#3B82F6"
-            loading={loading}
           />
-          <StatCard
-            icon={TrendingUp}
-            label="Leads Created"
-            value={stats.leads}
-            sub="All time"
-            color="#10B981"
-            loading={loading}
-          />
-          <StatCard
-            icon={CalendarCheck}
-            label="Today's Appointments"
-            value={stats.appointments}
-            sub={format(now, 'd MMM yyyy')}
-            color="#F59E0B"
-            loading={loading}
-          />
-          <StatCard
-            icon={Bell}
-            label="Unread Notifications"
-            value={stats.unread}
-            color="#8B5CF6"
-            loading={loading}
-          />
-        </div>
-      </div>
-
-      {/* Performance snapshot */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-3">
-          Today's Performance
-        </h2>
-        <PerformanceSnapshot myStats={myStats} loading={statsLoading} />
-      </div>
-
-      {/* Today's appointments */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
-                <CalendarCheck className="w-4 h-4 text-[#F59E0B]" strokeWidth={1.75} />
-              </div>
-              <span className="text-sm font-bold text-[#111111] dark:text-white">Today's Appointments</span>
-            </div>
-          </div>
-          {loading ? (
-            <div className="p-5 space-y-3">
-              {[0,1,2].map(i => <div key={i} className="h-10 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />)}
-            </div>
-          ) : todayAppts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <CalendarCheck className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
-              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">No appointments today</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
-              {todayAppts.slice(0, 5).map((a) => (
-                <li key={a._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
-                    <CalendarCheck className="w-4 h-4 text-[#F59E0B]" strokeWidth={1.75} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">
-                      {a.contactName ?? a.leadId?.landlordName ?? 'Appointment'}
-                    </p>
-                    <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] truncate">
-                      {a.scheduledAt ? format(new Date(a.scheduledAt), 'HH:mm') : '—'} · {a.location ?? 'Location TBD'}
-                    </p>
-                  </div>
-                  <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                    a.status === 'confirmed'  ? 'bg-[#10B981]/10 text-[#10B981]' :
-                    a.status === 'scheduled'  ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
-                    a.status === 'cancelled'  ? 'bg-[#EF4444]/10 text-[#EF4444]' :
-                    'bg-[#F59E0B]/10 text-[#F59E0B]'
-                  }`}>
-                    {a.status ?? 'scheduled'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Recent call logs */}
-        <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
-                <PhoneCall className="w-4 h-4 text-[#3B82F6]" strokeWidth={1.75} />
-              </div>
-              <span className="text-sm font-bold text-[#111111] dark:text-white">Recent Calls</span>
-            </div>
-          </div>
-          {loading ? (
-            <div className="p-5 space-y-3">
-              {[0,1,2].map(i => <div key={i} className="h-10 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />)}
-            </div>
-          ) : recentLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <PhoneCall className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
-              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">No calls logged yet</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
-              {recentLogs.map((log) => (
-                <li key={log._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">
-                      {log.contactId?.firstName
-                        ? `${log.contactId.firstName} ${log.contactId.lastName ?? ''}`
-                        : 'Contact'}
-                    </p>
-                    <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
-                      {log.calledAt ? format(new Date(log.calledAt), 'd MMM, HH:mm') : '—'}
-                    </p>
-                  </div>
-                  <OutcomeBadge outcome={log.outcome} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <WorkingHoursSection endpoint="/performance/working-hours/me" />
-
-      {/* Quick actions */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          Quick Actions
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <QuickAction icon={PhoneCall}    label="Call Logs"       description="View & log call outcomes"       to="/cold-caller/call-logs"    color="#3B82F6" />
-          <QuickAction icon={TrendingUp}   label="My Leads"        description="Leads you've generated"         to="/cold-caller/leads"        color="#10B981" />
-          <QuickAction icon={CalendarCheck} label="Appointments"   description="Appointments you've booked"     to="/cold-caller/appointments" color="#F59E0B" />
-          <QuickAction icon={Trophy}       label="Leaderboard"     description="See your rank against the team" to="/cold-caller/leaderboard"  color="#F95C4B" />
-          <QuickAction icon={Bell}         label="Notifications"   description="Team updates & alerts"          to="/cold-caller/notifications" color="#8B5CF6" />
-        </div>
-      </div>
-
-      {/* System info */}
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          Account
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Role',       value: 'Cold Caller' },
-            { label: 'Last Login', value: user?.lastLoginAt ? format(new Date(user.lastLoginAt), 'd MMM yyyy, HH:mm') : '—' },
-            { label: 'Email',      value: user?.email ?? '—' },
-            { label: 'Status',     value: user?.isActive ? 'Active' : 'Inactive' },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA] mb-1">{label}</p>
-              <p className="text-sm font-medium text-[#111111] dark:text-white truncate">{value}</p>
-            </div>
-          ))}
-        </div>
+          <button type="button" onClick={() => navigate('/cold-caller/leads?new=1')}
+            className="mac-in mac-press w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-semibold text-[#F95C4B] border border-[#F95C4B]/30 hover:bg-[#F95C4B]/5 transition-colors"
+            style={{ '--d': '400ms' }}>
+            <FileText className="w-4 h-4" /> Log a new lead
+          </button>
+        </aside>
       </div>
     </div>
   )

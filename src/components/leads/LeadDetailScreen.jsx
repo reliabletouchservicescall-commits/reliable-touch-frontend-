@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { format, formatDistanceToNow, isPast, isToday } from 'date-fns'
 import {
   ArrowLeft, Trash2, Repeat, ArrowRight, Phone, Mail, User, Building2,
   History, FileText, Loader2, ShieldCheck, AlertTriangle, MapPin, PhoneCall, Calendar, Check,
-  MessageCircle, Key,
+  MessageCircle, Key, ChevronUp, ChevronDown, Maximize2, X, CalendarCheck, CalendarClock, Clock, MessagesSquare,
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { chatApi } from '../../services/chatApi'
@@ -35,7 +35,17 @@ function cleanPhone(phone) {
 
 /* ─── Status Change Dialog — shared, brand accent ────────────────────────── */
 
+// Esc closes the dialog on top (the side panel underneath ignores Esc while one is open)
+function useEscapeToClose(onClose) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+}
+
 function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated, options }) {
+  useEscapeToClose(onClose)
   const qc = useQueryClient()
   const opts = options ?? STATUS_OPTS.map((s) => ({ value: s, label: LEAD_STATUS_META[s].label }))
   const [status, setStatus] = useState(opts.some((o) => o.value === lead.status) ? lead.status : opts[0].value)
@@ -77,7 +87,7 @@ function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated, opti
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div data-lead-dialog className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <form onSubmit={handleSubmit} className="w-full max-w-md bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
@@ -201,6 +211,7 @@ function StatusChangeDialog({ lead, invalidateQueryKey, onClose, onUpdated, opti
 /* ─── Delete Confirm Dialog ───────────────────────────────────────────────── */
 
 function DeleteDialog({ lead, invalidateQueryKey, onClose, onDeleted }) {
+  useEscapeToClose(onClose)
   const qc = useQueryClient()
   const mut = useMutation({
     mutationFn: () => leadsApi.remove(lead._id),
@@ -215,7 +226,7 @@ function DeleteDialog({ lead, invalidateQueryKey, onClose, onDeleted }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div data-lead-dialog className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[#EF4444]/10 flex items-center justify-center">
@@ -347,6 +358,11 @@ export default function LeadDetailScreen({
   currentUserId,
   currentUserRole,
   showSourceBadge = false,
+  // 'panel' = shown in the Leads list's side panel: compact header (prev/next, open full
+  // page, close), more tabs, single column. `panel` = { onClose, onExpand, onPrev, onNext,
+  // hasPrev, hasNext, position: { index, total } }.
+  variant = 'page',
+  panel = null,
 }) {
   const qc = useQueryClient()
   const [lead, setLead] = useState(initialLead)
@@ -433,9 +449,170 @@ export default function LeadDetailScreen({
     saveMut.mutate(payload)
   }
 
+  const isPanel = variant === 'panel'
+  const historyCount = lead.statusHistory?.length ?? 0
+  const commentCount = lead.followUpComments?.length ?? 0
+  const initials = (lead.landlordName ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+
+  const statusHistoryCard = historyCount > 0 ? (
+    <InfoCard icon={History} title="Status History">
+      <div className="p-4 space-y-2.5">
+        {[...lead.statusHistory].reverse().map((h, i) => {
+          const changer = resolveUser(h.changedBy)
+          return (
+            <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
+              <div className="flex-shrink-0 mt-0.5"><LeadStatusBadge status={h.status} /></div>
+              <div className="min-w-0 flex-1">
+                {h.reason && <p className="text-sm text-[#111111] dark:text-white leading-relaxed">"{h.reason}"</p>}
+                <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] mt-1">
+                  {changer ? `${changer.firstName} ${changer.lastName}` : 'System'}
+                  {h.changedAt && ` · ${format(new Date(h.changedAt), 'd MMM yyyy, HH:mm')}`}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </InfoCard>
+  ) : null
+
+  const appointmentsEl = (
+    <LeadAppointments
+      lead={lead}
+      canBook={canEdit}
+      agencyMode={currentUserRole === 'agency'
+        ? { isManager: canAssignAgency, teamMembers: assignableTeam, currentUserId }
+        : undefined}
+    />
+  )
+
+  const commentsEl = (
+    <FollowUpComments
+      lead={lead}
+      currentUserId={currentUserId}
+      canComment={canComment}
+      onAdded={setLead}
+    />
+  )
+
+  const PANEL_TABS = [
+    { key: 'details', label: 'Overview', icon: FileText },
+    { key: 'comments', label: 'Activity & Comments', icon: MessagesSquare, count: commentCount },
+    { key: 'appointments', label: 'Appointments', icon: CalendarCheck },
+    { key: 'history', label: 'History', icon: History, count: historyCount },
+    { key: 'calls', label: 'Call Logs', icon: PhoneCall },
+  ]
+
+  const followUpDue = lead.followUpDate ? new Date(lead.followUpDate) : null
+  const followUpOverdue = followUpDue && isPast(followUpDue) && !isToday(followUpDue) && !['listed', 'rented_out', 'sold', 'lost'].includes(lead.status)
+  const summaryTiles = [
+    {
+      icon: CalendarClock, label: 'Next follow-up',
+      value: followUpDue ? format(followUpDue, 'd MMM yyyy') : 'Not set',
+      sub: followUpDue ? (isToday(followUpDue) ? 'Due today' : followUpOverdue ? 'Overdue' : formatDistanceToNow(followUpDue, { addSuffix: true })) : 'Set one below',
+      tone: followUpOverdue ? '#DC2626' : followUpDue && isToday(followUpDue) ? '#F59E0B' : '#F95C4B',
+    },
+    {
+      icon: CalendarCheck, label: 'Appointment',
+      value: lead.appointmentDate ? format(new Date(lead.appointmentDate), 'd MMM yyyy') : 'None booked',
+      sub: lead.appointmentDate ? (lead.appointmentTime || 'Time not set') : 'Book from Appointments',
+      tone: '#10B981',
+    },
+    {
+      icon: MessageCircle, label: 'Last follow-up',
+      value: lead.lastFollowUpAt ? formatDistanceToNow(new Date(lead.lastFollowUpAt), { addSuffix: true }) : 'Never',
+      sub: lead.lastFollowUpAt ? format(new Date(lead.lastFollowUpAt), 'd MMM, HH:mm') : 'No note yet',
+      tone: '#8B5CF6',
+    },
+    {
+      icon: Clock, label: 'Created',
+      value: format(new Date(lead.createdAt), 'd MMM yyyy'),
+      sub: creator ? `by ${creator.firstName} ${creator.lastName}` : format(new Date(lead.createdAt), 'HH:mm'),
+      tone: '#111111',
+    },
+  ]
+
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Header */}
+      {isPanel ? (
+        <div className="px-5 pt-3.5 pb-0 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+          {/* Toolbar: step through the list · actions · full page · close */}
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-1">
+              {[{ dir: 'prev', icon: ChevronUp, on: panel?.onPrev, ok: panel?.hasPrev, title: 'Previous lead (↑)' },
+                { dir: 'next', icon: ChevronDown, on: panel?.onNext, ok: panel?.hasNext, title: 'Next lead (↓)' }].map((b) => (
+                <button key={b.dir} type="button" onClick={b.on} disabled={!b.ok} title={b.title}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] border border-[#E5E7EB] dark:border-[#2A2A2A] hover:text-[#F95C4B] hover:border-[#F95C4B]/40 disabled:opacity-35 disabled:pointer-events-none active:scale-95 transition-all">
+                  <b.icon className="w-4 h-4" />
+                </button>
+              ))}
+              {panel?.position && (
+                <span className="ml-1.5 text-[11px] text-[#9CA3AF] tabular-nums">{panel.position.index} of {panel.position.total.toLocaleString()}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {canChangeStatus && (
+                <button type="button" onClick={() => setStatusDialog(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] active:scale-[0.97] transition-all">
+                  <Repeat className="w-3.5 h-3.5" /> Update status
+                </button>
+              )}
+              {canDelete && (
+                <button type="button" onClick={() => setDeleteDialog(true)} title="Delete lead"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-colors">
+                  <Trash2 className="w-4 h-4" strokeWidth={1.75} />
+                </button>
+              )}
+              {panel?.onExpand && (
+                <button type="button" onClick={panel.onExpand} title="Open full page"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white transition-colors">
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+              )}
+              <button type="button" onClick={panel?.onClose ?? onBack} title="Close (Esc)"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Identity */}
+          <div className="flex items-start gap-3.5 pb-4">
+            <div className="w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center text-sm font-bold text-white bg-gradient-to-br from-[#F95C4B] to-[#FF8C7A] shadow-[0_10px_24px_-10px_rgba(249,92,75,0.7)]">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-bold text-[#111111] dark:text-white tracking-tight truncate max-w-full">{lead.landlordName}</h2>
+                <LeadStatusBadge status={lead.status} size="lg" />
+                {showSourceBadge && <LeadSourceBadge source={lead.source} size="lg" />}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                {area && (
+                  <span className="inline-flex items-center gap-1 text-xs text-[#6B7280] dark:text-[#A1A1AA]">
+                    <MapPin className="w-3.5 h-3.5" /> {area.name}{area.region ? `, ${area.region}` : ''}
+                  </span>
+                )}
+                {lead.listingType && <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />}
+              </div>
+              {lead.propertyAddress && <p className="text-[11px] text-[#9CA3AF] mt-1 truncate">{lead.propertyAddress}</p>}
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-0.5 overflow-x-auto -mb-px">
+            {PANEL_TABS.map((t) => (
+              <button key={t.key} type="button" onClick={() => setTab(t.key)}
+                className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors ${tab === t.key ? 'text-[#F95C4B]' : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'}`}>
+                <t.icon className="w-3.5 h-3.5" /> {t.label}
+                {t.count > 0 && <span className={`px-1.5 rounded-full text-[10px] ${tab === t.key ? 'bg-[#F95C4B]/12' : 'bg-[#F5F5F4] dark:bg-[#202020]'}`}>{t.count}</span>}
+                {tab === t.key && <span className="mac-grow-x absolute left-2 right-2 bottom-0 h-0.5 rounded-full bg-[#F95C4B]" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+      /* Header */
       <div className="px-5 sm:px-8 pt-6 pb-0 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
         <button
           onClick={onBack}
@@ -506,9 +683,19 @@ export default function LeadDetailScreen({
         </div>
       </div>
 
+      )}
+
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-5 sm:px-8 py-6 bg-[#FAFAF9] dark:bg-[#0B0B0B]">
-        {tab === 'calls' ? (
+      <div className={`flex-1 overflow-y-auto bg-[#FAFAF9] dark:bg-[#0B0B0B] ${isPanel ? 'px-5 py-5' : 'px-5 sm:px-8 py-6'}`}>
+        {tab === 'comments' ? (
+          <div key="comments" className="lead-panel-swap">{commentsEl}</div>
+        ) : tab === 'appointments' ? (
+          <div key="appointments" className="lead-panel-swap">{appointmentsEl}</div>
+        ) : tab === 'history' ? (
+          <div key="history" className="lead-panel-swap">
+            {statusHistoryCard ?? <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] text-center py-10">No status changes recorded yet.</p>}
+          </div>
+        ) : tab === 'calls' ? (
           <div className="max-w-3xl mx-auto">
             {contact ? (
               <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] p-5">
@@ -519,9 +706,35 @@ export default function LeadDetailScreen({
             )}
           </div>
         ) : (
-          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <div key="details" className={isPanel ? 'lead-panel-swap' : 'max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6'}>
             {/* Main column */}
-            <div className="lg:col-span-3 space-y-5">
+            <div className={isPanel ? 'space-y-5' : 'lg:col-span-3 space-y-5'}>
+              {isPanel && (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {summaryTiles.map((t, i) => (
+                      <div key={t.label} className="mac-pop rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] p-3" style={{ '--d': `${60 + i * 50}ms` }}>
+                        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">
+                          <t.icon className={`w-3.5 h-3.5 ${t.tone === '#111111' ? 'dark:!text-white' : ''}`} style={{ color: t.tone }} /> {t.label}
+                        </p>
+                        <p className="text-sm font-bold text-[#111111] dark:text-white mt-1.5 truncate">{t.value}</p>
+                        <p className="text-[11px] truncate" style={{ color: t.tone === '#111111' ? undefined : t.tone }}>{t.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {lead.lastFollowUpText && (
+                    <button type="button" onClick={() => setTab('comments')}
+                      className="mac-in group w-full text-left flex items-start gap-3 p-3.5 rounded-xl bg-[#F95C4B]/6 border border-[#F95C4B]/20 hover:border-[#F95C4B]/45 transition-colors" style={{ '--d': '220ms' }}>
+                      <MessagesSquare className="w-4 h-4 text-[#F95C4B] flex-shrink-0 mt-0.5" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#F95C4B]">Latest comment</span>
+                        <span className="block text-sm text-[#111111] dark:text-white line-clamp-2 mt-0.5">{lead.lastFollowUpText}</span>
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-semibold text-[#F95C4B] whitespace-nowrap">View all <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" /></span>
+                    </button>
+                  )}
+                </>
+              )}
               <InfoCard icon={User} title="Contact">
                 <InfoRow icon={User} label="Name" value={contact?.name ?? lead.landlordName} />
                 <InfoRow
@@ -797,35 +1010,8 @@ export default function LeadDetailScreen({
                 )}
               </form>
 
-              {lead.statusHistory?.length > 0 && (
-                <InfoCard icon={History} title="Status History">
-                  <div className="p-4 space-y-2.5">
-                    {[...lead.statusHistory].reverse().map((h, i) => {
-                      const changer = resolveUser(h.changedBy)
-                      return (
-                        <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-                          <div className="flex-shrink-0 mt-0.5"><LeadStatusBadge status={h.status} /></div>
-                          <div className="min-w-0 flex-1">
-                            {h.reason && <p className="text-sm text-[#111111] dark:text-white leading-relaxed">"{h.reason}"</p>}
-                            <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] mt-1">
-                              {changer ? `${changer.firstName} ${changer.lastName}` : 'System'}
-                              {h.changedAt && ` · ${format(new Date(h.changedAt), 'd MMM yyyy, HH:mm')}`}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </InfoCard>
-              )}
-
-              <LeadAppointments
-                lead={lead}
-                canBook={canEdit}
-                agencyMode={currentUserRole === 'agency'
-                  ? { isManager: canAssignAgency, teamMembers: assignableTeam, currentUserId }
-                  : undefined}
-              />
+              {!isPanel && statusHistoryCard}
+              {!isPanel && appointmentsEl}
 
               <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
                 Created {format(new Date(lead.createdAt), 'd MMM yyyy, HH:mm')}
@@ -835,16 +1021,11 @@ export default function LeadDetailScreen({
             </div>
 
             {/* Chat column */}
-            <div className="lg:col-span-2">
-              <div className="lg:sticky lg:top-6">
-                <FollowUpComments
-                  lead={lead}
-                  currentUserId={currentUserId}
-                  canComment={canComment}
-                  onAdded={setLead}
-                />
+            {!isPanel && (
+              <div className="lg:col-span-2">
+                <div className="lg:sticky lg:top-6">{commentsEl}</div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -855,7 +1036,7 @@ export default function LeadDetailScreen({
           invalidateQueryKey={invalidateQueryKey}
           options={statusOptions}
           onClose={() => setStatusDialog(false)}
-          onUpdated={(updated) => { setStatusDialog(false); if (updated) setLead(updated) }}
+          onUpdated={(updated) => { setStatusDialog(false); if (updated) setLead(updated); qc.invalidateQueries({ queryKey: invalidateQueryKey }) }}
         />
       )}
       {deleteDialog && (

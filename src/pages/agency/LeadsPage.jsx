@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -22,6 +22,8 @@ import {
   LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
   ActiveFilterChips, FetchBar, CardGridSkeleton, FOCUS_LABELS, LEAD_STATUS_TILES,
 } from '../../components/leads/LeadsHub'
+import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
+import { AgencyLeadDetail } from './LeadDetailPage'
 
 const STATUS_META = {
   cold:              { label: 'Cold',              color: '#6B7280', bg: '#6B728018' },
@@ -51,9 +53,10 @@ function fmtDate(d) {
   return format(new Date(d), 'd MMM yyyy')
 }
 
-function LeadCard({ lead, onClick, currentUserId }) {
+function LeadCard({ lead, onClick, currentUserId, rowProps }) {
   return (
     <button
+      {...rowProps}
       onClick={onClick}
       className="group w-full text-left bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40 hover:shadow-sm transition-all p-5"
     >
@@ -304,19 +307,25 @@ export default function AgencyLeadsPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { user } = useAuthStore()
-  const [status, setStatus] = useState('')
-  const [sourceFilter, setSourceFilter] = useState('')
+  // The dashboard deep-links here with ?status= / ?source= / ?focus= / ?province= — read once
+  // as the starting filters, then they're ordinary on-screen filters.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [status, setStatus] = useState(() => searchParams.get('status') ?? '')
+  const [sourceFilter, setSourceFilter] = useState(() => searchParams.get('source') ?? '')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
   const [hasCommentFilter, setHasCommentFilter] = useState(false)
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo,   setCreatedTo]   = useState('')
   const [search, setSearch] = useState('')
-  const [focus, setFocus] = useState('') // one-click Quick insight filter
-  const [place, setPlace] = useState(null) // { kind: 'area', value: areaId, label } from Top areas
+  const [focus, setFocus] = useState(() => searchParams.get('focus') ?? '') // one-click Quick insight filter
+  // { kind: 'area', value: areaId, label } from Top areas, or { kind: 'province', ... } from the dashboard map
+  const [place, setPlace] = useState(() => {
+    const province = searchParams.get('province')
+    return province ? { kind: 'province', value: province, label: province } : null
+  })
   const [page, setPage] = useState(1)
   const [showNewLead, setShowNewLead] = useState(false)
-  const [searchParams, setSearchParams] = useSearchParams()
   const isManager = Boolean(user?.isAgencyManager)
   const agentFilter = isManager ? (searchParams.get('agent') ?? '') : ''
   const debouncedSearch = useDebounce(search.trim())
@@ -354,7 +363,7 @@ export default function AgencyLeadsPage() {
     ...(createdTo ? { createdBefore: new Date(createdTo).toISOString() } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(focus ? { focus } : {}),
-    ...(place ? { area: place.value } : {}),
+    ...(place ? (place.kind === 'province' ? { province: place.value } : { area: place.value }) : {}),
   }
   // Same as params but without status/page — feeds the per-status tile counts.
   const { status: _status, page: _page, limit: _limit, ...statsParams } = params
@@ -377,6 +386,10 @@ export default function AgencyLeadsPage() {
   const { data: insights } = useLeadInsights(agentFilter && agentFilter !== 'unassigned' ? { assignedAgent: agentFilter } : {})
 
   const leads = data?.leads ?? []
+  // Side panel: clicking a lead opens it beside the list (?lead=<id>); ↑/↓ step through
+  const leadIdsKey = leads.map((l) => l._id).join(',')
+  const leadIds = useMemo(() => (leadIdsKey ? leadIdsKey.split(',') : []), [leadIdsKey])
+  const leadPanel = useLeadPanel(leadIds)
   const total = data?.total ?? 0
   const totalPages = data?.totalPages ?? 1
   const hasFilters = Boolean(status || sourceFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo || debouncedSearch || focus || place)
@@ -389,7 +402,7 @@ export default function AgencyLeadsPage() {
   const chips = [
     focus && { key: 'focus', label: 'Insight', value: FOCUS_LABELS[focus], onClear: () => setFocusR('') },
     status && { key: 'status', label: 'Status', value: LEAD_STATUS_TILES.find((t) => t.key === status)?.label ?? status, onClear: () => setStatusR('') },
-    place && { key: 'place', label: 'Area', value: place.label, onClear: () => setPlaceR(null) },
+    place && { key: 'place', label: place.kind === 'province' ? 'Province' : 'Area', value: place.label, onClear: () => setPlaceR(null) },
     sourceFilter && { key: 'source', label: 'Source', value: sourceFilter === 'reliable_touch' ? 'From Reliable Touch' : 'Self-sourced', onClear: () => { setSourceFilter(''); setPage(1) } },
     listingTypeFilter && { key: 'intent', label: 'Intent', value: listingTypeFilter === 'sale' ? 'For sale' : 'For rental', onClear: () => { setListingTypeFilter(''); setPage(1) } },
   ].filter(Boolean)
@@ -425,6 +438,22 @@ export default function AgencyLeadsPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
         <div className="space-y-4 min-w-0">
+          <LeadSidePanel panel={leadPanel}>
+            {(id) => (
+              <AgencyLeadDetail
+                id={id}
+                panel={{
+                  onClose: leadPanel.close,
+                  onExpand: () => navigate(`/agency/leads/${id}`),
+                  onPrev: leadPanel.prev,
+                  onNext: leadPanel.next,
+                  hasPrev: leadPanel.hasPrev,
+                  hasNext: leadPanel.hasNext,
+                  position: leadPanel.position,
+                }}
+              />
+            )}
+          </LeadSidePanel>
           <ActiveFilterChips chips={chips} count={chips.length ? total : null} onClearAll={clearAllFilters} />
           <FetchBar active={refreshing} />
 
@@ -501,7 +530,7 @@ export default function AgencyLeadsPage() {
               <div className={`grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
                 {leads.map((lead, i) => (
                   <div key={lead._id} className="mac-in" style={{ '--d': `${Math.min(i, 12) * 30}ms` }}>
-                    <LeadCard lead={lead} onClick={() => navigate(`/agency/leads/${lead._id}`)} currentUserId={user?._id} />
+                    <LeadCard lead={lead} onClick={() => leadPanel.open(lead._id)} rowProps={leadRowProps(leadPanel, lead._id)} currentUserId={user?._id} />
                   </div>
                 ))}
               </div>

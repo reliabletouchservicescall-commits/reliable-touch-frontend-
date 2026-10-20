@@ -16,7 +16,7 @@ export default function SidePanel({
 }) {
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+      <div data-lead-dialog className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onClose} />
       <div
         className={`fixed inset-y-0 right-0 z-50 w-full ${widthClass} flex flex-col bg-white dark:bg-[#181818] shadow-2xl border-l border-[#E5E7EB] dark:border-[#2A2A2A] animate-slide-in-right`}
       >

@@ -1,399 +1,530 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  CalendarCheck,
-  Bell,
-  Clock,
-  ArrowRight,
-  Activity,
-  MapPin,
-  Building2,
-  CheckCircle2,
-  AlertCircle,
-  CalendarClock,
-  Trophy,
-  Crown,
-  Medal,
-  Home,
-  TrendingUp,
-  DollarSign,
-  ClipboardList,
-} from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
+import {
+  TrendingUp, Phone, PhoneCall, CalendarClock, CalendarCheck, Flame, Home, RefreshCw, Clock, Sparkles, Handshake,
+  Trophy, Crown, ShieldCheck, Users, BookUser, ArrowRight,
+} from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
-import { agentsApi } from '../../services/agentsApi'
-import ManagerDashboard from './ManagerDashboard'
+import { useTheme } from '../../context/ThemeContext'
+import { agenciesApi } from '../../services/agenciesApi'
+import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
+import {
+  Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, TemperatureDonut, IntentBars,
+  TrendChart, ChartLegend, CallsByHourChart, ProvincePanel, TodaysTasks, RecentActivity, PhotoCard,
+  CallOutcomes, UpcomingVisits, CORAL, CORAL_3, STATUS_COLORS, STATUS_LABEL,
+} from '../../components/dashboard/DashboardKit'
 
-const APPT_META = {
-  scheduled:  { label: 'Scheduled',  color: '#3B82F6' },
-  confirmed:  { label: 'Confirmed',  color: '#10B981' },
-  completed:  { label: 'Completed',  color: '#6B7280' },
-  cancelled:  { label: 'Cancelled',  color: '#EF4444' },
-  no_show:    { label: 'No Show',    color: '#F59E0B' },
-}
+// The company dashboard — same look and motion as the admin command centre, scoped by
+// GET /reports/agency-overview: a company manager sees the whole company and the team
+// table, an agent sees only their own book and where they stand.
 
-function ApptBadge({ status }) {
-  const meta = APPT_META[status] ?? { label: status, color: '#6B7280' }
+const OWN_SOURCE = 'agency_self_sourced'
+const RT_SOURCE = 'reliable_touch'
+
+const DAILY_SERIES = [
+  { key: 'calls',    name: 'Calls',                color: CORAL,     kind: 'area' },
+  { key: 'own',      name: 'Leads generated',      color: 'ink',     kind: 'line', axis: 'right' },
+  { key: 'assigned', name: 'Leads received',       color: '#8B5CF6', kind: 'line', axis: 'right' },
+  { key: 'closed',   name: 'Deals closed',         color: '#10B981', kind: 'line', axis: 'right', dashed: true },
+]
+const WEEKLY_SERIES = [
+  { key: 'own',      name: 'Leads generated',      color: CORAL,     kind: 'line', dots: true, width: 3 },
+  { key: 'assigned', name: 'From Reliable Touch',  color: 'ink',     kind: 'line', dots: true, width: 2.5 },
+  { key: 'closed',   name: 'Deals closed',         color: '#10B981', kind: 'line', dots: true, dashed: true },
+]
+
+/* ─── Own vs handed-over ─────────────────────────────────────────────────── */
+
+const SPLIT_PARTS = [
+  { key: 'hot',    label: 'Hot / negotiating', color: CORAL },
+  { key: 'warm',   label: 'Warm',              color: '#F59E0B' },
+  { key: 'cold',   label: 'Cold',              color: '#D4D4D8' },
+  { key: 'closed', label: 'Closed',            color: '#10B981' },
+  { key: 'lost',   label: 'Lost',              color: '#6B7280' },
+]
+
+function SourceSplit({ sources }) {
+  const navigate = useNavigate()
+  const total = sources.reduce((a, s) => a + s.count, 0) || 1
   return (
-    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
-      style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
-      {meta.label}
-    </span>
-  )
-}
-
-function StatCard({ icon: Icon, label, value, sub, color, loading }) {
-  return (
-    <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex flex-col gap-4">
-      <div className="flex items-center justify-center w-10 h-10 rounded-xl" style={{ backgroundColor: `${color}18` }}>
-        <Icon className="w-5 h-5" style={{ color }} strokeWidth={1.75} />
+    <div className="space-y-4">
+      {/* Share of the book */}
+      <div className="flex h-3 rounded-full overflow-hidden bg-[#F5F5F4] dark:bg-[#202020]">
+        {sources.map((s, i) => (
+          <div key={s.key} className="mac-grow-x h-full" title={`${s.label}: ${s.count}`}
+            style={{ width: `${(s.count / total) * 100}%`, backgroundColor: i === 0 ? CORAL : '#111111', '--d': `${200 + i * 120}ms` }} />
+        ))}
       </div>
-      <div>
-        {loading ? (
-          <div className="h-7 w-14 rounded-lg bg-[#F5F5F4] dark:bg-[#202020] animate-pulse mb-1" />
-        ) : (
-          <p className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">{value ?? '—'}</p>
-        )}
-        <p className="text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">{label}</p>
-        {sub && !loading && <p className="text-[10px] text-[#6B7280]/70 dark:text-[#A1A1AA]/60 mt-1">{sub}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3">
+        {sources.map((s, i) => (
+          <button key={s.key} type="button"
+            onClick={() => navigate(`/agency/leads?source=${s.key === 'own' ? OWN_SOURCE : RT_SOURCE}`)}
+            className="mac-in mac-lift mac-press group text-left p-3.5 rounded-xl border border-[#F1EFEC] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40"
+            style={{ '--d': `${220 + i * 80}ms` }}>
+            <div className="flex items-center gap-2">
+              <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${i === 0 ? 'bg-[#F95C4B]/12' : 'bg-[#111111]/8 dark:bg-white/10'}`}>
+                {i === 0 ? <Sparkles className="w-3.5 h-3.5 text-[#F95C4B]" /> : <Handshake className="w-3.5 h-3.5 text-[#111111] dark:text-white" />}
+              </span>
+              <p className="text-xs font-semibold text-[#111111] dark:text-white flex-1">{s.label}</p>
+              <ArrowRight className="w-3.5 h-3.5 text-[#D4D4D8] dark:text-[#3F3F46] group-hover:text-[#F95C4B] transition-colors" />
+            </div>
+            <div className="flex items-end gap-2 mt-2">
+              <p className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight leading-none"><AnimatedNumber value={s.count} /></p>
+              <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] pb-0.5">leads · <span className={`font-semibold ${s.conversion >= 20 ? 'text-[#16A34A]' : ''}`}>{s.conversion}%</span> closed</p>
+            </div>
+            {/* Status make-up of this half of the book */}
+            <div className="flex h-1.5 rounded-full overflow-hidden bg-[#F5F5F4] dark:bg-[#202020] mt-3">
+              {SPLIT_PARTS.map((p) => (s[p.key] ? (
+                <div key={p.key} className="mac-grow-x h-full" title={`${p.label}: ${s[p.key]}`}
+                  style={{ width: `${(s[p.key] / (s.count || 1)) * 100}%`, backgroundColor: p.color, '--d': `${380 + i * 80}ms` }} />
+              ) : null))}
+            </div>
+            <div className="grid grid-cols-3 gap-1 mt-2.5 text-center">
+              {[['hot', 'Hot'], ['closed', 'Closed'], ['cold', 'Cold']].map(([k, label]) => (
+                <div key={k} className="rounded-lg bg-[#FAFAF9] dark:bg-[#111111] py-1">
+                  <p className="text-xs font-bold text-[#111111] dark:text-white tabular-nums">{s[k]}</p>
+                  <p className="text-[9px] uppercase tracking-wide text-[#9CA3AF]">{label}</p>
+                </div>
+              ))}
+            </div>
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1">
+        {SPLIT_PARTS.map((p) => (
+          <span key={p.key} className="inline-flex items-center gap-1.5 text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
+            <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: p.color }} />{p.label}
+          </span>
+        ))}
       </div>
     </div>
   )
 }
 
-function QuickAction({ icon: Icon, label, description, to, color }) {
-  const navigate = useNavigate()
+/* ─── Team (manager) / standing (agent) ─────────────────────────────────── */
+
+function MiniBar({ value, max, color = CORAL, delay = 0 }) {
   return (
-    <button
-      onClick={() => navigate(to)}
-      className="group flex items-center gap-4 p-4 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] hover:border-[#F95C4B]/40 hover:shadow-sm transition-all text-left w-full"
-    >
-      <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl" style={{ backgroundColor: `${color}15` }}>
-        <Icon className="w-[18px] h-[18px]" style={{ color }} strokeWidth={1.75} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{label}</p>
-        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">{description}</p>
-      </div>
-      <ArrowRight className="w-4 h-4 text-[#6B7280]/40 group-hover:text-[#F95C4B] transition-colors flex-shrink-0" />
-    </button>
+    <div className="h-1 rounded-full bg-[#F5F5F4] dark:bg-[#2A2A2A] overflow-hidden mt-1">
+      <div className="mac-grow-x h-full rounded-full" style={{ width: `${max ? (value / max) * 100 : 0}%`, backgroundColor: color, '--d': `${delay}ms` }} />
+    </div>
   )
 }
 
-const RANK_COLORS = { 1: '#F59E0B', 2: '#9CA3AF', 3: '#B45309' }
-
-function AgentDashboard() {
-  const { user } = useAuthStore()
+function TeamTable({ members }) {
   const navigate = useNavigate()
-  const now = new Date()
-  const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'
-
-  const [todayAppts, setTodayAppts] = useState([])
-  const [upcomingAppts, setUpcomingAppts] = useState([])
-  const [stats, setStats] = useState({ today: null, upcoming: null, unread: null, completed: null })
-  const [loading, setLoading] = useState(true)
-
-  const { data: myPerfStats } = useQuery({
-    queryKey: ['agent-perf-snapshot'],
-    queryFn: () => axiosClient.get('/performance/agents/me?period=week').then((r) => r.data.data.stats),
-    staleTime: 60_000,
-  })
-
-  const { data: agentDash } = useQuery({
-    queryKey: ['agent-dashboard'],
-    queryFn: () => agentsApi.myDashboard().then((r) => r.data.data),
-    staleTime: 60_000,
-  })
-
-  useEffect(() => {
-    async function load() {
-      const [todayRes, upcomingRes, notiRes] = await Promise.allSettled([
-        axiosClient.get('/appointments/today'),
-        axiosClient.get('/appointments?limit=10&status=scheduled'),
-        axiosClient.get('/notifications?unread=true&limit=1'),
-      ])
-
-      const todayList =
-        todayRes.status === 'fulfilled'
-          ? (todayRes.value.data?.data?.appointments ?? todayRes.value.data?.data ?? [])
-          : []
-
-      const upcomingList =
-        upcomingRes.status === 'fulfilled'
-          ? (upcomingRes.value.data?.data?.appointments ?? [])
-          : []
-
-      setTodayAppts(todayList)
-      setUpcomingAppts(upcomingList)
-      setStats({
-        today:     todayList.length,
-        upcoming:  upcomingRes.status === 'fulfilled' ? upcomingRes.value.data?.data?.total ?? 0 : null,
-        unread:    notiRes.status  === 'fulfilled' ? notiRes.value.data?.data?.total ?? 0 : null,
-        completed: todayList.filter((a) => a.status === 'completed').length,
-      })
-      setLoading(false)
-    }
-    load()
-  }, [])
-
+  if (!members?.length) return <p className="text-xs text-[#9CA3AF] py-8 text-center">No active team members yet</p>
+  const maxOf = (fn) => Math.max(1, ...members.map(fn))
+  const mx = { calls: maxOf((m) => m.calls), gen: maxOf((m) => m.generated), book: maxOf((m) => m.book.total), closed: maxOf((m) => m.closedMonth) }
   return (
-    <div className="p-5 sm:p-8 max-w-6xl mx-auto space-y-8">
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">
-            {greeting}, {user?.firstName} 👋
-          </h1>
-          <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            {format(now, "EEEE, d MMMM yyyy")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#F95C4B]/10 border border-[#F95C4B]/20 self-start">
-          <Activity className="w-4 h-4 text-[#F95C4B]" />
-          <span className="text-xs font-semibold text-[#F95C4B]">Agency Active</span>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          Today's Overview
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={CalendarCheck}  label="Today's Appointments" value={stats.today}     sub={format(now, 'd MMM yyyy')} color="#F95C4B" loading={loading} />
-          <StatCard icon={CheckCircle2}   label="Completed Today"      value={stats.completed} sub="Done for the day"           color="#10B981" loading={loading} />
-          <StatCard icon={CalendarClock}  label="Scheduled"            value={stats.upcoming}  sub="All upcoming"               color="#F59E0B" loading={loading} />
-          <StatCard icon={Bell}           label="Notifications"        value={stats.unread}    sub="Unread"                     color="#8B5CF6" loading={loading} />
-        </div>
-      </div>
-
-      {/* Pipeline stats from /agents/me/dashboard */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          My Pipeline
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={TrendingUp}    label="Total Leads"         value={agentDash?.totalLeads}         sub="Assigned to me"     color="#FF8C7A" loading={!agentDash} />
-          <StatCard icon={ClipboardList} label="Active Leads"        value={agentDash?.activeLeads}        sub="Warm & hot"          color="#F95C4B" loading={!agentDash} />
-          <StatCard icon={Home}          label="Total Visits"        value={agentDash?.totalVisits}        sub="All property visits"  color="#10B981" loading={!agentDash} />
-          <StatCard icon={DollarSign}    label="Pending Commissions" value={agentDash?.pendingCommissions} sub="Awaiting payment"     color="#F59E0B" loading={!agentDash} />
-        </div>
-      </div>
-
-      {/* Performance snapshot */}
-      {myPerfStats && (
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-            My Performance This Week
-          </h2>
-          <div
-            className="rounded-2xl border-2 p-5 flex flex-col sm:flex-row sm:items-center gap-5 cursor-pointer hover:shadow-md transition-all"
-            style={{
-              borderColor: `${RANK_COLORS[myPerfStats.rank] ?? '#F95C4B'}40`,
-              backgroundColor: `${RANK_COLORS[myPerfStats.rank] ?? '#F95C4B'}06`,
-            }}
-            onClick={() => navigate('/agency/leaderboard')}
-          >
-            {/* Rank block */}
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center shadow-md flex-shrink-0"
-                style={{ backgroundColor: RANK_COLORS[myPerfStats.rank] ?? '#F95C4B' }}
-              >
-                {myPerfStats.rank === 1
-                  ? <Crown className="w-7 h-7 text-white" strokeWidth={2} />
-                  : <Medal className="w-7 h-7 text-white" strokeWidth={2} />}
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA]">Your Rank</p>
-                <p className="text-3xl font-black text-[#111111] dark:text-white leading-none">
-                  {myPerfStats.rank
-                    ? `#${myPerfStats.rank}`
-                    : '—'}
-                  {myPerfStats.total > 0 && (
-                    <span className="text-sm font-medium text-[#6B7280] ml-2">of {myPerfStats.total}</span>
-                  )}
-                </p>
-                <p className="text-xs font-semibold mt-0.5" style={{ color: RANK_COLORS[myPerfStats.rank] ?? '#F95C4B' }}>
-                  Score: {myPerfStats.score ?? 0}
-                </p>
-              </div>
-            </div>
-
-            {/* Stats pills */}
-            <div className="flex flex-wrap gap-2 flex-1">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F95C4B]/10">
-                <Home className="w-3.5 h-3.5 text-[#F95C4B]" strokeWidth={1.75} />
-                <span className="text-xs font-bold text-[#F95C4B]">{myPerfStats.totalVisits ?? 0}</span>
-                <span className="text-[10px] text-[#6B7280]">visits</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#10B981]/10">
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" strokeWidth={1.75} />
-                <span className="text-xs font-bold text-[#10B981]">{myPerfStats.listingsSigned ?? 0}</span>
-                <span className="text-[10px] text-[#6B7280]">listings</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F95C4B]/10">
-                <TrendingUp className="w-3.5 h-3.5 text-[#F95C4B]" strokeWidth={1.75} />
-                <span className="text-xs font-bold text-[#F95C4B]">{myPerfStats.dealsClosed ?? 0}</span>
-                <span className="text-[10px] text-[#6B7280]">deals</span>
-              </div>
-            </div>
-
-            {/* CTA */}
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#F95C4B] flex-shrink-0">
-              <Trophy className="w-3.5 h-3.5" strokeWidth={1.75} />
-              View leaderboard
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Today's appointments */}
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#F95C4B]/10 flex items-center justify-center">
-              <CalendarCheck className="w-4 h-4 text-[#F95C4B]" strokeWidth={1.75} />
-            </div>
-            <span className="text-sm font-bold text-[#111111] dark:text-white">Today's Appointments</span>
-          </div>
-          <a href="/agency/appointments" className="text-xs font-semibold text-[#F95C4B] hover:underline flex items-center gap-1">
-            View all <ArrowRight className="w-3 h-3" />
-          </a>
-        </div>
-
-        {loading ? (
-          <div className="p-5 space-y-3">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-14 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />
+    <div className="overflow-x-auto -mx-1">
+      <table className="w-full min-w-[860px] text-xs">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-widest text-[#9CA3AF]">
+            {['#', 'Agent', 'Calls', 'Leads generated', 'Their book', 'From RT / own', 'Hot', 'Closed', 'Visits', 'Conversion'].map((h) => (
+              <th key={h} className={`font-semibold px-3 py-2.5 ${h === '#' || h === 'Agent' ? 'text-left' : 'text-right'}`}>{h}</th>
             ))}
-          </div>
-        ) : todayAppts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <CalendarCheck className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
-            <p className="text-sm font-medium text-[#111111] dark:text-white">No appointments today</p>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Your schedule is clear for today</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
-            {todayAppts.map((a) => (
-              <li key={a._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#F95C4B]/10 flex flex-col items-center justify-center">
-                  <span className="text-[11px] font-bold text-[#F95C4B] leading-none">{a.scheduledTime ?? '--'}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">
-                    {a.leadId?.landlordName ?? 'Appointment'}
-                  </p>
-                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1 truncate">
-                    <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
-                    {a.leadId?.propertyAddress ?? 'Address TBD'}
-                  </p>
-                </div>
-                <ApptBadge status={a.status} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Upcoming appointments */}
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
-              <CalendarClock className="w-4 h-4 text-[#F59E0B]" strokeWidth={1.75} />
-            </div>
-            <span className="text-sm font-bold text-[#111111] dark:text-white">Upcoming Appointments</span>
-          </div>
-          <a href="/agency/appointments" className="text-xs font-semibold text-[#F95C4B] hover:underline flex items-center gap-1">
-            View all <ArrowRight className="w-3 h-3" />
-          </a>
-        </div>
-
-        {loading ? (
-          <div className="p-5 space-y-3">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-14 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />
-            ))}
-          </div>
-        ) : upcomingAppts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <AlertCircle className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
-            <p className="text-sm font-medium text-[#111111] dark:text-white">No upcoming appointments</p>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">New appointments will appear here when scheduled</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
-            {upcomingAppts.slice(0, 5).map((a) => (
-              <li key={a._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#F59E0B]/10 flex flex-col items-center justify-center">
-                  <span className="text-[9px] font-bold text-[#F59E0B] leading-none">
-                    {a.scheduledDate ? format(new Date(a.scheduledDate), 'dd') : '--'}
+          </tr>
+        </thead>
+        <tbody>
+          {members.map((m, i) => (
+            <tr key={m.userId} onClick={() => navigate(`/agency/agents/${m.userId}`)}
+              className="mac-in cursor-pointer border-t border-[#F5F5F4] dark:border-[#202020] hover:bg-[#FAFAF9] dark:hover:bg-[#1C1C1C] transition-colors"
+              style={{ '--d': `${120 + i * 40}ms` }}>
+              <td className="px-3 py-2.5">
+                <span className={`w-7 h-7 rounded-lg inline-flex items-center justify-center text-[11px] font-bold ${i === 0 && (m.closedMonth || m.calls) ? 'bg-[#F95C4B] text-white' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#6B7280] dark:text-[#A1A1AA]'}`}>
+                  {i === 0 && (m.closedMonth || m.calls) ? <Trophy className="w-3.5 h-3.5" /> : m.rank}
+                </span>
+              </td>
+              <td className="px-3 py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 ${m.isAgencyManager ? 'bg-[#F95C4B]' : 'bg-[#111111] dark:bg-[#3F3F46]'}`}>
+                    {m.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
                   </span>
-                  <span className="text-[8px] text-[#F59E0B]/70 leading-none uppercase">
-                    {a.scheduledDate ? format(new Date(a.scheduledDate), 'MMM') : ''}
-                  </span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-[#111111] dark:text-white truncate max-w-[180px]">{m.name}</p>
+                    {m.isAgencyManager && <p className="inline-flex items-center gap-1 text-[10px] text-[#F95C4B]"><ShieldCheck className="w-3 h-3" /> Manager</p>}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">
-                    {a.leadId?.landlordName ?? 'Appointment'}
-                  </p>
-                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1 truncate">
-                    <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
-                    {a.leadId?.propertyAddress ?? 'Address TBD'}
-                    {a.scheduledTime && <span className="ml-1">· {a.scheduledTime}</span>}
-                  </p>
-                </div>
-                <ApptBadge status={a.status} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Quick actions */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          Quick Actions
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <QuickAction icon={CalendarCheck} label="All Appointments"  description="View your full appointment schedule" to="/agency/appointments"  color="#F95C4B" />
-          <QuickAction icon={TrendingUp}    label="My Leads"          description="Leads assigned to you"               to="/agency/leads"         color="#F95C4B" />
-          <QuickAction icon={Trophy}        label="Leaderboard"       description="See your rank among agents"          to="/agency/leaderboard"   color="#F59E0B" />
-          <QuickAction icon={Bell}          label="Notifications"     description="Team updates and alerts"              to="/agency/notifications" color="#8B5CF6" />
-        </div>
-      </div>
-
-      {/* Account info */}
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          Account
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Role',       value: 'Agency' },
-            { label: 'Last Login', value: user?.lastLoginAt ? format(new Date(user.lastLoginAt), 'd MMM yyyy, HH:mm') : '—' },
-            { label: 'Email',      value: user?.email ?? '—' },
-            { label: 'Status',     value: user?.isActive ? 'Active' : 'Inactive' },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA] mb-1">{label}</p>
-              <p className="text-sm font-medium text-[#111111] dark:text-white truncate">{value}</p>
-            </div>
+              </td>
+              <td className="px-3 py-2.5 text-right w-[90px]"><span className="font-semibold text-[#111111] dark:text-white tabular-nums">{m.calls}</span><MiniBar value={m.calls} max={mx.calls} delay={200 + i * 40} /></td>
+              <td className="px-3 py-2.5 text-right w-[110px]"><span className="font-semibold text-[#111111] dark:text-white tabular-nums">{m.generated}</span><MiniBar value={m.generated} max={mx.gen} color="#111111" delay={220 + i * 40} /></td>
+              <td className="px-3 py-2.5 text-right w-[90px]"><span className="font-semibold text-[#111111] dark:text-white tabular-nums">{m.book.total}</span><MiniBar value={m.book.total} max={mx.book} color={CORAL_3} delay={240 + i * 40} /></td>
+              <td className="px-3 py-2.5 text-right text-[#6B7280] dark:text-[#A1A1AA] tabular-nums">{m.book.assigned} / {m.book.own}</td>
+              <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-[#EF4444]">{m.book.hot}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums"><span className="font-bold text-[#10B981]">{m.closedMonth}</span><span className="text-[10px] text-[#9CA3AF]"> / {m.book.closed}</span></td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-[#111111] dark:text-white whitespace-nowrap">{m.visits}<span className="text-[10px] text-[#9CA3AF]"> · {m.visitsDone} done</span></td>
+              <td className="px-3 py-2.5 text-right">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.conversion >= 20 ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#6B7280] dark:text-[#A1A1AA]'}`}>{m.conversion}%</span>
+              </td>
+            </tr>
           ))}
-        </div>
-      </div>
+        </tbody>
+      </table>
+      <p className="text-[10px] text-[#9CA3AF] mt-3 px-3">
+        Calls, leads generated, closed and visits are for this month. &ldquo;Their book&rdquo; is every lead with them right now; closed shows this month / all time. Tap a row for the agent's full detail.
+      </p>
     </div>
   )
 }
+
+function Standing({ standing }) {
+  if (!standing) return <p className="text-xs text-[#9CA3AF] py-8 text-center">Your standing will show once you're on an active team</p>
+  const rows = [
+    { key: 'calls',       label: 'Calls',            icon: PhoneCall,     color: CORAL },
+    { key: 'generated',   label: 'Leads generated',  icon: Sparkles,      color: '#111111' },
+    { key: 'closedMonth', label: 'Deals closed',     icon: Home,          color: '#10B981' },
+    { key: 'visits',      label: 'Visits',           icon: CalendarCheck, color: '#8B5CF6' },
+  ]
+  const top = standing.rank === 1
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6 items-center">
+      <div className="mac-pop flex flex-col items-center justify-center text-center p-5 rounded-2xl bg-gradient-to-br from-[#F95C4B]/12 to-[#F95C4B]/0 border border-[#F95C4B]/20" style={{ '--d': '200ms' }}>
+        <span className="w-12 h-12 rounded-2xl bg-[#F95C4B] text-white flex items-center justify-center mac-float">
+          {top ? <Crown className="w-6 h-6" /> : <Trophy className="w-6 h-6" />}
+        </span>
+        <p className="text-3xl font-bold text-[#111111] dark:text-white mt-3 tracking-tight">#{standing.rank}</p>
+        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">of {standing.of} on your team this month</p>
+        <p className="text-[11px] font-semibold text-[#F95C4B] mt-2">{top ? 'You are leading the team' : 'Close more deals to climb'}</p>
+      </div>
+      <ul className="space-y-4">
+        {rows.map((r, i) => {
+          const mine = standing[r.key]
+          const avg = standing.teamAvg?.[r.key] ?? 0
+          const max = Math.max(1, mine, avg)
+          const ahead = mine >= avg
+          return (
+            <li key={r.key} className="mac-slide-in" style={{ '--d': `${220 + i * 60}ms` }}>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="flex items-center gap-2 font-medium text-[#111111] dark:text-white">
+                  <r.icon className={`w-3.5 h-3.5 ${r.color === '#111111' ? 'dark:!text-white' : ''}`} style={{ color: r.color }} />{r.label}
+                </span>
+                <span className="text-[#6B7280] dark:text-[#A1A1AA] tabular-nums">
+                  <span className="font-bold text-[#111111] dark:text-white">{mine}</span> you · {avg} team avg
+                  <span className={`ml-1.5 font-semibold ${ahead ? 'text-[#16A34A]' : 'text-[#DC2626]'}`}>{ahead ? '▲' : '▼'}</span>
+                </span>
+              </div>
+              <div className="space-y-1">
+                <div className="h-2 rounded-full bg-[#F5F5F4] dark:bg-[#202020] overflow-hidden">
+                  <div className="mac-grow-x h-full rounded-full" style={{ width: `${(mine / max) * 100}%`, backgroundColor: r.color === '#111111' ? CORAL : r.color, '--d': `${300 + i * 60}ms` }} />
+                </div>
+                <div className="h-1 rounded-full bg-[#F5F5F4] dark:bg-[#202020] overflow-hidden">
+                  <div className="mac-grow-x h-full rounded-full bg-[#D4D4D8] dark:bg-[#52525B]" style={{ width: `${(avg / max) * 100}%`, '--d': `${340 + i * 60}ms` }} />
+                </div>
+              </div>
+            </li>
+          )
+        })}
+        <li className="text-[10px] text-[#9CA3AF]">
+          Your book: <b className="text-[#111111] dark:text-white">{standing.book.total}</b> leads ({standing.book.assigned} from Reliable Touch, {standing.book.own} generated by you) · {standing.conversion}% closed
+        </li>
+      </ul>
+    </div>
+  )
+}
+
+/* ─── Recent leads & visits ──────────────────────────────────────────────── */
+
+const LEAD_TABS = [
+  { key: 'all',      label: 'All leads',            test: () => true },
+  { key: 'hot',      label: 'Hot',                  test: (l) => l.status === 'hot' },
+  { key: 'followup', label: 'Follow-up due',        test: (l) => l.followUpDate && new Date(l.followUpDate) <= new Date() && !['listed', 'rented_out', 'sold', 'lost'].includes(l.status) },
+  { key: 'own',      label: 'Generated',            test: (l) => l.source === 'own' },
+  { key: 'assigned', label: 'From Reliable Touch',  test: (l) => l.source === 'assigned' },
+]
+
+function RecentLeads({ leads, isManager }) {
+  const navigate = useNavigate()
+  const [tab, setTab] = useState('all')
+  const rows = (leads ?? []).filter(LEAD_TABS.find((t) => t.key === tab).test).slice(0, 8)
+  const heads = ['Owner / Property', 'Area', 'Source', 'Intent', 'Status', 'Follow-up', ...(isManager ? ['With'] : []), 'Added']
+  return (
+    <>
+      <div className="flex gap-1 border-b border-[#E5E7EB] dark:border-[#2A2A2A] mb-1 overflow-x-auto">
+        {LEAD_TABS.map((t) => (
+          <button key={t.key} type="button" onClick={() => setTab(t.key)}
+            className={`relative px-3 py-2 text-xs font-semibold whitespace-nowrap transition-colors ${tab === t.key ? 'text-[#F95C4B]' : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'}`}>
+            {t.label}
+            {tab === t.key && <span className="mac-grow-x absolute left-2 right-2 -bottom-px h-0.5 rounded-full bg-[#F95C4B]" />}
+          </button>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[780px] text-xs">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-widest text-[#9CA3AF]">
+              {heads.map((h) => <th key={h} className="text-left font-semibold px-3 py-2.5">{h}</th>)}
+            </tr>
+          </thead>
+          <tbody key={tab}>
+            {rows.length === 0 ? (
+              <tr><td colSpan={heads.length} className="px-3 py-10 text-center text-[#9CA3AF]">Nothing here right now</td></tr>
+            ) : rows.map((l, i) => {
+              const color = STATUS_COLORS[l.status] ?? '#9CA3AF'
+              const overdue = l.followUpDate && new Date(l.followUpDate) < new Date()
+              return (
+                <tr key={l._id} onClick={() => navigate(`/agency/leads/${l._id}`)}
+                  className="mac-in cursor-pointer border-t border-[#F5F5F4] dark:border-[#202020] hover:bg-[#FAFAF9] dark:hover:bg-[#1C1C1C] transition-colors"
+                  style={{ '--d': `${i * 40}ms` }}>
+                  <td className="px-3 py-2.5 max-w-[220px]">
+                    <p className="font-semibold text-[#111111] dark:text-white truncate">{l.landlordName}</p>
+                    <p className="text-[11px] text-[#9CA3AF] truncate">{l.propertyAddress}</p>
+                  </td>
+                  <td className="px-3 py-2.5 text-[#6B7280] dark:text-[#A1A1AA] whitespace-nowrap">{l.area ?? '—'}{l.province ? <span className="block text-[10px] text-[#9CA3AF]">{l.province}</span> : null}</td>
+                  <td className="px-3 py-2.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${l.source === 'own' ? 'bg-[#F95C4B]/10 text-[#F95C4B]' : 'bg-[#111111]/8 dark:bg-white/10 text-[#111111] dark:text-white'}`}>
+                      {l.source === 'own' ? 'Generated' : 'Reliable Touch'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-[#6B7280] dark:text-[#A1A1AA]">{l.listingType === 'rental' ? 'Rent' : l.listingType === 'sale' ? 'Sell' : '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color, backgroundColor: `${color}1A` }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />{STATUS_LABEL[l.status] ?? l.status}
+                    </span>
+                  </td>
+                  <td className={`px-3 py-2.5 whitespace-nowrap ${overdue ? 'text-[#DC2626] font-semibold' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
+                    {l.followUpDate ? format(new Date(l.followUpDate), 'd MMM yyyy') : '—'}
+                  </td>
+                  {isManager && (
+                    <td className="px-3 py-2.5 max-w-[150px] truncate">
+                      {l.agent ? <span className="text-[#111111] dark:text-white">{l.agent}</span> : <span className="text-[#F59E0B] font-medium">Not with anyone</span>}
+                    </td>
+                  )}
+                  <td className="px-3 py-2.5 text-[#9CA3AF] whitespace-nowrap">{formatDistanceToNow(new Date(l.createdAt), { addSuffix: true })}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
+/* ─── Page ───────────────────────────────────────────────────────────────── */
 
 export default function AgencyDashboard() {
   const { user } = useAuthStore()
-  return user?.isAgencyManager ? <ManagerDashboard /> : <AgentDashboard />
+  const { theme } = useTheme() ?? {}
+  const isDark = theme === 'dark'
+  const isManager = Boolean(user?.isAgencyManager)
+  const navigate = useNavigate()
+  const [now, setNow] = useState(() => new Date())
+  const freshRef = useRef(false) // set by the refresh button to bypass the server's 60s cache
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const { data: o, isError, isFetching, refetch, dataUpdatedAt } = useQuery({
+    queryKey: ['agency-overview', user?._id],
+    queryFn: () => axiosClient.get('/reports/agency-overview', { params: freshRef.current ? { fresh: 'true' } : undefined }).then((r) => r.data.data),
+    staleTime: 55_000,
+    refetchInterval: 60_000,
+  })
+
+  const { data: agency } = useQuery({
+    queryKey: ['agency', user?.agencyId],
+    queryFn: () => agenciesApi.getById(user.agencyId).then((r) => r.data.data.agency),
+    enabled: Boolean(user?.agencyId),
+    staleTime: 5 * 60_000,
+  })
+
+  function refreshNow() {
+    freshRef.current = true
+    refetch().finally(() => { freshRef.current = false })
+  }
+
+  const k = o?.kpis
+  const you = isManager ? 'your team' : 'you'
+  const kpiCards = useMemo(() => [
+    { icon: TrendingUp, label: isManager ? 'Company leads' : 'My leads', value: k?.totalLeads, sub: `${(k?.leadsThisWeek ?? 0).toLocaleString()} new this week`, trend: k?.leadsWeekChangePct, to: '/agency/leads' },
+    { icon: Sparkles, label: `Generated by ${you}`, value: k?.ownLeads, sub: 'Self-sourced leads', to: `/agency/leads?source=${OWN_SOURCE}`, tone: '#111111' },
+    { icon: Handshake, label: 'From Reliable Touch', value: k?.assignedLeads, sub: 'Leads handed to you', to: `/agency/leads?source=${RT_SOURCE}`, tone: '#8B5CF6' },
+    { icon: Phone, label: 'Calls this week', value: k?.callsWeek, sub: `Today ${k?.callsToday ?? 0} · Month ${(k?.callsMonth ?? 0).toLocaleString()}`, to: '/agency/contacts' },
+    { icon: CalendarClock, label: 'Follow-ups due', value: k?.followUpsDue, sub: `Today ${k?.followUpsToday ?? 0} · Overdue ${k?.followUpsOverdue ?? 0}`, to: '/agency/leads?focus=overdue', tone: '#F59E0B' },
+    { icon: Home, label: 'Closed this month', value: k?.closedThisMonth, sub: 'Listed, rented or sold', to: '/agency/leads?focus=closed_month', tone: '#10B981' },
+  ], [k, isManager, you])
+
+  const stageTo = {
+    contacts: '/agency/contacts',
+    called: '/agency/contacts',
+    leads: '/agency/leads',
+    hot: '/agency/leads?status=hot',
+    visits: '/agency/appointments',
+    closed: '/agency/leads?focus=closed_month',
+  }
+  // Donut slices / legend rows open the matching leads ("Closed" spans three statuses)
+  const pickTemperature = (key) => {
+    if (!key) return
+    navigate(key === 'closed' ? '/agency/leads?focus=closed_month' : `/agency/leads?status=${key}`)
+  }
+
+  return (
+    <div className="p-4 sm:p-6 xl:p-8">
+      <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
+        {/* ── Main column ─────────────────────────────────────────────── */}
+        <div className="space-y-6 min-w-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+            <Hero
+              user={user}
+              now={now}
+              eyebrow={agency?.name}
+              subtitle={isManager ? "Here's how your company is doing today." : "Here's how your leads and calls are going today."}
+              stats={[
+                { icon: PhoneCall, label: 'calls today', value: k?.callsToday, to: '/agency/contacts' },
+                { icon: Flame, label: 'hot leads', value: k?.hot, to: '/agency/leads?status=hot' },
+                { icon: CalendarCheck, label: 'visits today', value: k?.apptsToday, to: '/agency/appointments' },
+              ]}
+            />
+            {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o.milestone} to="/agency/leaderboard" />}
+          </div>
+
+          {isError && !o && <ErrorBanner onRetry={() => refetch()} />}
+
+          <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
+            {!o
+              ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[140px]" />)
+              : kpiCards.map((c, i) => <Kpi key={c.label} delay={80 + i * 60} {...c} />)}
+          </div>
+
+          <Card delay={140} className="p-5">
+            <CardTitle
+              title={isManager ? 'Company pipeline' : 'Your pipeline'}
+              subtitle="From your contacts to a closed deal — tap a stage to open it"
+              action={<LinkButton to="/agency/leads">View all leads</LinkButton>}
+            />
+            {!o ? <Skeleton className="h-20" /> : <Pipeline stages={o.pipeline} isDark={isDark} stageTo={stageTo} />}
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] gap-6">
+            <div className="grid grid-cols-1 gap-6 content-start">
+              <Card delay={200} className="p-5">
+                <CardTitle title="Generated vs handed over" subtitle={isManager ? 'Leads your team found themselves against leads from Reliable Touch' : 'Leads you found yourself against leads from Reliable Touch'} />
+                {!o ? <Skeleton className="h-[220px]" /> : <SourceSplit sources={o.sources} />}
+              </Card>
+              <Card delay={240} className="p-5">
+                <CardTitle title="Lead temperature" subtitle="Where every lead stands right now — tap one to see them" />
+                {!o ? <Skeleton className="h-[170px]" /> : <TemperatureDonut temperature={o.temperature} total={k.totalLeads} isDark={isDark} onPick={pickTemperature} />}
+              </Card>
+              <Card delay={260} className="p-5">
+                <CardTitle title="Property intent" subtitle="What owners want to do" />
+                {!o ? <Skeleton className="h-[140px]" /> : <IntentBars intent={o.intent} />}
+              </Card>
+            </div>
+            <div className="min-w-0">
+              <Card delay={180} className="p-5">
+                <CardTitle title="Leads by province" subtitle="Tap a province · darker coral = more leads" action={isManager ? <LinkButton to="/agency/areas">Areas</LinkButton> : null} />
+                {!o ? <Skeleton className="h-[360px]" /> : (
+                  <ProvincePanel provinces={o.provinces} isDark={isDark} provinceTo={(name) => `/agency/leads?province=${encodeURIComponent(name)}`} fixAreasTo={isManager ? '/agency/areas' : undefined} />
+                )}
+              </Card>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 2xl:grid-cols-[1.4fr_1fr] gap-6">
+            <Card delay={260} className="p-5">
+              <CardTitle title="Daily activity — last 30 days" subtitle="Calls (left axis) against leads generated, received and closed (right axis)" action={<LinkButton to="/agency/contacts">Contacts</LinkButton>} />
+              {!o ? <Skeleton className="h-[250px]" /> : (
+                <>
+                  <TrendChart data={o.charts.daily} xKey="date" series={DAILY_SERIES} rightAxis isDark={isDark}
+                    xFormat={(d) => format(new Date(d), 'd MMM')} labelFormat={(d) => format(new Date(d), 'EEE, d MMM')} />
+                  <ChartLegend series={DAILY_SERIES} isDark={isDark} />
+                </>
+              )}
+            </Card>
+            <Card delay={300} className="p-5">
+              <CardTitle title="Weekly trend — 12 weeks" subtitle="Leads generated vs received vs closed each week" action={<LinkButton to="/agency/leaderboard">Leaderboard</LinkButton>} />
+              {!o ? <Skeleton className="h-[250px]" /> : (
+                <>
+                  <TrendChart data={o.charts.weekly} xKey="weekStart" series={WEEKLY_SERIES} isDark={isDark} delay={350}
+                    xFormat={(d) => format(new Date(d), 'd MMM')} labelFormat={(d) => `Week of ${format(new Date(d), 'd MMM')}`} />
+                  <ChartLegend series={WEEKLY_SERIES} isDark={isDark} />
+                </>
+              )}
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 2xl:grid-cols-[1fr_1fr] gap-6">
+            <Card delay={320} className="p-5">
+              <CardTitle title={isManager ? 'When your team calls' : 'When you call'} subtitle="Calls by hour of day, last 30 days — peak hour in full coral" />
+              {!o ? <Skeleton className="h-[230px]" /> : <CallsByHourChart hours={o.charts.callsByHour} isDark={isDark} />}
+            </Card>
+            <Card delay={340} className="p-5">
+              <CardTitle
+                title="How calls end"
+                subtitle={o ? `${o.callOutcomes.total.toLocaleString()} calls in the last 30 days` : 'Last 30 days'}
+                action={<LinkButton to="/agency/contacts">Call contacts</LinkButton>}
+              />
+              {!o ? <Skeleton className="h-[230px]" /> : <CallOutcomes outcomes={o.callOutcomes} />}
+            </Card>
+          </div>
+
+          <Card delay={360} className="p-5">
+            {isManager ? (
+              <>
+                <CardTitle title="Team performance" subtitle="How each agent is doing this month — ranked by deals closed, then calls" action={<LinkButton to="/agency/team">Team</LinkButton>} />
+                {!o ? <Skeleton className="h-[280px]" /> : <TeamTable members={o.team} />}
+              </>
+            ) : (
+              <>
+                <CardTitle title="Where you stand" subtitle="Your month against the team average" action={<LinkButton to="/agency/leaderboard">Leaderboard</LinkButton>} />
+                {!o ? <Skeleton className="h-[220px]" /> : <Standing standing={o.standing} />}
+              </>
+            )}
+          </Card>
+
+          <Card delay={380} className="p-5">
+            <CardTitle title="Recent leads" subtitle={isManager ? 'The newest leads in your company' : 'The newest leads in your book'} action={<LinkButton to="/agency/leads">View all</LinkButton>} />
+            {!o ? <Skeleton className="h-[300px]" /> : <RecentLeads leads={o.recentLeads} isManager={isManager} />}
+          </Card>
+        </div>
+
+        {/* ── Right rail ──────────────────────────────────────────────── */}
+        <aside className="space-y-6 min-w-0">
+          <Card delay={120} className="p-5">
+            <CardTitle
+              title="Today's tasks"
+              action={(
+                <button type="button" onClick={refreshNow} title="Refresh now"
+                  className="flex items-center gap-1 text-[11px] font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B]">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                  {dataUpdatedAt ? format(new Date(dataUpdatedAt), 'HH:mm') : ''}
+                </button>
+              )}
+            />
+            {!o ? <Skeleton className="h-[300px]" /> : <TodaysTasks tasks={o.tasks} />}
+          </Card>
+          <Card delay={180} className="p-5">
+            <CardTitle title="Upcoming visits" subtitle={`${(k?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/agency/appointments">All</LinkButton>} />
+            {!o ? <Skeleton className="h-[200px]" /> : <UpcomingVisits visits={o.upcomingVisits} showAgent={isManager} leadPath={(id) => `/agency/leads/${id}`} allTo="/agency/appointments" />}
+          </Card>
+          <Card delay={240} className="p-5">
+            <CardTitle title="Recent activity" subtitle={isManager ? 'Across your company' : 'On your leads'} action={<Clock className="w-4 h-4 text-[#9CA3AF]" />} />
+            {!o ? <Skeleton className="h-[320px]" /> : <RecentActivity events={o.activity} />}
+          </Card>
+          <PhotoCard
+            eyebrow={isManager ? 'Grow the book' : 'Keep dialling'}
+            title={isManager ? 'More contacts, more listings' : 'Your next listing is one call away'}
+            text={(
+              <>
+                <b className="text-white">{(k?.needsCalling ?? 0).toLocaleString()}</b> {isManager ? 'company contacts' : 'of your contacts'} haven&apos;t been called yet.
+                {' '}Every one is a possible lead {isManager ? 'for your team' : 'for you'}.
+              </>
+            )}
+            to="/agency/contacts"
+            buttonLabel={isManager ? 'Hand out contacts' : 'Start calling'}
+            icon={isManager ? Users : BookUser}
+          />
+          <p className="text-center text-[10px] text-[#9CA3AF] flex items-center justify-center gap-1.5">
+            <TrendingUp className="w-3 h-3" /> Reliable Touch Services · Lead generation · Cold calling · Follow-up · Distribution
+          </p>
+        </aside>
+      </div>
+    </div>
+  )
 }

@@ -130,3 +130,55 @@
   .mac-lift, .mac-lift:hover { transform: none; }
 }
 @keyframes mac-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Lead side panel (macOS-style sheet) ─────────────────────────────────────
+   Slides in from the right with a soft spring and settles; leaves faster than it
+   arrives (as macOS does). Switching leads cross-fades the content in place. */
+:root { --lp-w: clamp(600px, 44vw, 880px); }
+@keyframes lead-panel-in  { from { transform: translateX(48px) scale(0.985); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes lead-panel-out { from { transform: none; opacity: 1; } to { transform: translateX(56px); opacity: 0; } }
+@keyframes lead-panel-swap { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lead-backdrop-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lead-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+.lead-panel-in   { animation: lead-panel-in 520ms var(--ease-mac) both; }
+.lead-panel-out  { animation: lead-panel-out 240ms cubic-bezier(0.4, 0, 1, 1) both; }
+.lead-panel-swap { animation: lead-panel-swap 380ms var(--ease-mac) both; }
+.lead-backdrop-in  { animation: lead-backdrop-in 300ms ease both; }
+.lead-backdrop-out { animation: lead-backdrop-out 240ms ease both; }
+/* On very wide screens the list makes room for the docked panel; below that the panel
+   slides over the right-hand side and the list's first columns stay visible beside it */
+@media (min-width: 1800px) {
+  main.lead-panel-open { padding-right: var(--lp-w); }
+}
+/* The lead currently open in the panel */
+tr[data-lead-selected] { background-color: rgb(249 92 75 / 0.07) !important; outline: 2px solid #F95C4B; outline-offset: -2px; }
+button[data-lead-selected] { border-color: #F95C4B !important; box-shadow: 0 0 0 4px rgb(249 92 75 / 0.14); }
+@media (prefers-reduced-motion: reduce) {
+  .lead-panel-in, .lead-panel-swap { animation: mac-fade 200ms ease both; }
+  .lead-panel-out { animation: lead-backdrop-out 150ms ease both; }
+}
+
+/* ── Slim scrollbars (sidebars, board columns) ───────────────────────────── */
+.thin-scroll { scrollbar-width: thin; scrollbar-color: rgb(17 17 17 / 0.18) transparent; }
+.dark .thin-scroll { scrollbar-color: rgb(255 255 255 / 0.16) transparent; }
+.thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+.thin-scroll::-webkit-scrollbar-thumb { background: rgb(17 17 17 / 0.16); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+.thin-scroll::-webkit-scrollbar-thumb:hover { background-color: rgb(249 92 75 / 0.55); }
+.dark .thin-scroll::-webkit-scrollbar-thumb { background-color: rgb(255 255 255 / 0.14); }
+.thin-scroll::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+
+/* ── Excel Files board: drag & drop feedback ─────────────────────────────── */
+@keyframes files-drop-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(249 92 75 / 0.0), 0 0 0 1px rgb(249 92 75 / 0.35); }
+  50%      { box-shadow: 0 0 0 6px rgb(249 92 75 / 0.12), 0 0 0 1px rgb(249 92 75 / 0.6); }
+}
+.files-drop-glow { animation: files-drop-glow 1.4s ease-in-out infinite; }
+@keyframes files-sheet-in { from { opacity: 0; transform: translateY(-14px) scale(0.97); } to { opacity: 1; transform: none; } }
+.files-sheet-in { animation: files-sheet-in 360ms var(--ease-mac) both; }
+@keyframes files-collapse { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.files-collapse { animation: files-collapse 260ms var(--ease-mac) both; }
+@media (prefers-reduced-motion: reduce) {
+  .files-drop-glow { animation: none; box-shadow: 0 0 0 2px rgb(249 92 75 / 0.5); }
+  .files-sheet-in, .files-collapse { animation: mac-fade 200ms ease both; }
+}

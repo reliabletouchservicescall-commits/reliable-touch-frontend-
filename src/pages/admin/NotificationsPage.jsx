@@ -8,6 +8,7 @@ import {
   Trophy, Wallet, RefreshCw, FileCheck2, Home, Banknote, ThermometerSun, PhoneOff, Handshake,
 } from 'lucide-react'
 import { notificationsApi } from '../../services/notificationsApi'
+import { NotificationOpenButton } from '../../components/notifications/notificationLink'
 
 const EVENT_META = {
   new_lead:                { label: 'New Lead',        icon: FileText,      color: '#F95C4B' },
@@ -59,6 +60,7 @@ function NotificationCard({ n, onMarkRead, isMarking }) {
         <p className="text-[10px] text-[#6B7280]/70 dark:text-[#A1A1AA]/60 mt-1.5">
           {format(new Date(n.createdAt), 'd MMM yyyy, HH:mm')} · {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
         </p>
+        <NotificationOpenButton n={n} onMarkRead={onMarkRead} />
       </div>
 
       {unread && (

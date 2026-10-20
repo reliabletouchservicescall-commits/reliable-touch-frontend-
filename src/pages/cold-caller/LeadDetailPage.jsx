@@ -4,6 +4,7 @@ import { Loader2, AlertTriangle } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { useAuthStore } from '../../store/authStore'
 import LeadDetailScreen from '../../components/leads/LeadDetailScreen'
+import { LeadPanelSkeleton } from '../../components/leads/LeadSidePanel'
 
 // Mirrors CALLER_EDITABLE in leads.service.js.
 const EDITABLE_FIELDS = new Set([
@@ -11,8 +12,9 @@ const EDITABLE_FIELDS = new Set([
   'availability', 'bestCallTime', 'followUpDate', 'appointmentDate', 'appointmentTime',
 ])
 
-export default function ColdCallerLeadDetailPage() {
-  const { id } = useParams()
+// Used both as the full page (below) and inside the Leads list's side panel, where
+// `panel` carries the panel's controls (close, expand, prev/next).
+export function ColdCallerLeadDetail({ id, panel = null }) {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
@@ -22,6 +24,7 @@ export default function ColdCallerLeadDetailPage() {
   })
 
   if (isLoading) {
+    if (panel) return <LeadPanelSkeleton onClose={panel.onClose} />
     return (
       <div className="flex items-center justify-center h-full py-32">
         <Loader2 className="w-6 h-6 animate-spin text-[#F95C4B]" />
@@ -41,9 +44,12 @@ export default function ColdCallerLeadDetailPage() {
 
   return (
     <LeadDetailScreen
+      key={lead._id}
       lead={lead}
-      onBack={() => navigate('/cold-caller/leads')}
-      onDeleted={() => navigate('/cold-caller/leads')}
+      onBack={panel?.onClose ?? (() => navigate('/cold-caller/leads'))}
+      onDeleted={panel?.onClose ?? (() => navigate('/cold-caller/leads'))}
+      variant={panel ? 'panel' : 'page'}
+      panel={panel}
       invalidateQueryKey={['leads']}
       editableFields={EDITABLE_FIELDS}
       canAssignAgency={false}
@@ -54,4 +60,9 @@ export default function ColdCallerLeadDetailPage() {
       currentUserRole={user?.role}
     />
   )
+}
+
+export default function ColdCallerLeadDetailPage() {
+  const { id } = useParams()
+  return <ColdCallerLeadDetail id={id} />
 }

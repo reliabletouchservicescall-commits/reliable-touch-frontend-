@@ -4,6 +4,7 @@ import { Loader2, AlertTriangle } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { useAuthStore } from '../../store/authStore'
 import LeadDetailScreen from '../../components/leads/LeadDetailScreen'
+import { LeadPanelSkeleton } from '../../components/leads/LeadSidePanel'
 
 // Mirrors FOLLOW_UP_EDITABLE in leads.service.js (assignedAgent is handled separately
 // via the canAssignAgency flag, not a plain form field).
@@ -13,8 +14,9 @@ const EDITABLE_FIELDS = new Set([
   'listingUrl', 'disposition', 'leaseStartDate', 'leaseDurationMonths',
 ])
 
-export default function FollowUpManagerLeadDetailPage() {
-  const { id } = useParams()
+// Used both as the full page (below) and inside the Leads list's side panel, where
+// `panel` carries the panel's controls (close, expand, prev/next).
+export function FollowUpManagerLeadDetail({ id, panel = null }) {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
@@ -24,6 +26,7 @@ export default function FollowUpManagerLeadDetailPage() {
   })
 
   if (isLoading) {
+    if (panel) return <LeadPanelSkeleton onClose={panel.onClose} />
     return (
       <div className="flex items-center justify-center h-full py-32">
         <Loader2 className="w-6 h-6 animate-spin text-[#F95C4B]" />
@@ -43,9 +46,12 @@ export default function FollowUpManagerLeadDetailPage() {
 
   return (
     <LeadDetailScreen
+      key={lead._id}
       lead={lead}
-      onBack={() => navigate('/follow-up-manager/leads')}
-      onDeleted={() => navigate('/follow-up-manager/leads')}
+      onBack={panel?.onClose ?? (() => navigate('/follow-up-manager/leads'))}
+      onDeleted={panel?.onClose ?? (() => navigate('/follow-up-manager/leads'))}
+      variant={panel ? 'panel' : 'page'}
+      panel={panel}
       invalidateQueryKey={['fum-leads']}
       editableFields={EDITABLE_FIELDS}
       canAssignAgency
@@ -56,4 +62,9 @@ export default function FollowUpManagerLeadDetailPage() {
       currentUserRole={user?.role}
     />
   )
+}
+
+export default function FollowUpManagerLeadDetailPage() {
+  const { id } = useParams()
+  return <FollowUpManagerLeadDetail id={id} />
 }

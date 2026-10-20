@@ -10,8 +10,6 @@ import {
 import { areasApi } from '../../services/areasApi'
 import { contactsApi } from '../../services/contactsApi'
 import { leadsApi } from '../../services/leadsApi'
-import { usersApi } from '../../services/usersApi'
-import { agenciesApi } from '../../services/agenciesApi'
 import { DateField } from '../common/DateTimeFields'
 
 function useDebounce(value, delay = 300) {
@@ -22,6 +20,13 @@ function useDebounce(value, delay = 300) {
   }, [value, delay])
   return debounced
 }
+
+// South Africa's nine provinces — an area's `region` is one of these (older areas may
+// still carry free text, which pickers show as-is).
+export const SA_PROVINCES = [
+  'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo',
+  'Mpumalanga', 'North West', 'Free State', 'Northern Cape',
+]
 
 export const LEAD_STATUS_META = {
   cold:              { label: 'Cold',              color: '#6B7280', bg: '#6B728018' },
@@ -350,15 +355,11 @@ export function ListingTypeFilter({ value, onChange, accent = '#F95C4B' }) {
 export function AgentOrAgencyPicker({ assignedAgent, agencyId, onChange, className, teamMembers = null }) {
   const teamMode = Array.isArray(teamMembers)
 
-  const { data: agentsData } = useQuery({
-    queryKey: ['agency-users-select'],
-    queryFn: () => usersApi.list({ role: 'agency', limit: 100 }).then((r) => r.data.data),
-    staleTime: 60_000,
-    enabled: !teamMode,
-  })
-  const { data: agenciesData } = useQuery({
-    queryKey: ['agencies-select'],
-    queryFn: () => agenciesApi.list({ limit: 100, isActive: true }).then((r) => r.data.data.agencies),
+  // One call that both admin and follow-up managers may make (the admin-only user and
+  // agency lists left a follow-up manager's picker empty).
+  const { data: assignees } = useQuery({
+    queryKey: ['lead-assignees'],
+    queryFn: () => leadsApi.assignees().then((r) => r.data.data),
     staleTime: 60_000,
     enabled: !teamMode,
   })
@@ -380,11 +381,10 @@ export function AgentOrAgencyPicker({ assignedAgent, agencyId, onChange, classNa
     )
   }
 
-  const agentsRaw = agentsData?.users ?? agentsData ?? []
   // Team members belong to their company — only Reliable's own agents are offered directly.
   // The one already selected stays listed so an existing assignment never shows as blank.
-  const agents = (Array.isArray(agentsRaw) ? agentsRaw : []).filter((a) => !a.agencyId || a._id === assignedAgent)
-  const agencies = agenciesData ?? []
+  const agents = (assignees?.agents ?? []).filter((a) => !a.agencyId || a._id === assignedAgent)
+  const agencies = assignees?.agencies ?? []
 
   const value = assignedAgent ? `agent:${assignedAgent}` : agencyId ? `agency:${agencyId}` : ''
 
@@ -886,10 +886,10 @@ function SearchableSchemeSelect({ value, onChange, placeholder = 'Select or type
  * query (used by every page that lists areas for a picker) so it shows up everywhere
  * immediately, and selects it on the calling form via `onCreated`.
  */
-export function AddAreaInline({ onCreated, onCancel }) {
+export function AddAreaInline({ onCreated, onCancel, defaultRegion = '' }) {
   const qc = useQueryClient()
   const [name, setName] = useState('')
-  const [region, setRegion] = useState('')
+  const [region, setRegion] = useState(defaultRegion)
 
   const mut = useMutation({
     mutationFn: () => areasApi.create({ name: name.trim(), region: region.trim() || undefined }),
@@ -924,13 +924,14 @@ export function AddAreaInline({ onCreated, onCancel }) {
           className={inputCls(false)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave() } }}
         />
-        <input
+        <select
           value={region}
           onChange={(e) => setRegion(e.target.value)}
-          placeholder="Region (optional)"
-          className={inputCls(false)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave() } }}
-        />
+          className={`${inputCls(false)} cursor-pointer ${region ? '' : 'text-[#6B7280]/70'}`}
+        >
+          <option value="">Province…</option>
+          {SA_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
       </div>
       <div className="flex gap-2">
         <button type="button" onClick={onCancel}

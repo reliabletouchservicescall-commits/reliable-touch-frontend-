@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
@@ -17,6 +17,8 @@ import {
   LeadsHeader, CountTiles, LeadsRail, Panel, useLeadInsights,
   ActiveFilterChips, FetchBar, TableSkeleton, FOCUS_LABELS,
 } from '../../components/leads/LeadsHub'
+import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
+import { FollowUpManagerLeadDetail } from './LeadDetailPage'
 
 // Leads load in batches of 300 ("Load more" appends the next batch).
 const PAGE_SIZE = 300
@@ -162,7 +164,7 @@ function FollowUpManagerStrip({ fumFilter, onFumChange, collapsed, onToggleColla
 
 /* ─── Lead Row ───────────────────────────────────────────────────────────── */
 
-function LeadRow({ lead, onOpen, currentUserId, onFollowUpSaved }) {
+function LeadRow({ lead, onOpen, currentUserId, onFollowUpSaved, rowProps }) {
   const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const agentUser  = resolveUser(lead.assignedAgent)
   const agency     = resolveAgency(lead.agencyId)
@@ -172,6 +174,7 @@ function LeadRow({ lead, onOpen, currentUserId, onFollowUpSaved }) {
 
   return (
     <tr
+      {...rowProps}
       onClick={onOpen}
       className={[
         'transition-colors cursor-pointer border-l-2',
@@ -255,6 +258,8 @@ export default function FollowUpManagerLeadsPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { user } = useAuthStore()
+  // The dashboard deep-links here with ?focus= / ?province= — read once as starting filters
+  const [initialParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [fumFilter, setFumFilter] = useState('')
@@ -264,8 +269,11 @@ export default function FollowUpManagerLeadsPage() {
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo,   setCreatedTo]   = useState('')
   const [fumFilterCollapsed, setFumFilterCollapsed] = useState(false)
-  const [focus, setFocus] = useState('') // one-click Quick insight filter
-  const [place, setPlace] = useState(null) // { kind: 'province', value, label } from Top provinces
+  const [focus, setFocus] = useState(() => initialParams.get('focus') ?? '') // one-click Quick insight filter
+  const [place, setPlace] = useState(() => {
+    const province = initialParams.get('province')
+    return province ? { kind: 'province', value: province, label: province } : null
+  }) // { kind: 'province', value, label } from Top provinces
   const debouncedSearch = useDebounce(search)
 
   // Loaded 300 at a time (PAGE_SIZE) via "Load more" rather than a hard-capped single page — the hot
@@ -295,6 +303,10 @@ export default function FollowUpManagerLeadsPage() {
   })
 
   const leads = data?.pages?.flatMap((p) => p.leads) ?? []
+  // Side panel: clicking a lead opens it beside the list (?lead=<id>); ↑/↓ step through
+  const leadIdsKey = leads.map((l) => l._id).join(',')
+  const leadIds = useMemo(() => (leadIdsKey ? leadIdsKey.split(',') : []), [leadIdsKey])
+  const leadPanel = useLeadPanel(leadIds)
   const total = data?.pages?.[0]?.total ?? 0
   const hasFilters = Boolean(search || listingTypeFilter || fumFilter || followedUpFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo || focus || place)
   const refreshing = isFetching && !isLoading && !isFetchingNextPage
@@ -354,6 +366,22 @@ export default function FollowUpManagerLeadsPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
           <div className="space-y-4 min-w-0">
+            <LeadSidePanel panel={leadPanel}>
+              {(id) => (
+                <FollowUpManagerLeadDetail
+                  id={id}
+                  panel={{
+                    onClose: leadPanel.close,
+                    onExpand: () => navigate(`/follow-up-manager/leads/${id}`),
+                    onPrev: leadPanel.prev,
+                    onNext: leadPanel.next,
+                    hasPrev: leadPanel.hasPrev,
+                    hasNext: leadPanel.hasNext,
+                    position: leadPanel.position,
+                  }}
+                />
+              )}
+            </LeadSidePanel>
             <ActiveFilterChips chips={chips} count={chips.length ? total : null} onClearAll={clearAllFilters} />
 
             <Panel className="overflow-hidden" delay={120}>
@@ -450,7 +478,8 @@ export default function FollowUpManagerLeadsPage() {
                     <LeadRow
                       key={lead._id}
                       lead={lead}
-                      onOpen={() => navigate(`/follow-up-manager/leads/${lead._id}`)}
+                      onOpen={() => leadPanel.open(lead._id)}
+                      rowProps={leadRowProps(leadPanel, lead._id)}
                       currentUserId={user?._id}
                       onFollowUpSaved={handleFollowUpSaved}
                     />

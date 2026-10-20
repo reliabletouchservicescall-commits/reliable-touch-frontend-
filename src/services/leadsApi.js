@@ -14,5 +14,7 @@ export const leadsApi = {
   // Role-scoped report for the leads screen's insight panels (see LeadsHub.jsx)
   insights: (params) => axiosClient.get('/leads/insights', { params }),
   agencyCounts: (params) => axiosClient.get('/leads/agency-counts', { params }),
+  // Companies + agents a lead can be handed to — admin and follow-up manager
+  assignees: () => axiosClient.get('/leads/assignees'),
   getLinkPreview: (url) => axiosClient.get('/leads/link-preview', { params: { url } }),
 }

@@ -1,265 +1,350 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Flame, CalendarCheck, Bell, Clock, ArrowRight, Activity, MapPin,
-  Building2, AlertTriangle, CalendarClock, Home,
-} from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { format, isPast } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
+import {
+  Flame, AlertTriangle, Clock, Building2, MessageSquareText, CalendarCheck, RefreshCw, Trophy, Crown,
+  ArrowRight, Hourglass,
+} from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
-import { leadsApi } from '../../services/leadsApi'
+import { useTheme } from '../../context/ThemeContext'
+import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
+import {
+  Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, Donut, TrendChart,
+  ChartLegend, ScopedProvinceCard, TodaysTasks, PhotoCard, UpcomingVisits, CompanySnapshot, CORAL, CORAL_3,
+} from '../../components/dashboard/DashboardKit'
 
-const APPT_META = {
-  scheduled: { label: 'Scheduled', color: '#3B82F6' },
-  confirmed: { label: 'Confirmed', color: '#10B981' },
-  completed: { label: 'Completed', color: '#6B7280' },
-  cancelled: { label: 'Cancelled', color: '#EF4444' },
-  no_show:   { label: 'No Show',   color: '#F59E0B' },
-}
+// The follow-up manager's dashboard — the admin command centre's look, built around the
+// hot-lead queue: what's overdue, what's never been touched, what still needs an agency,
+// and how fresh the follow-ups are — plus where the whole company stands.
+// Data: GET /reports/my-overview.
 
-function ApptBadge({ status }) {
-  const meta = APPT_META[status] ?? { label: status, color: '#6B7280' }
+const DAILY_SERIES = [
+  { key: 'newHot', name: 'New hot leads',           color: CORAL,     kind: 'area' },
+  { key: 'team',   name: 'Follow-ups (all managers)', color: 'ink',   kind: 'line' },
+  { key: 'mine',   name: 'Your follow-ups',          color: '#10B981', kind: 'line', dashed: true, width: 2.5 },
+]
+const RECENCY_COLORS = { today: '#10B981', week: CORAL, month: CORAL_3, older: '#D4D4D8', never: '#111111' }
+const AGE_COLORS = ['#10B981', '#84CC16', '#F59E0B', CORAL, '#C93A2B']
+
+/* ─── Hot lead age ───────────────────────────────────────────────────────── */
+
+function AgeBars({ ages, total }) {
+  const max = Math.max(1, ...ages.map((a) => a.count))
   return (
-    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: meta.color, backgroundColor: `${meta.color}15` }}>
-      {meta.label}
-    </span>
-  )
-}
-
-function StatCard({ icon: Icon, label, value, sub, color, loading }) {
-  return (
-    <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex flex-col gap-4">
-      <div className="flex items-center justify-center w-10 h-10 rounded-xl" style={{ backgroundColor: `${color}18` }}>
-        <Icon className="w-5 h-5" style={{ color }} strokeWidth={1.75} />
-      </div>
-      <div>
-        {loading ? (
-          <div className="h-7 w-14 rounded-lg bg-[#F5F5F4] dark:bg-[#202020] animate-pulse mb-1" />
-        ) : (
-          <p className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">{value ?? '—'}</p>
-        )}
-        <p className="text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">{label}</p>
-        {sub && !loading && <p className="text-[10px] text-[#6B7280]/70 dark:text-[#A1A1AA]/60 mt-1">{sub}</p>}
-      </div>
+    <div className="flex items-end gap-3 h-[190px] pt-4">
+      {ages.map((a, i) => (
+        <div key={a.key} className="flex-1 flex flex-col items-center justify-end h-full gap-2 min-w-0">
+          <span className="text-xs font-bold text-[#111111] dark:text-white tabular-nums"><AnimatedNumber value={a.count} /></span>
+          <div className="w-full flex-1 flex items-end">
+            <div className="mac-rise w-full rounded-t-lg" title={`${a.count} hot leads, hot for ${a.label}`}
+              style={{ height: `${Math.max(4, (a.count / max) * 100)}%`, backgroundColor: AGE_COLORS[i], '--d': `${200 + i * 70}ms` }} />
+          </div>
+          <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] text-center leading-tight">{a.label}</span>
+          <span className="text-[9px] text-[#9CA3AF] tabular-nums">{total ? Math.round((a.count / total) * 100) : 0}%</span>
+        </div>
+      ))}
     </div>
   )
 }
 
-function QuickAction({ icon: Icon, label, description, to, color }) {
+/* ─── Standing & where hot leads went ───────────────────────────────────── */
+
+function StandingCard({ standing, kpis }) {
   const navigate = useNavigate()
+  const top = standing?.rank === 1
+  const share = standing?.teamTotal ? Math.round((standing.mine / standing.teamTotal) * 100) : 0
   return (
-    <button
-      onClick={() => navigate(to)}
-      className="group flex items-center gap-4 p-4 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] hover:border-[#8B5CF6]/40 hover:shadow-sm transition-all text-left w-full"
-    >
-      <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl" style={{ backgroundColor: `${color}15` }}>
-        <Icon className="w-[18px] h-[18px]" style={{ color }} strokeWidth={1.75} />
+    <Card as="button" type="button" delay={160} onClick={() => navigate('/follow-up-manager/leads')}
+      className="mac-lift mac-press group w-full text-left p-5 hover:border-[#F95C4B]/40">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-[15px] font-bold text-[#111111] dark:text-white tracking-tight">Your follow-ups</h3>
+          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">Notes you logged on hot leads</p>
+        </div>
+        <ArrowRight className="w-4 h-4 text-[#D4D4D8] dark:text-[#3F3F46] group-hover:text-[#F95C4B] transition-colors" />
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{label}</p>
-        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">{description}</p>
-      </div>
-      <ArrowRight className="w-4 h-4 text-[#6B7280]/40 group-hover:text-[#8B5CF6] transition-colors flex-shrink-0" />
-    </button>
+      {!standing ? <Skeleton className="h-24" /> : (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {[['Today', kpis.mineToday], ['This week', kpis.mineWeek], ['This month', kpis.mineMonth]].map(([label, v], i) => (
+              <div key={label} className="mac-pop rounded-xl bg-[#FAFAF9] dark:bg-[#111111] py-2.5 text-center" style={{ '--d': `${220 + i * 60}ms` }}>
+                <p className="text-xl font-bold text-[#111111] dark:text-white"><AnimatedNumber value={v} /></p>
+                <p className="text-[10px] uppercase tracking-wider text-[#9CA3AF]">{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className={`mt-3 flex items-center gap-3 p-3 rounded-xl ${top ? 'bg-gradient-to-r from-[#F95C4B] to-[#FF8C7A] text-white' : 'bg-[#F95C4B]/8'}`}>
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${top ? 'bg-white/20' : 'bg-[#F95C4B]/15'}`}>
+              {top ? <Crown className="w-4 h-4 text-white" /> : <Trophy className="w-4 h-4 text-[#F95C4B]" />}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-bold ${top ? '' : 'text-[#111111] dark:text-white'}`}>
+                {standing.rank ? `#${standing.rank} of ${standing.of} follow-up managers` : 'No follow-ups yet this month'}
+              </p>
+              <p className={`text-[11px] ${top ? 'text-white/80' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
+                {share}% of the team's {standing.teamTotal.toLocaleString()} follow-ups this month
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+    </Card>
   )
 }
 
+function AgencySpread({ agencies, withAgency, noAgency }) {
+  const max = Math.max(1, ...agencies.map((a) => a.count))
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl bg-[#10B981]/8 border border-[#10B981]/20 p-3">
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-[#10B981]">With an agency</p>
+          <p className="text-2xl font-bold text-[#111111] dark:text-white"><AnimatedNumber value={withAgency} /></p>
+        </div>
+        <div className="rounded-xl bg-[#F59E0B]/8 border border-[#F59E0B]/25 p-3">
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-[#B45309] dark:text-[#F59E0B]">Still need one</p>
+          <p className="text-2xl font-bold text-[#111111] dark:text-white"><AnimatedNumber value={noAgency} /></p>
+        </div>
+      </div>
+      {agencies.length === 0 ? <p className="text-xs text-[#9CA3AF] text-center py-4">No hot lead has gone to an agency yet</p> : (
+        <ul className="space-y-2.5">
+          {agencies.map((a, i) => (
+            <li key={String(a.agencyId)} className="mac-slide-in" style={{ '--d': `${200 + i * 60}ms` }}>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="flex items-center gap-2 font-medium text-[#111111] dark:text-white truncate">
+                  <Building2 className="w-3.5 h-3.5 text-[#9CA3AF] flex-shrink-0" />{a.name}
+                </span>
+                <span className="font-semibold tabular-nums text-[#111111] dark:text-white">{a.count}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-[#F5F5F4] dark:bg-[#202020] overflow-hidden">
+                <div className="mac-grow-x h-full rounded-full bg-[#F95C4B]" style={{ width: `${(a.count / max) * 100}%`, '--d': `${260 + i * 60}ms` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/* ─── Priority queue ─────────────────────────────────────────────────────── */
+
+function PriorityQueue({ queue }) {
+  const navigate = useNavigate()
+  if (!queue?.length) {
+    return (
+      <div className="text-center py-10">
+        <Flame className="w-6 h-6 mx-auto text-[#10B981]" />
+        <p className="text-sm font-semibold text-[#111111] dark:text-white mt-2">Queue is clear</p>
+        <p className="text-xs text-[#9CA3AF]">No overdue or untouched hot leads</p>
+      </div>
+    )
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] text-xs">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-widest text-[#9CA3AF]">
+            {['Owner / Property', 'Area', 'Why it\'s here', 'Follow-up date', 'Last followed up', 'Agency'].map((h) => (
+              <th key={h} className="text-left font-semibold px-3 py-2.5">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {queue.map((l, i) => (
+            <tr key={l._id} onClick={() => navigate(`/follow-up-manager/leads/${l._id}`)}
+              className="mac-in cursor-pointer border-t border-[#F5F5F4] dark:border-[#202020] hover:bg-[#FAFAF9] dark:hover:bg-[#1C1C1C] transition-colors"
+              style={{ '--d': `${i * 40}ms` }}>
+              <td className="px-3 py-2.5 max-w-[230px]">
+                <p className="font-semibold text-[#111111] dark:text-white truncate">{l.landlordName}</p>
+                <p className="text-[11px] text-[#9CA3AF] truncate">{l.propertyAddress}</p>
+              </td>
+              <td className="px-3 py-2.5 text-[#6B7280] dark:text-[#A1A1AA] whitespace-nowrap">{l.area ?? '—'}</td>
+              <td className="px-3 py-2.5">
+                {l.reason === 'overdue'
+                  ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap bg-[#DC2626]/10 text-[#DC2626]"><AlertTriangle className="w-3 h-3" /> Overdue</span>
+                  : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap bg-[#111111]/8 dark:bg-white/10 text-[#111111] dark:text-white"><Clock className="w-3 h-3" /> Never followed up</span>}
+              </td>
+              <td className={`px-3 py-2.5 whitespace-nowrap ${l.reason === 'overdue' ? 'text-[#DC2626] font-semibold' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
+                {l.followUpDate ? format(new Date(l.followUpDate), 'd MMM yyyy') : '—'}
+              </td>
+              <td className="px-3 py-2.5 text-[#6B7280] dark:text-[#A1A1AA] whitespace-nowrap">
+                {l.lastFollowUpAt ? formatDistanceToNow(new Date(l.lastFollowUpAt), { addSuffix: true }) : <span className="text-[#9CA3AF]">Never · added {formatDistanceToNow(new Date(l.createdAt), { addSuffix: true })}</span>}
+              </td>
+              <td className="px-3 py-2.5 max-w-[150px] truncate">
+                {l.agency ? <span className="text-[#111111] dark:text-white">{l.agency}</span> : <span className="text-[#F59E0B] font-medium">Needs an agency</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/* ─── Page ───────────────────────────────────────────────────────────────── */
+
 export default function FollowUpManagerDashboard() {
   const { user } = useAuthStore()
+  const { theme } = useTheme() ?? {}
+  const isDark = theme === 'dark'
   const navigate = useNavigate()
-  const now = new Date()
-  const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'
-
-  const [todayAppts, setTodayAppts] = useState([])
-  const [stats, setStats] = useState({ today: null, unread: null })
-  const [loadingAppts, setLoadingAppts] = useState(true)
-
-  // limit: 500 (not the old 100) so the "Hot Leads" count and the derived stats below it
-  // don't silently undercount once a busy queue grows past a small page size; the StatCard
-  // itself shows the real backend total regardless of how many of those are loaded here.
-  const { data: hotLeadsData, isLoading: loadingLeads } = useQuery({
-    queryKey: ['fum-dashboard-leads'],
-    queryFn: () => leadsApi.list({ limit: 500 }).then((r) => r.data.data),
-    staleTime: 30_000,
-  })
-  const hotLeads = hotLeadsData?.leads ?? []
-  const hotLeadsTotal = hotLeadsData?.total ?? hotLeads.length
-  const unassignedCount = hotLeads.filter((l) => !l.assignedAgent && !l.agencyId).length
-  const overdueLeads = hotLeads
-    .filter((l) => l.followUpDate && isPast(new Date(l.followUpDate)))
-    .sort((a, b) => new Date(a.followUpDate) - new Date(b.followUpDate))
-    .slice(0, 5)
+  const [now, setNow] = useState(() => new Date())
+  const freshRef = useRef(false)
 
   useEffect(() => {
-    async function load() {
-      const [todayRes, notiRes] = await Promise.allSettled([
-        axiosClient.get('/appointments/today'),
-        axiosClient.get('/notifications?unread=true&limit=1'),
-      ])
-      const todayList = todayRes.status === 'fulfilled'
-        ? (todayRes.value.data?.data?.appointments ?? [])
-        : []
-      setTodayAppts(todayList)
-      setStats({
-        today: todayList.length,
-        unread: notiRes.status === 'fulfilled' ? notiRes.value.data?.data?.total ?? 0 : null,
-      })
-      setLoadingAppts(false)
-    }
-    load()
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
   }, [])
 
+  const { data: o, isError, isFetching, refetch, dataUpdatedAt } = useQuery({
+    queryKey: ['my-overview', user?._id],
+    queryFn: () => axiosClient.get('/reports/my-overview', { params: freshRef.current ? { fresh: 'true' } : undefined }).then((r) => r.data.data),
+    staleTime: 55_000,
+    refetchInterval: 60_000,
+  })
+
+  function refreshNow() {
+    freshRef.current = true
+    refetch().finally(() => { freshRef.current = false })
+  }
+
+  const k = o?.kpis
+  const kpiCards = useMemo(() => [
+    { icon: Flame, label: 'Hot leads', value: k?.hot, sub: `${k?.newHotWeek ?? 0} new this week`, to: '/follow-up-manager/leads', tone: '#EF4444' },
+    { icon: AlertTriangle, label: 'Overdue', value: k?.overdue, sub: `${k?.dueToday ?? 0} more due today`, to: '/follow-up-manager/leads?focus=overdue', tone: '#DC2626' },
+    { icon: Clock, label: 'Never followed up', value: k?.neverFollowed, sub: 'No note logged yet', to: '/follow-up-manager/leads?focus=never_followed_up', tone: '#111111' },
+    { icon: Building2, label: 'Need an agency', value: k?.noAgency, sub: `${k?.withAgency ?? 0} already with one`, to: '/follow-up-manager/leads?focus=no_agent', tone: '#F59E0B' },
+    { icon: MessageSquareText, label: 'Your follow-ups', value: k?.mineWeek, sub: `This week · today ${k?.mineToday ?? 0}`, to: '/follow-up-manager/leads' },
+    { icon: CalendarCheck, label: 'Visits booked', value: k?.apptsUpcoming, sub: `Today ${k?.apptsToday ?? 0}`, to: '/follow-up-manager/appointments', tone: '#10B981' },
+  ], [k])
+
+  const stageTo = {
+    hot: '/follow-up-manager/leads',
+    touched: '/follow-up-manager/leads?focus=never_followed_up',
+    dated: '/follow-up-manager/leads?focus=no_followup_date',
+    agency: '/follow-up-manager/leads?focus=no_agent',
+    visits: '/follow-up-manager/appointments',
+  }
+  const recencyColor = (key) => (key === 'never' && isDark ? '#F5F5F4' : RECENCY_COLORS[key])
+  const pickRecency = (key) => { if (key === 'never') navigate('/follow-up-manager/leads?focus=never_followed_up') }
+
   return (
-    <div className="p-5 sm:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 xl:p-8">
+      <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
+        {/* ── Main column ─────────────────────────────────────────────── */}
+        <div className="space-y-6 min-w-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+            <Hero
+              user={user}
+              now={now}
+              eyebrow="Follow-up"
+              subtitle="The fortune is in the follow-up. Here's your hot-lead queue today."
+              stats={[
+                { icon: Flame, label: 'hot leads', value: k?.hot, to: '/follow-up-manager/leads' },
+                { icon: AlertTriangle, label: 'overdue', value: k?.overdue, to: '/follow-up-manager/leads?focus=overdue' },
+                { icon: CalendarCheck, label: 'visits today', value: k?.apptsToday, to: '/follow-up-manager/appointments' },
+              ]}
+            />
+            {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o.milestone} to="/follow-up-manager/leads?focus=never_followed_up" />}
+          </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">
-            {greeting}, {user?.firstName} 👋
-          </h1>
-          <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            {format(now, "EEEE, d MMMM yyyy")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 self-start">
-          <Activity className="w-4 h-4 text-[#8B5CF6]" />
-          <span className="text-xs font-semibold text-[#8B5CF6]">Follow-Up Manager Active</span>
-        </div>
-      </div>
+          {isError && !o && <ErrorBanner onRetry={() => refetch()} />}
 
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          Today's Overview
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={Flame}         label="Hot Leads"          value={hotLeadsTotal}   sub="Currently in your queue" color="#8B5CF6" loading={loadingLeads} />
-          <StatCard icon={Building2}     label="No Agency Assigned" value={unassignedCount}   sub="Still need routing"      color="#F59E0B" loading={loadingLeads} />
-          <StatCard icon={CalendarCheck} label="Today's Appointments" value={stats.today}    sub={format(now, 'd MMM yyyy')} color="#3B82F6" loading={loadingAppts} />
-          <StatCard icon={Bell}          label="Notifications"      value={stats.unread}      sub="Unread"                   color="#F95C4B" loading={loadingAppts} />
-        </div>
-      </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
+            {!o
+              ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[140px]" />)
+              : kpiCards.map((c, i) => <Kpi key={c.label} delay={80 + i * 60} {...c} />)}
+          </div>
 
-      {/* Overdue follow-ups */}
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#EF4444]/10 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4 text-[#EF4444]" strokeWidth={1.75} />
+          <Card delay={140} className="p-5">
+            <CardTitle title="Hot lead coverage" subtitle="How much of the hot queue is followed up, dated and routed — tap a stage to work it" action={<LinkButton to="/follow-up-manager/leads">Hot leads</LinkButton>} />
+            {!o ? <Skeleton className="h-20" /> : <Pipeline stages={o.pipeline} isDark={isDark} stageTo={stageTo} />}
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] gap-6">
+            <div className="grid grid-cols-1 gap-6 content-start">
+              <Card delay={200} className="p-5">
+                <CardTitle title="When hot leads were last followed up" subtitle="Fresh is green — black has never had a note" />
+                {!o ? <Skeleton className="h-[170px]" /> : <Donut items={o.recency} total={k.hot} color={recencyColor} centerLabel="Hot leads" onPick={pickRecency} />}
+              </Card>
+              <Card delay={240} className="p-5">
+                <CardTitle title="How long they've been hot" subtitle="Older hot leads go cold — work the right-hand bars first" action={<Hourglass className="w-4 h-4 text-[#9CA3AF]" />} />
+                {!o ? <Skeleton className="h-[190px]" /> : <AgeBars ages={o.ages} total={k.hot} />}
+              </Card>
             </div>
-            <span className="text-sm font-bold text-[#111111] dark:text-white">Overdue Follow-ups</span>
+            <ScopedProvinceCard
+              isDark={isDark}
+              loading={!o}
+              title="Hot leads by province"
+              subtitle="Your hot queue, or the whole company · tap a province"
+              scopes={o ? [
+                {
+                  key: 'mine', label: 'Hot queue', provinces: o.provinces,
+                  metrics: [['leads', 'Hot leads'], ['noAgency', 'Need agency'], ['overdue', 'Overdue']],
+                  provinceTo: (name) => `/follow-up-manager/leads?province=${encodeURIComponent(name)}`,
+                },
+                { key: 'company', label: 'Company', provinces: o.company.provinces },
+              ] : [{ key: 'mine', label: 'Hot queue' }]}
+            />
           </div>
-          <button onClick={() => navigate('/follow-up-manager/leads')} className="text-xs font-semibold text-[#8B5CF6] hover:underline flex items-center gap-1">
-            View all <ArrowRight className="w-3 h-3" />
-          </button>
+
+          <div className="grid grid-cols-1 2xl:grid-cols-[1.4fr_1fr] gap-6">
+            <Card delay={260} className="p-5">
+              <CardTitle title="Last 30 days" subtitle="Leads turning hot each day against follow-ups logged" action={<LinkButton to="/follow-up-manager/leads">Hot leads</LinkButton>} />
+              {!o ? <Skeleton className="h-[250px]" /> : (
+                <>
+                  <TrendChart data={o.charts.daily} xKey="date" series={DAILY_SERIES} isDark={isDark}
+                    xFormat={(d) => format(new Date(d), 'd MMM')} labelFormat={(d) => format(new Date(d), 'EEE, d MMM')} />
+                  <ChartLegend series={DAILY_SERIES} isDark={isDark} />
+                </>
+              )}
+            </Card>
+            <Card delay={300} className="p-5">
+              <CardTitle title="Where hot leads went" subtitle="Agencies holding hot leads right now" action={<LinkButton to="/follow-up-manager/leads?focus=no_agent">Route leads</LinkButton>} />
+              {!o ? <Skeleton className="h-[250px]" /> : <AgencySpread agencies={o.agencies} withAgency={k.withAgency} noAgency={k.noAgency} />}
+            </Card>
+          </div>
+
+          <Card delay={320} className="p-5">
+            <CardTitle title="Priority queue" subtitle="Overdue first (oldest date first), then hot leads nobody has followed up — tap one to work it" action={<LinkButton to="/follow-up-manager/leads?focus=overdue">All overdue</LinkButton>} />
+            {!o ? <Skeleton className="h-[300px]" /> : <PriorityQueue queue={o.queue} />}
+          </Card>
+
+          <CompanySnapshot company={o?.company} isDark={isDark} delay={340} />
         </div>
 
-        {loadingLeads ? (
-          <div className="p-5 space-y-3">
-            {[0, 1].map((i) => <div key={i} className="h-14 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />)}
-          </div>
-        ) : overdueLeads.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <Flame className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
-            <p className="text-sm font-medium text-[#111111] dark:text-white">Nothing overdue</p>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Every hot lead's follow-up is on track</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
-            {overdueLeads.map((l) => (
-              <li key={l._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors">
-                <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[#EF4444]/10 flex items-center justify-center">
-                  <Flame className="w-4 h-4 text-[#EF4444]" strokeWidth={1.75} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{l.landlordName}</p>
-                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1 truncate">
-                    <MapPin className="w-2.5 h-2.5 flex-shrink-0" /> {l.propertyAddress}
-                  </p>
-                </div>
-                <span className="text-[10px] font-semibold text-[#EF4444] flex-shrink-0">
-                  Due {format(new Date(l.followUpDate), 'd MMM')}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Today's appointments */}
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
-              <CalendarClock className="w-4 h-4 text-[#3B82F6]" strokeWidth={1.75} />
-            </div>
-            <span className="text-sm font-bold text-[#111111] dark:text-white">Today's Appointments</span>
-          </div>
-          <button onClick={() => navigate('/follow-up-manager/appointments')} className="text-xs font-semibold text-[#8B5CF6] hover:underline flex items-center gap-1">
-            View all <ArrowRight className="w-3 h-3" />
-          </button>
-        </div>
-
-        {loadingAppts ? (
-          <div className="p-5 space-y-3">
-            {[0, 1, 2].map((i) => <div key={i} className="h-14 rounded-xl bg-[#F5F5F4] dark:bg-[#202020] animate-pulse" />)}
-          </div>
-        ) : todayAppts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <CalendarCheck className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
-            <p className="text-sm font-medium text-[#111111] dark:text-white">No appointments today</p>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Your schedule is clear for today</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
-            {todayAppts.map((a) => (
-              <li key={a._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex flex-col items-center justify-center">
-                  <span className="text-[11px] font-bold text-[#3B82F6] leading-none">{a.scheduledTime ?? '--'}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{a.leadId?.landlordName ?? 'Appointment'}</p>
-                  <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1 truncate">
-                    <MapPin className="w-2.5 h-2.5 flex-shrink-0" /> {a.leadId?.propertyAddress ?? 'Address TBD'}
-                  </p>
-                </div>
-                <ApptBadge status={a.status} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          Quick Actions
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <QuickAction icon={Flame}         label="Hot Leads"      description="See every hot lead you're working"     to="/follow-up-manager/leads"         color="#8B5CF6" />
-          <QuickAction icon={CalendarCheck} label="Appointments"   description="View and schedule property visits"     to="/follow-up-manager/appointments"  color="#3B82F6" />
-          <QuickAction icon={Bell}          label="Notifications"  description="Updates and alerts"                    to="/follow-up-manager/notifications" color="#F95C4B" />
-          <QuickAction icon={Home}          label="Contact Admin"  description="Reach out for anything you're unsure of" to="/follow-up-manager/chat"        color="#10B981" />
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">
-          Account
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Role',       value: 'Follow Up Manager' },
-            { label: 'Last Login', value: user?.lastLoginAt ? format(new Date(user.lastLoginAt), 'd MMM yyyy, HH:mm') : '—' },
-            { label: 'Email',      value: user?.email ?? '—' },
-            { label: 'Status',     value: user?.isActive ? 'Active' : 'Inactive' },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6B7280] dark:text-[#A1A1AA] mb-1">{label}</p>
-              <p className="text-sm font-medium text-[#111111] dark:text-white truncate">{value}</p>
-            </div>
-          ))}
-        </div>
+        {/* ── Right rail ──────────────────────────────────────────────── */}
+        <aside className="space-y-6 min-w-0">
+          <Card delay={120} className="p-5">
+            <CardTitle
+              title="Today's tasks"
+              action={(
+                <button type="button" onClick={refreshNow} title="Refresh now"
+                  className="flex items-center gap-1 text-[11px] font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B]">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                  {dataUpdatedAt ? format(new Date(dataUpdatedAt), 'HH:mm') : ''}
+                </button>
+              )}
+            />
+            {!o ? <Skeleton className="h-[300px]" /> : <TodaysTasks tasks={o.tasks} />}
+          </Card>
+          <StandingCard standing={o?.standing} kpis={k} />
+          <Card delay={200} className="p-5">
+            <CardTitle title="Upcoming visits" subtitle={`${(k?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/follow-up-manager/appointments">All</LinkButton>} />
+            {!o ? <Skeleton className="h-[200px]" /> : <UpcomingVisits visits={o.upcomingVisits} showAgent leadPath={(id) => `/follow-up-manager/leads/${id}`} allTo="/follow-up-manager/appointments" />}
+          </Card>
+          <PhotoCard
+            eyebrow="Hot leads are waiting"
+            title="A quick follow-up keeps a deal warm"
+            text={<><b className="text-white">{(k?.overdue ?? 0).toLocaleString()}</b> hot leads are past their follow-up date and <b className="text-white">{(k?.neverFollowed ?? 0).toLocaleString()}</b> have never had a note.</>}
+            to="/follow-up-manager/leads?focus=overdue"
+            buttonLabel="Work the overdue list"
+            icon={AlertTriangle}
+          />
+        </aside>
       </div>
     </div>
   )

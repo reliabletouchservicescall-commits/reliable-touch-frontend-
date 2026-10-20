@@ -4,6 +4,7 @@ import { Loader2, AlertTriangle } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { useAuthStore } from '../../store/authStore'
 import LeadDetailScreen from '../../components/leads/LeadDetailScreen'
+import { LeadPanelSkeleton } from '../../components/leads/LeadSidePanel'
 
 // Mirrors leads.service.js's admin branch — everything except status/propertyAddress/area,
 // which always go through their own dedicated flows.
@@ -13,8 +14,9 @@ const EDITABLE_FIELDS = new Set([
   'listingUrl', 'disposition', 'leaseStartDate', 'leaseDurationMonths',
 ])
 
-export default function AdminLeadDetailPage() {
-  const { id } = useParams()
+// Used both as the full page (below) and inside the Leads list's side panel, where
+// `panel` carries the panel's controls (close, expand, prev/next).
+export function AdminLeadDetail({ id, panel = null }) {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
@@ -24,6 +26,7 @@ export default function AdminLeadDetailPage() {
   })
 
   if (isLoading) {
+    if (panel) return <LeadPanelSkeleton onClose={panel.onClose} />
     return (
       <div className="flex items-center justify-center h-full py-32">
         <Loader2 className="w-6 h-6 animate-spin text-[#F95C4B]" />
@@ -43,9 +46,12 @@ export default function AdminLeadDetailPage() {
 
   return (
     <LeadDetailScreen
+      key={lead._id}
       lead={lead}
-      onBack={() => navigate('/admin/leads')}
-      onDeleted={() => navigate('/admin/leads')}
+      onBack={panel?.onClose ?? (() => navigate('/admin/leads'))}
+      onDeleted={panel?.onClose ?? (() => navigate('/admin/leads'))}
+      variant={panel ? 'panel' : 'page'}
+      panel={panel}
       invalidateQueryKey={['leads']}
       editableFields={EDITABLE_FIELDS}
       showAdminFields
@@ -57,4 +63,9 @@ export default function AdminLeadDetailPage() {
       currentUserRole={user?.role}
     />
   )
+}
+
+export default function AdminLeadDetailPage() {
+  const { id } = useParams()
+  return <AdminLeadDetail id={id} />
 }

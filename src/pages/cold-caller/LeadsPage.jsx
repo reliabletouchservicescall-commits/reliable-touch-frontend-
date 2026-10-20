@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useState, useMemo } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useInfiniteQuery, keepPreviousData } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
@@ -18,6 +18,8 @@ import {
   LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
   ActiveFilterChips, FetchBar, CardGridSkeleton, FOCUS_LABELS, LEAD_STATUS_TILES,
 } from '../../components/leads/LeadsHub'
+import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
+import { ColdCallerLeadDetail } from './LeadDetailPage'
 
 // Leads load in batches of 300 ("Load more" appends the next batch).
 const PAGE_SIZE = 300
@@ -102,10 +104,11 @@ function ContactPickerPanel({ onClose, onPick }) {
 
 /* ─── Lead Card ──────────────────────────────────────────────────────────── */
 
-function LeadCard({ lead, onOpen, currentUserId }) {
+function LeadCard({ lead, onOpen, currentUserId, rowProps }) {
   const areaObj = (lead.area && typeof lead.area === 'object') ? lead.area : null
   return (
     <button
+      {...rowProps}
       onClick={onOpen}
       className="w-full text-left bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#D1D5DB] dark:hover:border-[#3A3A3A] hover:shadow-card transition-all p-4"
     >
@@ -183,17 +186,24 @@ export default function ColdCallerLeadsPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
+  // The dashboard deep-links here with ?status= / ?focus= / ?province= — read once as the
+  // starting filters, then they're ordinary on-screen filters.
+  const [initialParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(() => initialParams.get('status') ?? '')
   const [listingTypeFilter, setListingTypeFilter] = useState('')
   const [hasFollowUpFilter, setHasFollowUpFilter] = useState(false)
   const [hasCommentFilter, setHasCommentFilter] = useState(false)
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo,   setCreatedTo]   = useState('')
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(() => initialParams.get('new') === '1') // ?new=1 from the dashboard
   const [createContact, setCreateContact] = useState(null)
-  const [focus, setFocus] = useState('') // one-click Quick insight filter
-  const [place, setPlace] = useState(null) // { kind: 'area', value: areaId, label } from Top areas
+  const [focus, setFocus] = useState(() => initialParams.get('focus') ?? '') // one-click Quick insight filter
+  // { kind: 'area', value: areaId, label } from Top areas, or { kind: 'province', ... } from the dashboard map
+  const [place, setPlace] = useState(() => {
+    const province = initialParams.get('province')
+    return province ? { kind: 'province', value: province, label: province } : null
+  })
 
   const debouncedSearch = useDebounce(search)
 
@@ -215,7 +225,8 @@ export default function ColdCallerLeadsPage() {
     createdAfter:  createdFrom ? new Date(createdFrom).toISOString() : undefined,
     createdBefore: createdTo   ? new Date(createdTo).toISOString()   : undefined,
     focus:         focus || undefined,
-    area:          place?.value || undefined,
+    area:          place?.kind === 'area' ? place.value : undefined,
+    province:      place?.kind === 'province' ? place.value : undefined,
   }
 
   // The caller's own report: everything they've created (server-scoped to createdBy = me).
@@ -238,13 +249,17 @@ export default function ColdCallerLeadsPage() {
   })
 
   const leads = data?.pages?.flatMap((p) => p.leads) ?? []
+  // Side panel: clicking a lead opens it beside the list (?lead=<id>); ↑/↓ step through
+  const leadIdsKey = leads.map((l) => l._id).join(',')
+  const leadIds = useMemo(() => (leadIdsKey ? leadIdsKey.split(',') : []), [leadIdsKey])
+  const leadPanel = useLeadPanel(leadIds)
   const total = data?.pages?.[0]?.total ?? 0
   const hasFilters = Boolean(search || statusFilter || listingTypeFilter || hasFollowUpFilter || hasCommentFilter || createdFrom || createdTo || focus || place)
   const refreshing = isFetching && !isLoading && !isFetchingNextPage
   const chips = [
     focus && { key: 'focus', label: 'Insight', value: FOCUS_LABELS[focus], onClear: () => setFocus('') },
     statusFilter && { key: 'status', label: 'Status', value: LEAD_STATUS_TILES.find((t) => t.key === statusFilter)?.label ?? statusFilter, onClear: () => setStatusFilter('') },
-    place && { key: 'place', label: 'Area', value: place.label, onClear: () => setPlace(null) },
+    place && { key: 'place', label: place.kind === 'province' ? 'Province' : 'Area', value: place.label, onClear: () => setPlace(null) },
     listingTypeFilter && { key: 'intent', label: 'Intent', value: listingTypeFilter === 'sale' ? 'For sale' : 'For rental', onClear: () => setListingTypeFilter('') },
   ].filter(Boolean)
   function clearAllFilters() {
@@ -280,6 +295,22 @@ export default function ColdCallerLeadsPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
           <div className="space-y-4 min-w-0">
+            <LeadSidePanel panel={leadPanel}>
+              {(id) => (
+                <ColdCallerLeadDetail
+                  id={id}
+                  panel={{
+                    onClose: leadPanel.close,
+                    onExpand: () => navigate(`/cold-caller/leads/${id}`),
+                    onPrev: leadPanel.prev,
+                    onNext: leadPanel.next,
+                    hasPrev: leadPanel.hasPrev,
+                    hasNext: leadPanel.hasNext,
+                    position: leadPanel.position,
+                  }}
+                />
+              )}
+            </LeadSidePanel>
             <ActiveFilterChips chips={chips} count={chips.length ? total : null} onClearAll={clearAllFilters} />
 
             <Panel className="p-4 flex flex-col sm:flex-row sm:flex-wrap gap-3" delay={140}>
@@ -329,7 +360,7 @@ export default function ColdCallerLeadsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
             {leads.map((lead) => (
-              <LeadCard key={lead._id} lead={lead} onOpen={() => navigate(`/cold-caller/leads/${lead._id}`)} currentUserId={user?._id} />
+              <LeadCard key={lead._id} lead={lead} onOpen={() => leadPanel.open(lead._id)} rowProps={leadRowProps(leadPanel, lead._id)} currentUserId={user?._id} />
             ))}
           </div>
         )}

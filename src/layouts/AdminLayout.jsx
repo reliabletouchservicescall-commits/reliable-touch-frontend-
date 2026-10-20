@@ -177,7 +177,7 @@ function Sidebar({ collapsed, onClose, isMobile }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+      <nav className="thin-scroll flex-1 overflow-y-auto px-3 py-4 space-y-5">
         {NAV.map(({ group, items }) => (
           <div key={group}>
             {(!collapsed || isMobile) && (

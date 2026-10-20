@@ -5,6 +5,7 @@ import { Loader2, AlertTriangle } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { useAuthStore } from '../../store/authStore'
 import LeadDetailScreen from '../../components/leads/LeadDetailScreen'
+import { LeadPanelSkeleton } from '../../components/leads/LeadSidePanel'
 import { AGENCY_STATUS_OPTIONS } from '../../components/leads/leadShared'
 
 // Mirrors AGENT_EDITABLE in leads.service.js (attachments excluded — no upload UI exists
@@ -14,8 +15,9 @@ const EDITABLE_FIELDS = new Set([
   'listingUrl', 'disposition', 'leaseStartDate', 'leaseDurationMonths',
 ])
 
-export default function AgencyLeadDetailPage() {
-  const { id } = useParams()
+// Used both as the full page (below) and inside the Leads list's side panel, where
+// `panel` carries the panel's controls (close, expand, prev/next).
+export function AgencyLeadDetail({ id, panel = null }) {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
@@ -35,6 +37,7 @@ export default function AgencyLeadDetailPage() {
   })
 
   if (isLoading) {
+    if (panel) return <LeadPanelSkeleton onClose={panel.onClose} />
     return (
       <div className="flex items-center justify-center h-full py-32">
         <Loader2 className="w-6 h-6 animate-spin text-[#F95C4B]" />
@@ -54,9 +57,12 @@ export default function AgencyLeadDetailPage() {
 
   return (
     <LeadDetailScreen
+      key={lead._id}
       lead={lead}
-      onBack={() => navigate('/agency/leads')}
-      onDeleted={() => navigate('/agency/leads')}
+      onBack={panel?.onClose ?? (() => navigate('/agency/leads'))}
+      onDeleted={panel?.onClose ?? (() => navigate('/agency/leads'))}
+      variant={panel ? 'panel' : 'page'}
+      panel={panel}
       invalidateQueryKey={['agent-leads']}
       editableFields={EDITABLE_FIELDS}
       canAssignAgency={isManager}
@@ -70,4 +76,9 @@ export default function AgencyLeadDetailPage() {
       showSourceBadge
     />
   )
+}
+
+export default function AgencyLeadDetailPage() {
+  const { id } = useParams()
+  return <AgencyLeadDetail id={id} />
 }
