@@ -53,7 +53,9 @@ export const AGENCY_STATUS_OPTIONS = [
 // Statuses a cold caller may pick when logging a new lead — matches the backend's
 // LEAD_STATUS_CALLER_OPTIONS. '' means "let the system decide from the follow-up date".
 export const LEAD_TEMPERATURE_OPTIONS = [
-  { value: '',     label: 'Auto', hint: 'Based on follow-up date', icon: Sparkles,            color: '#3B82F6' },
+  // "Auto" (status worked out from the follow-up date) is disabled along with automatic
+  // status on the server (Lead.model.js) — uncomment to bring it back.
+  // { value: '',     label: 'Auto', hint: 'Based on follow-up date', icon: Sparkles,            color: '#3B82F6' },
   { value: 'cold', label: 'Cold', hint: 'Not urgent',               icon: ThermometerSnowflake, color: '#6B7280' },
   { value: 'warm', label: 'Warm', hint: 'Follow up soon',           icon: ThermometerSun,       color: '#F59E0B' },
   { value: 'hot',  label: 'Hot',  hint: 'Ready to move — urgent',   icon: Flame,                color: '#EF4444' },
@@ -65,7 +67,7 @@ export function LeadTemperaturePicker({ value, onChange }) {
       <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">
         Lead Temperature
       </label>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${LEAD_TEMPERATURE_OPTIONS.length}, minmax(0, 1fr))` }}>
         {LEAD_TEMPERATURE_OPTIONS.map((o) => {
           const Icon = o.icon
           const active = value === o.value

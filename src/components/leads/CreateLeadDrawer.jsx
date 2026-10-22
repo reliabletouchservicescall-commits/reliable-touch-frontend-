@@ -25,7 +25,7 @@ const OUTCOME_LABEL = {
  * entirely for a plain agent (always auto-assigned to themselves server-side) or for the
  * existing cold-caller flow, which never touches assignment at all.
  */
-export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '', assignment, onClose, onCreated }) {
+export default function CreateLeadDrawer({ contact, callLog, defaultStatus = 'cold', assignment, onClose, onCreated }) {
   const qc = useQueryClient()
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState(defaultStatus)

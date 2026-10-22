@@ -246,7 +246,7 @@ function EmptyState({ hasFilters }) {
         {hasFilters ? 'No hot leads found' : 'No hot leads right now'}
       </h3>
       <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] max-w-xs">
-        {hasFilters ? 'Try adjusting your search or filters.' : 'Leads land here automatically once they heat up — nothing to work yet.'}
+        {hasFilters ? 'Try adjusting your search or filters.' : 'Leads land here as soon as someone marks them hot — nothing to work yet.'}
       </p>
     </div>
   )
