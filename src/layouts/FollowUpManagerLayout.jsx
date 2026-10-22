@@ -28,12 +28,12 @@ const NAV = [
     group: 'Overview',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/follow-up-manager', end: true },
+      { label: 'Hot Leads',     icon: Flame,         to: '/follow-up-manager/leads' },
     ],
   },
   {
     group: 'My Work',
     items: [
-      { label: 'Hot Leads',     icon: Flame,         to: '/follow-up-manager/leads' },
       { label: 'Appointments',  icon: CalendarCheck, to: '/follow-up-manager/appointments' },
       { label: 'Campaigns',     icon: Megaphone,     to: '/follow-up-manager/campaigns' },
     ],

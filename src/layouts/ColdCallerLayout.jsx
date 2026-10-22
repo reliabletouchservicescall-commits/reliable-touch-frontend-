@@ -33,13 +33,13 @@ const NAV = [
     group: 'Overview',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/cold-caller', end: true },
+      { label: 'My Leads', icon: FileText, to: '/cold-caller/leads' },
     ],
   },
   {
     group: 'My Work',
     items: [
       { label: 'My Contacts', icon: Users, to: '/cold-caller/contacts' },
-      { label: 'My Leads', icon: FileText, to: '/cold-caller/leads' },
       { label: 'Call Logs', icon: PhoneCall, to: '/cold-caller/call-logs' },
       { label: 'Appointments', icon: CalendarCheck, to: '/cold-caller/appointments' },
     ],

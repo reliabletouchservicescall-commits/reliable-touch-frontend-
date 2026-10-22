@@ -43,6 +43,7 @@ const NAV = [
     group: 'Overview',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
+      { label: 'Leads', icon: TrendingUp, to: '/admin/leads' },
     ],
   },
   {
@@ -50,7 +51,6 @@ const NAV = [
     items: [
       { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
       { label: 'Excel Files', icon: FileSpreadsheet, to: '/admin/excel-files' },
-      { label: 'Leads', icon: TrendingUp, to: '/admin/leads' },
       { label: 'Campaigns', icon: Megaphone, to: '/admin/campaigns' },
       { label: 'Call Logs', icon: PhoneCall, to: '/admin/call-logs' },
       { label: 'Caller Workload', icon: Users, to: '/admin/caller-workload' },

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -11,6 +11,7 @@ import {
 import { leadsApi } from '../../services/leadsApi'
 import { chatApi } from '../../services/chatApi'
 import ContactCallHistory from '../contacts/ContactCallHistory'
+import LeadCallButton from './LeadCallButton'
 import LeadAppointments from '../appointments/LeadAppointments'
 import {
   LeadStatusBadge, LeadSourceBadge, ListingBadge, ListingFields, PropertyFromContact, FollowUpComments,
@@ -27,6 +28,32 @@ function resolveUser(obj) {
 
 function resolveAgency(obj) {
   return (obj && typeof obj === 'object' && obj.name) ? obj : null
+}
+
+// The editable form's values for a lead
+function formFromLead(lead) {
+  return {
+    landlordName: lead.landlordName ?? '',
+    listingType: lead.listingType ?? '',
+    priceMin: lead.priceMin ?? '',
+    priceMax: lead.priceMax ?? '',
+    phone: lead.phone ?? '',
+    email: lead.email ?? '',
+    comments: lead.comments ?? '',
+    availability: lead.availability ?? '',
+    bestCallTime: lead.bestCallTime ?? '',
+    followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
+    appointmentDate: lead.appointmentDate ? lead.appointmentDate.slice(0, 10) : '',
+    appointmentTime: lead.appointmentTime ?? '',
+    assignedAgent: lead.assignedAgent?._id ?? lead.assignedAgent ?? '',
+    agencyId: lead.agencyId?._id ?? lead.agencyId ?? '',
+    adminReviewed: lead.adminReviewed ?? false,
+    adminNotes: lead.adminNotes ?? '',
+    listingUrl: lead.listingUrl ?? '',
+    disposition: lead.disposition ?? '',
+    leaseStartDate: lead.leaseStartDate ? lead.leaseStartDate.slice(0, 10) : '',
+    leaseDurationMonths: lead.leaseDurationMonths ?? '',
+  }
 }
 
 function cleanPhone(phone) {
@@ -306,6 +333,36 @@ function ChatWithButton({ targetUser, targetLabel, lead, chatBasePath }) {
   )
 }
 
+const ROLE_LABEL = { admin: 'Admin', follow_up_manager: 'Follow-up manager', cold_caller: 'Cold caller', agency: 'Company' }
+
+// Who is working the lead, and how to reach them — so admin and follow-up managers can see
+// exactly which agent a company put on one of our leads.
+function AssignedAgentDetails({ agent, agency, assignedBy, assignedAt }) {
+  const initials = `${agent.firstName?.[0] ?? ''}${agent.lastName?.[0] ?? ''}`.toUpperCase()
+  const byLabel = assignedBy
+    ? `${assignedBy.firstName} ${assignedBy.lastName}${assignedBy.role === 'agency' ? (agency ? ` · ${agency.name} manager` : ' · company manager') : ` · ${ROLE_LABEL[assignedBy.role] ?? ''}`}`
+    : null
+  return (
+    <>
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <span className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gradient-to-br from-[#F95C4B] to-[#E11D48] flex-shrink-0">{initials}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{agent.firstName} {agent.lastName}</p>
+          <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] truncate flex items-center gap-1">
+            <Building2 className="w-3 h-3 flex-shrink-0" />
+            {agency ? agency.name : 'Reliable Touch'} · {agent.isAgencyManager ? 'Company manager' : 'Agent'}
+          </p>
+        </div>
+      </div>
+      <InfoRow icon={Phone} label="Agent phone" value={agent.phone} href={agent.phone ? `tel:${cleanPhone(agent.phone)}` : undefined} />
+      <InfoRow icon={Mail} label="Agent email" value={agent.email} href={agent.email ? `mailto:${agent.email}` : undefined} />
+      {byLabel && assignedAt && (
+        <InfoRow icon={Calendar} label="Assigned by" value={`${byLabel} · ${format(new Date(assignedAt), 'd MMM yyyy, HH:mm')}`} />
+      )}
+    </>
+  )
+}
+
 function InfoRow({ icon: Icon, label, value, href }) {
   if (!value) return null
   const inner = (
@@ -315,7 +372,7 @@ function InfoRow({ icon: Icon, label, value, href }) {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{label}</p>
         <p className="text-sm text-[#111111] dark:text-white break-words group-hover:text-[#F95C4B] transition-colors">{value}</p>
       </div>
-      {href && (
+      {href?.startsWith('tel:') && (
         <PhoneCall className="w-3.5 h-3.5 text-[#6B7280]/40 dark:text-[#A1A1AA]/40 group-hover:text-[#F95C4B] transition-colors mt-1 flex-shrink-0" strokeWidth={1.75} />
       )}
     </>
@@ -355,6 +412,10 @@ export default function LeadDetailScreen({
   assignableTeam = null,
   canDelete = false,
   canComment = false,
+  // "Call" button: dial the landlord and log the call on this lead. `callNotifiesManager`
+  // — the caller is a company agent, whose manager is told about the call.
+  canCall = false,
+  callNotifiesManager = false,
   currentUserId,
   currentUserRole,
   showSourceBadge = false,
@@ -380,30 +441,26 @@ export default function LeadDetailScreen({
   const assignedAgentByUser = resolveUser(lead.assignedAgentBy)
   const canEdit = editableFields.size > 0 || canAssignAgency
 
-  const [form, setForm] = useState(() => ({
-    landlordName: lead.landlordName ?? '',
-    listingType: lead.listingType ?? '',
-    priceMin: lead.priceMin ?? '',
-    priceMax: lead.priceMax ?? '',
-    phone: lead.phone ?? '',
-    email: lead.email ?? '',
-    comments: lead.comments ?? '',
-    availability: lead.availability ?? '',
-    bestCallTime: lead.bestCallTime ?? '',
-    followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
-    appointmentDate: lead.appointmentDate ? lead.appointmentDate.slice(0, 10) : '',
-    appointmentTime: lead.appointmentTime ?? '',
-    assignedAgent: lead.assignedAgent?._id ?? lead.assignedAgent ?? '',
-    agencyId: lead.agencyId?._id ?? lead.agencyId ?? '',
-    adminReviewed: lead.adminReviewed ?? false,
-    adminNotes: lead.adminNotes ?? '',
-    listingUrl: lead.listingUrl ?? '',
-    disposition: lead.disposition ?? '',
-    leaseStartDate: lead.leaseStartDate ? lead.leaseStartDate.slice(0, 10) : '',
-    leaseDurationMonths: lead.leaseDurationMonths ?? '',
-  }))
+  const [form, setForm] = useState(() => formFromLead(initialLead))
+  // Fields this person has changed but not saved yet — a fresh copy of the lead from the
+  // server (someone else in the company edited it) never overwrites those.
+  const dirtyRef = useRef(new Set())
 
-  function setField(k, v) { setForm((f) => ({ ...f, [k]: v })) }
+  // The page refetches the lead when it changes elsewhere (see SocketContext's
+  // lead_activity) — show the newer copy in place.
+  useEffect(() => {
+    if (!initialLead?.updatedAt || !lead?.updatedAt) return
+    if (new Date(initialLead.updatedAt) <= new Date(lead.updatedAt)) return
+    setLead(initialLead)
+    const fresh = formFromLead(initialLead)
+    setForm((f) => {
+      const next = { ...f }
+      Object.keys(fresh).forEach((k) => { if (!dirtyRef.current.has(k)) next[k] = fresh[k] })
+      return next
+    })
+  }, [initialLead]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function setField(k, v) { dirtyRef.current.add(k); setForm((f) => ({ ...f, [k]: v })) }
   function has(field) { return editableFields.has(field) }
 
   const saveMut = useMutation({
@@ -411,6 +468,7 @@ export default function LeadDetailScreen({
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: invalidateQueryKey })
       toast.success('Lead updated')
+      dirtyRef.current.clear()
       setLead(res.data.data.lead)
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to update lead')),
@@ -551,6 +609,7 @@ export default function LeadDetailScreen({
               )}
             </div>
             <div className="flex items-center gap-1">
+              {canCall && <LeadCallButton lead={lead} notifyManager={callNotifiesManager} size="sm" />}
               {canChangeStatus && (
                 <button type="button" onClick={() => setStatusDialog(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] active:scale-[0.97] transition-all">
@@ -637,6 +696,7 @@ export default function LeadDetailScreen({
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {canCall && <LeadCallButton lead={lead} notifyManager={callNotifiesManager} />}
             {canChangeStatus && (
               <button
                 onClick={() => setStatusDialog(true)}
@@ -772,16 +832,20 @@ export default function LeadDetailScreen({
               >
                 {canAssignAgency ? (
                   <>
+                    {assignedAgentUser && (
+                      <AssignedAgentDetails agent={assignedAgentUser} agency={assignedAgency} assignedBy={assignedAgentByUser} assignedAt={lead.assignedAgentAt} />
+                    )}
                     <div className="p-4">
+                      {assignedAgentUser && <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">Reassign</p>}
                       <AgentOrAgencyPicker
                         teamMembers={assignableTeam}
                         assignedAgent={form.assignedAgent}
                         agencyId={form.agencyId}
-                        onChange={({ assignedAgent, agencyId }) => setForm((f) => ({ ...f, assignedAgent, agencyId }))}
+                        onChange={({ assignedAgent, agencyId }) => { dirtyRef.current.add('assignedAgent'); dirtyRef.current.add('agencyId'); setForm((f) => ({ ...f, assignedAgent, agencyId })) }}
                         className={inputCls(false)}
                       />
                     </div>
-                    {(assignedAgentUser || assignedAgency) && assignedAgentByUser && lead.assignedAgentAt && (
+                    {!assignedAgentUser && assignedAgency && assignedAgentByUser && lead.assignedAgentAt && (
                       <InfoRow
                         icon={Calendar}
                         label="Assigned By"
@@ -790,17 +854,7 @@ export default function LeadDetailScreen({
                     )}
                   </>
                 ) : assignedAgentUser ? (
-                  <>
-                    <InfoRow icon={User} label="Name" value={`${assignedAgentUser.firstName} ${assignedAgentUser.lastName}`} />
-                    <InfoRow icon={Mail} label="Email" value={assignedAgentUser.email} />
-                    {assignedAgentByUser && lead.assignedAgentAt && (
-                      <InfoRow
-                        icon={Calendar}
-                        label="Assigned By"
-                        value={`${assignedAgentByUser.firstName} ${assignedAgentByUser.lastName} · ${format(new Date(lead.assignedAgentAt), 'd MMM yyyy')}`}
-                      />
-                    )}
-                  </>
+                  <AssignedAgentDetails agent={assignedAgentUser} agency={assignedAgency} assignedBy={assignedAgentByUser} assignedAt={lead.assignedAgentAt} />
                 ) : assignedAgency ? (
                   <>
                     <InfoRow icon={Building2} label="Agency" value={assignedAgency.name} />

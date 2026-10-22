@@ -66,7 +66,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
  * @param {string[][]} invalidateKeys  React Query keys to refresh once a call is logged/updated.
  * @returns {{
  *   activeCall: null | { contact, startedAt, logId },
- *   startCall: (contact, dialedPhone?) => void,
+ *   startCall: (contact, dialedPhone?, { leadId }?) => void,
  *   saveOutcome: ({ outcome, notes }) => Promise<string>,  // resolves to the call log id
  *   skip: () => void,
  *   finish: () => void,
@@ -116,7 +116,7 @@ export function useCallFlow(invalidateKeys = []) {
     const run = async () => {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const res = await callLogsApi.create({ contactId: call.contact._id, outcome: 'no_answer', calledAt: call.startedAt })
+          const res = await callLogsApi.create({ contactId: call.contact._id, outcome: 'no_answer', calledAt: call.startedAt, leadId: call.leadId ?? undefined })
           const id = res.data?.data?.callLog?._id ?? null
           if (id) { rememberLogId(call.startedAt, id); refresh() }
           return id
@@ -132,11 +132,13 @@ export function useCallFlow(invalidateKeys = []) {
     return promise
   }, [rememberLogId, refresh])
 
-  const startCall = useCallback((contact, dialedPhone) => {
+  // `leadId` (optional) — the call is about this lead, so it's logged against it
+  const startCall = useCallback((contact, dialedPhone, { leadId = null } = {}) => {
     const call = {
       userId,
       startedAt: new Date().toISOString(),
       logId: null,
+      leadId,
       contact: { ...snapshot(contact), dialedPhone: dialedPhone ?? contact.phone },
     }
     writeStored(call)       // survives the tab being discarded while the dialer is open
@@ -171,7 +173,7 @@ export function useCallFlow(invalidateKeys = []) {
     if (logId) {
       await callLogsApi.update(logId, { outcome, notes: notes || undefined })
     } else {
-      const res = await callLogsApi.create({ contactId: call.contact._id, outcome, notes: notes || undefined, calledAt: call.startedAt })
+      const res = await callLogsApi.create({ contactId: call.contact._id, outcome, notes: notes || undefined, calledAt: call.startedAt, leadId: call.leadId ?? undefined })
       id = res.data?.data?.callLog?._id ?? null
     }
     refresh()
@@ -191,7 +193,7 @@ export function useCallFlow(invalidateKeys = []) {
     if (!call) return
     resolveLogId(call).then((id) => {
       if (id) return
-      return callLogsApi.create({ contactId: call.contact._id, outcome: 'no_answer', calledAt: call.startedAt }).then(refresh)
+      return callLogsApi.create({ contactId: call.contact._id, outcome: 'no_answer', calledAt: call.startedAt, leadId: call.leadId ?? undefined }).then(refresh)
     }).catch(() => {})
   }, [activeCall, finish, resolveLogId, refresh])
 

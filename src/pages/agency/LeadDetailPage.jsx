@@ -71,6 +71,8 @@ export function AgencyLeadDetail({ id, panel = null }) {
       statusOptions={AGENCY_STATUS_OPTIONS}
       canDelete={false}
       canComment
+      canCall
+      callNotifiesManager={!isManager}
       currentUserId={user?._id}
       currentUserRole={user?.role}
       showSourceBadge
