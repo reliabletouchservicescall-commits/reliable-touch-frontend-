@@ -10,7 +10,7 @@ import {
   PhoneCall, CheckCircle2, UserCheck, PhoneOff, UserX, Filter,
   CheckSquare, Square, Users, UserPlus, ChevronDown,
   Upload, FileSpreadsheet, Building2, Ruler, CreditCard, Hash,
-  FolderOpen, CloudUpload, RefreshCw, PhoneForwarded,
+  FolderOpen, PhoneForwarded,
   Layers, Target, Settings2, Bell, Clock, MessageSquare, RotateCcw,
 } from 'lucide-react'
 import { contactsApi }         from '../../services/contactsApi'
@@ -18,7 +18,9 @@ import { usersApi }            from '../../services/usersApi'
 import { contactRequestsApi }  from '../../services/contactRequestsApi'
 import { areasApi }            from '../../services/areasApi'
 import ContactCallHistory      from '../../components/contacts/ContactCallHistory'
-import ImportModal, { fmtBytes } from '../../components/contacts/ImportExcelModal'
+import ImportModal from '../../components/contacts/ImportExcelModal'
+import LiquidTabs from '../../components/common/LiquidTabs'
+import FileAssignView from '../../components/files/FileAssignView'
 import DuplicatesReviewModal from '../../components/contacts/DuplicatesReviewModal'
 import { SearchableAreaSelect } from '../../components/leads/leadShared'
 import ContactPastLeads        from '../../components/contacts/ContactPastLeads'
@@ -34,6 +36,11 @@ const STATUS_META = {
   converted:  { label: 'Converted',    color: '#10B981', bg: '#10B98118', icon: CheckCircle2 },
   dnc:        { label: 'Do Not Call',  color: '#EF4444', bg: '#EF444418', icon: PhoneOff },
 }
+
+// Coloured dot for each status, used as the tab icon
+const STATUS_DOTS = Object.fromEntries(Object.keys(STATUS_META).map((k) => [k, function StatusDot() {
+  return <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_META[k].color }} />
+}]))
 
 const SORT_OPTIONS = [
   { value: '-createdAt',  label: 'Newest first' },
@@ -561,9 +568,15 @@ function buildAssignToast({ assigned, totalMatched, skippedNoPhone, skippedDnc, 
   return parts.length ? `${base} ${parts.join(', ')}.` : base
 }
 
+const SMART_MODES = [
+  { key: 'file',   label: 'By file',   icon: FileSpreadsheet },
+  { key: 'scheme', label: 'By scheme', icon: Building2 },
+  { key: 'range',  label: 'By range',  icon: Hash },
+]
+
 function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClose, onDone }) {
   const qc = useQueryClient()
-  const [mode, setMode]   = useState(initialMode ?? 'scheme') // 'scheme' | 'range' | 'file'
+  const [mode, setMode]   = useState(initialMode ?? 'file') // 'file' | 'scheme' | 'range' — file first, it's what admin uses most
   const [callerId, setCaller] = useState('')
   const [scheme, setScheme]   = useState('')
   const [fromIdx, setFrom]    = useState('')
@@ -587,8 +600,8 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
     staleTime: 30_000,
   })
   // Files currently locked to a cold caller (see assignByBatch) are hidden here — once
-  // assigned via Smart Assign, a file can't be picked again until it's manually
-  // returned (Files Vault > Assigned tab) or the 30-day lock auto-expires.
+  // assigned, a file can't be picked again until it's returned to the pool (open it in
+  // Contacts › Assign by file) or the 30-day lock auto-expires.
   const files = (filesData ?? []).filter((f) => !f.assignment)
 
   const previewMut = useMutation({
@@ -633,7 +646,7 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
       qc.invalidateQueries({ queryKey: ['caller-counts'] })
       qc.invalidateQueries({ queryKey: ['contacts-unassigned'] })
       // The just-assigned file is now locked — refetch so it disappears from this
-      // picker and reappears (with its assignee) in the Files Vault's Assigned tab.
+      // picker and shows its assignee in Contacts › Assign by file.
       qc.invalidateQueries({ queryKey: ['contact-files'] })
       onDone()
     },
@@ -692,19 +705,19 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl overflow-hidden">
+      <div data-lead-dialog className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[3px] lead-backdrop-in" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <div className="picker-in pointer-events-auto w-full max-w-md bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl overflow-hidden">
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#8B5CF6]/10 flex items-center justify-center">
-                <Target className="w-5 h-5 text-[#8B5CF6]" strokeWidth={1.75} />
+              <div className="liquid-pill relative w-10 h-10 rounded-xl flex items-center justify-center">
+                <Target className="w-5 h-5 text-white relative z-10" strokeWidth={1.9} />
               </div>
               <div>
                 <h2 className="text-sm font-bold text-[#111111] dark:text-white">Smart Assignment</h2>
-                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Assign by scheme, index range, or a whole uploaded file</p>
+                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Assign a whole uploaded file, a sectional scheme, or a range of rows</p>
               </div>
             </div>
             <button onClick={onClose}
@@ -715,18 +728,8 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
 
           <form onSubmit={submit} className="p-6 space-y-5">
             {/* Mode toggle */}
-            <div className="flex rounded-xl bg-[#F5F5F4] dark:bg-[#202020] p-1 gap-1">
-              {[
-                { key: 'scheme', label: 'By Scheme', icon: Building2 },
-                { key: 'range',  label: 'By Range',  icon: Hash },
-                { key: 'file',   label: 'By File',   icon: FolderOpen },
-              ].map(({ key, label, icon: Icon }) => (
-                <button key={key} type="button" onClick={() => setMode(key)}
-                  className={['flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all',
-                    mode === key ? 'bg-white dark:bg-[#111111] text-[#111111] dark:text-white shadow-sm' : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'].join(' ')}>
-                  <Icon className="w-3.5 h-3.5" /> {label}
-                </button>
-              ))}
+            <div className="flex justify-center">
+              <LiquidTabs tabs={SMART_MODES} value={mode} onChange={setMode} />
             </div>
 
             {/* Cold Caller picker */}
@@ -758,7 +761,7 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
                 required
                 hint={
                   files.length === 0 && (filesData?.length ?? 0) > 0
-                    ? 'All uploaded files are currently assigned — check the Files Vault\'s Assigned tab to free one up.'
+                    ? 'Every uploaded file is locked to a caller — return one to the pool from Assign by file.'
                     : "The whole file's contacts will be assigned in one action."
                 }
               >
@@ -768,11 +771,11 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
                   placeholder="Select file…"
                   searchPlaceholder="Search files by name…"
                   emptyText="No files match your search"
-                  options={files.map((f) => ({ value: f.batchId ?? '', label: f.displayName }))}
+                  options={files.map((f) => ({ value: f.batchId ?? '', label: `${f.displayName} · ${f.contactCount.toLocaleString()} contacts` }))}
                 />
                 {files.length > 0 && (filesData?.length ?? 0) > files.length && (
-                  <p className="mt-1.5 text-xs text-[#8B5CF6]">
-                    {(filesData.length - files.length)} file{filesData.length - files.length !== 1 ? 's' : ''} currently assigned and hidden — see Files Vault.
+                  <p className="mt-1.5 text-xs text-[#F95C4B]">
+                    {(filesData.length - files.length)} file{filesData.length - files.length !== 1 ? 's' : ''} already locked to a caller and hidden — return one to the pool from Assign by file.
                   </p>
                 )}
               </Field>
@@ -808,9 +811,9 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
                     }))}
                   />
                 </Field>
-                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#3B82F6]/8 border border-[#3B82F6]/20">
-                  <AlertTriangle className="w-4 h-4 text-[#3B82F6] mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-[#3B82F6]">
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#F95C4B]/[0.06] border border-[#F95C4B]/20">
+                  <AlertTriangle className="w-4 h-4 text-[#F95C4B] mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
                     Assigns contacts at rows {fromIdx || '…'} – {toIdx || '…'} of that file.
                     Only contacts with a phone number will be assigned.
                   </p>
@@ -853,7 +856,7 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
                   Cancel
                 </button>
                 <button type="submit" disabled={busy || previewMut.isPending}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  className="mac-press flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-sm shadow-[#F95C4B]/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                   {(busy || previewMut.isPending) && <Loader2 className="w-4 h-4 animate-spin" />}
                   {previewMut.isPending ? 'Checking…' : 'Assign Contacts'}
                 </button>
@@ -869,248 +872,6 @@ function SmartAssignModal({ callers, schemes, initialMode, initialBatchId, onClo
 /* ─── Import Modal ───────────────────────────────────────────────────── */
 
 
-
-/* ─── Files Vault Modal ──────────────────────────────────────────────── */
-
-function BatchStatsPanel({ batchId }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['batch-stats', batchId],
-    queryFn: () => contactsApi.getBatchStats(batchId).then((r) => r.data.data),
-    enabled: Boolean(batchId),
-    staleTime: 15_000,
-  })
-
-  if (isLoading) {
-    return (
-      <div className="px-6 pb-4 pt-1">
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6B7280]" />
-      </div>
-    )
-  }
-  if (!data) return null
-
-  return (
-    <div className="px-6 pb-4 pt-1 space-y-1.5 bg-[#FAFAF9] dark:bg-[#111111]">
-      {data.perCaller.length === 0 ? (
-        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Not yet assigned to any cold caller.</p>
-      ) : (
-        data.perCaller.map((c) => (
-          <p key={c.callerId} className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-            Assigned to <span className="font-semibold text-[#111111] dark:text-white">{c.callerName}</span> on{' '}
-            {c.assignedAt ? format(new Date(c.assignedAt), 'd MMM yyyy, HH:mm') : '—'} —{' '}
-            <span className="font-semibold text-[#10B981]">{c.called}</span>/{c.total} called,{' '}
-            <span className="font-semibold text-[#F59E0B]">{c.notCalled}</span> remaining
-          </p>
-        ))
-      )}
-      {data.unassigned > 0 && (
-        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-          <span className="font-semibold text-[#111111] dark:text-white">{data.unassigned}</span> unassigned
-        </p>
-      )}
-    </div>
-  )
-}
-
-function FilesVaultModal({ onClose, onAssignFile }) {
-  const [expandedName, setExpandedName] = useState(null)
-  const [tab, setTab] = useState('available') // 'available' | 'assigned'
-  const qc = useQueryClient()
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['contact-files'],
-    queryFn: () => contactsApi.listFiles().then((r) => r.data.data.files),
-    staleTime: 30_000,
-  })
-
-  const returnMut = useMutation({
-    mutationFn: (fileBatchId) => contactsApi.returnFileToPool(fileBatchId),
-    onSuccess: () => {
-      toast.success('File returned to Smart Assign')
-      qc.invalidateQueries({ queryKey: ['contact-files'] })
-    },
-    onError: (e) => toast.error(e.response?.data?.message ?? 'Failed to return file'),
-  })
-
-  const deleteMut = useMutation({
-    mutationFn: (fileBatchId) => contactsApi.deleteFile(fileBatchId),
-    onSuccess: (res) => {
-      toast.success(`File deleted — ${res.data.data.contactsDeleted} contacts moved to the Bin`)
-      qc.invalidateQueries({ queryKey: ['contact-files'] })
-      qc.invalidateQueries({ queryKey: ['contacts'] })
-    },
-    onError: (e) => toast.error(e.response?.data?.message ?? 'Failed to delete file'),
-  })
-  function confirmDelete(f) {
-    if (window.confirm(`Delete "${f.displayName}" and ALL contacts imported from it?\n\nThe contacts are moved to the Bin and the file is removed from storage.`)) {
-      deleteMut.mutate(f.batchId)
-    }
-  }
-
-  const availableFiles = (data ?? []).filter((f) => !f.assignment)
-  const assignedFiles  = (data ?? []).filter((f) => f.assignment)
-  const activeList = tab === 'available' ? availableFiles : assignedFiles
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] shadow-2xl overflow-hidden">
-
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center">
-                <FolderOpen className="w-5 h-5 text-[#F59E0B]" strokeWidth={1.75} />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-[#111111] dark:text-white">Uploaded Files</h2>
-                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Firebase Storage — excel-uploads/</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => refetch()}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Tabs — "Assigned" is where a locked file can be freed back up for Smart
-              Assign, so it's a first-class tab here rather than buried behind a filter. */}
-          {!isLoading && (data?.length ?? 0) > 0 && (
-            <div className="flex gap-1 px-6 pt-3 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-              {[
-                { key: 'available', label: 'Available', count: availableFiles.length },
-                { key: 'assigned',  label: 'Assigned',  count: assignedFiles.length },
-              ].map((t) => (
-                <button key={t.key} onClick={() => setTab(t.key)}
-                  className={`px-3.5 py-2 text-xs font-semibold whitespace-nowrap border-b-2 transition-all -mb-px ${
-                    tab === t.key
-                      ? 'border-[#F59E0B] text-[#F59E0B]'
-                      : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
-                  }`}>
-                  {t.label} <span className="opacity-70">({t.count})</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* List */}
-          <div className="overflow-y-auto max-h-[420px]">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-5 h-5 animate-spin text-[#F59E0B]" />
-              </div>
-            ) : !data?.length ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-                <FolderOpen className="w-10 h-10 text-[#6B7280] dark:text-[#A1A1AA] mb-3" strokeWidth={1.5} />
-                <p className="text-sm font-semibold text-[#111111] dark:text-white">No files yet</p>
-                <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">Import an Excel file to see it here.</p>
-              </div>
-            ) : activeList.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-                {tab === 'available' ? (
-                  <>
-                    <UserCheck className="w-10 h-10 text-[#6B7280] dark:text-[#A1A1AA] mb-3" strokeWidth={1.5} />
-                    <p className="text-sm font-semibold text-[#111111] dark:text-white">All files are assigned</p>
-                    <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">Check the Assigned tab to free one up.</p>
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="w-10 h-10 text-[#6B7280] dark:text-[#A1A1AA] mb-3" strokeWidth={1.5} />
-                    <p className="text-sm font-semibold text-[#111111] dark:text-white">Nothing assigned yet</p>
-                    <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-1">Files assigned via Smart Assign will show up here.</p>
-                  </>
-                )}
-              </div>
-            ) : (
-              <ul className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
-                {activeList.map((f) => {
-                  const expanded = expandedName === f.name
-                  const daysLeft = f.assignment
-                    ? Math.max(0, Math.ceil((new Date(f.assignment.expiresAt) - Date.now()) / (1000 * 60 * 60 * 24)))
-                    : null
-                  return (
-                    <li key={f.name}>
-                      <div className="flex items-center gap-4 px-6 py-4 hover:bg-[#FAFAF9] dark:hover:bg-[#111111]">
-                        <div className="w-9 h-9 rounded-xl bg-[#10B981]/10 flex items-center justify-center flex-shrink-0">
-                          <FileSpreadsheet className="w-5 h-5 text-[#10B981]" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{f.displayName}</p>
-                          {f.assignment ? (
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              <span
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-                                style={{ color: callerColor(f.assignment.assignedToId), backgroundColor: `${callerColor(f.assignment.assignedToId)}15` }}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: callerColor(f.assignment.assignedToId) }} />
-                                {f.assignment.assignedToName}
-                              </span>
-                              <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-                                assigned {formatDistanceToNow(new Date(f.assignment.assignedAt), { addSuffix: true })}
-                              </span>
-                              <span className={`text-[10px] font-semibold ${daysLeft <= 3 ? 'text-[#F59E0B]' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
-                                · reverts in {daysLeft}d
-                              </span>
-                            </div>
-                          ) : (
-                            <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-                              {fmtBytes(f.size)} · {f.createdAt ? format(new Date(f.createdAt), 'd MMM yyyy') : '—'}
-                            </p>
-                          )}
-                        </div>
-                        {f.batchId && (
-                          <button onClick={() => setExpandedName(expanded ? null : f.name)} title="Assignment & call progress"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-all flex-shrink-0">
-                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                          </button>
-                        )}
-                        {f.batchId && !f.assignment && (
-                          <button onClick={() => onAssignFile(f)} title="Assign this file's contacts to a cold caller"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] transition-all flex-shrink-0">
-                            <UserCheck className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {f.assignment && (
-                          <button
-                            onClick={() => returnMut.mutate(f.batchId)}
-                            disabled={returnMut.isPending && returnMut.variables === f.batchId}
-                            title="Return to Smart Assign"
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-[#F95C4B] hover:bg-[#F95C4B]/10 transition-all flex-shrink-0 disabled:opacity-50"
-                          >
-                            {returnMut.isPending && returnMut.variables === f.batchId
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <RotateCcw className="w-3.5 h-3.5" />}
-                            Return
-                          </button>
-                        )}
-                        {f.batchId && (
-                          <button onClick={() => confirmDelete(f)} title="Delete file and its contacts"
-                            disabled={deleteMut.isPending && deleteMut.variables === f.batchId}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-all flex-shrink-0 disabled:opacity-50">
-                            {deleteMut.isPending && deleteMut.variables === f.batchId
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <Trash2 className="w-3.5 h-3.5" />}
-                          </button>
-                        )}
-                      </div>
-                      {expanded && <BatchStatsPanel batchId={f.batchId} />}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
 
 /* ─── Preferred Phone Picker (inline) ────────────────────────────────── */
 
@@ -1798,7 +1559,10 @@ export default function ContactsPage() {
   // Lets other pages (e.g. Caller Workload's "View Contacts") deep-link straight into a
   // caller's contacts via ?assignedTo=<id> — read once on mount, not kept in sync with
   // the URL afterward (this page's other filters are plain local state, not URL-driven).
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view = searchParams.get('view') ?? (searchParams.get('assignedTo') ? 'contacts' : 'files')
+  const setView = (v) => setSearchParams((prev) => { const p = new URLSearchParams(prev); p.set('view', v); return p }, { replace: true })
+  const [targetCaller, setTargetCaller] = useState(null) // { id, name, requestId } — a caller who asked for contacts
   const [search,       setSearch]     = useState('')
   const [statusFilter, setStatus]     = useState('')
   const [callerFilter, setCaller]     = useState(() => searchParams.get('assignedTo') ?? '')
@@ -1812,7 +1576,7 @@ export default function ContactsPage() {
   const [toDelete,     setToDelete]   = useState(null)
   const [selected,     setSelected]   = useState(new Set())
   const [assigning,    setAssigning]  = useState(false)
-  const [modal,        setModal]      = useState(null) // 'import' | 'files' | 'smart-assign'
+  const [modal,        setModal]      = useState(null) // 'import' | 'smart-assign'
   const [smartAssignSeed, setSmartAssignSeed] = useState(null) // { mode, batchId } | null
   const [pendingBulkAssign, setPendingBulkAssign] = useState(null) // { callerId, ids, totalMatched, recentlyCalledCount, windowDays } | null
   const [reviewingDuplicates, setReviewingDuplicates] = useState(null) // duplicates[] | null
@@ -1988,17 +1752,65 @@ export default function ContactsPage() {
     } catch { toast.error('Some assignments failed.') } finally { setAssigning(false) }
   }
 
+  const filesToAssign = filesForFilter.filter((f) => !f.assignment && f.contactCount > (f.assignedCount ?? 0)).length
+  const viewTabs = [
+    { key: 'files', label: 'Assign by file', icon: FileSpreadsheet, count: filesForFilterData ? filesToAssign : undefined },
+    { key: 'contacts', label: 'All contacts', icon: BookUser, count: countData?.total },
+  ]
   const statusTabs = [
-    { key: '', label: 'All', count: countData?.total },
-    ...STATUSES.map((s) => ({ key: s, label: STATUS_META[s].label })),
+    { key: '', label: 'All' },
+    ...STATUSES.map((st) => ({ key: st, label: STATUS_META[st].label, icon: STATUS_DOTS[st] })),
   ]
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="h-full overflow-y-auto thin-scroll bg-[#FAFAF9] dark:bg-[#0B0B0B]">
+      <div className="relative p-4 sm:p-6 xl:p-8 space-y-5">
+        {/* Slow aurora behind the header */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[340px] overflow-hidden">
+          <span className="aurora w-[520px] h-[260px] -top-24 left-[6%] bg-[#F95C4B]/22 dark:bg-[#F95C4B]/18" />
+          <span className="aurora w-[420px] h-[220px] -top-16 right-[10%] bg-[#10B981]/18 dark:bg-[#10B981]/12" style={{ animationDelay: '-7s', animationDuration: '26s' }} />
+          <span className="aurora w-[360px] h-[200px] top-10 left-[42%] bg-[#FF8C7A]/25 dark:bg-[#FF8C7A]/12" style={{ animationDelay: '-14s', animationDuration: '30s' }} />
+          <span className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[#FAFAF9] dark:to-[#0B0B0B]" />
+        </div>
+
+        {/* Header */}
+        <div className="glass-in relative flex flex-col lg:flex-row lg:items-center gap-4" style={{ '--d': '0ms' }}>
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="liquid-pill relative w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <BookUser className="w-6 h-6 text-white relative z-10" strokeWidth={1.8} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-[#111111] dark:text-white tracking-tight">Contacts</h1>
+              <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">
+                {unassignedData
+                  ? <><b className="text-[#111111] dark:text-white">{(unassignedData.total ?? 0).toLocaleString()}</b> waiting for a cold caller · {(countData?.total ?? 0).toLocaleString()} in total</>
+                  : 'Upload spreadsheets and hand them to cold callers'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap lg:ml-auto">
+            <button onClick={() => setModal('smart-assign')} title="Assign by scheme, area or a number of contacts"
+              className="mac-press flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold liquid-glass text-[#111111] dark:text-white hover:text-[#F95C4B] transition-colors">
+              <Target className="w-4 h-4 text-[#F95C4B]" /> Smart assign
+            </button>
+            <button onClick={() => setDrawer({ mode: 'create' })}
+              className="mac-press flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold liquid-glass text-[#111111] dark:text-white hover:text-[#F95C4B] transition-colors">
+              <Plus className="w-4 h-4" /> Add contact
+            </button>
+            <button onClick={() => setModal('import')}
+              className="mac-press flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-[0_10px_24px_-10px_rgba(249,92,75,0.9)] transition-colors">
+              <Upload className="w-4 h-4" /> Upload spreadsheet
+            </button>
+          </div>
+        </div>
+
+        <div className="glass-in relative" style={{ '--d': '70ms' }}>
+          <LiquidTabs size="md" tabs={viewTabs} value={view} onChange={setView} />
+        </div>
 
       {/* ── Contact Requests Banner ───────────────────────────────────────── */}
       {pendingRequests.length > 0 && (
-        <div className="mx-5 sm:mx-8 mt-5 rounded-2xl border border-[#F95C4B]/25 bg-[#F95C4B]/5 dark:bg-[#F95C4B]/10 overflow-hidden">
+        <div className="glass-in relative rounded-2xl border border-[#F95C4B]/25 bg-[#F95C4B]/5 dark:bg-[#F95C4B]/10 overflow-hidden" style={{ '--d': '110ms' }}>
           <div className="flex items-center gap-3 px-4 py-3 border-b border-[#F95C4B]/15">
             <div className="w-7 h-7 rounded-lg bg-[#F95C4B]/15 flex items-center justify-center">
               <Bell className="w-3.5 h-3.5 text-[#F95C4B]" strokeWidth={1.75} />
@@ -2034,10 +1846,10 @@ export default function ContactsPage() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
-                      onClick={() => setModal('smart-assign')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] transition-colors"
+                      onClick={() => { setTargetCaller({ id: String(caller?._id), name: `${caller?.firstName ?? ''} ${caller?.lastName ?? ''}`.trim(), requestId: req._id }); setView('files') }}
+                      className="mac-press flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] transition-colors"
                     >
-                      Assign Contacts
+                      <FileSpreadsheet className="w-3.5 h-3.5" /> Give a file
                     </button>
                     <button
                       onClick={() => fulfillRequestMut.mutate({ id: req._id })}
@@ -2061,59 +1873,22 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 pt-6 pb-0 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
-          <div>
-            <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight flex items-center gap-2.5">
-              <BookUser className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} /> Contacts
-            </h1>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
-              {isLoading ? 'Loading…' : `${total.toLocaleString()} contact${total !== 1 ? 's' : ''} total`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => setModal('smart-assign')}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-              <Target className="w-4 h-4" /> Smart Assign
-            </button>
-            <button onClick={() => setModal('files')}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-all">
-              <FolderOpen className="w-4 h-4" /> Files
-            </button>
-            <button onClick={() => setModal('import')}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold border border-[#10B981]/40 text-[#10B981] bg-[#10B981]/8 hover:bg-[#10B981]/12 transition-all">
-              <FileSpreadsheet className="w-4 h-4" /> Import Excel
-            </button>
-            <button onClick={() => setDrawer({ mode: 'create' })}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-              <Plus className="w-4 h-4" /> Add Contact
-            </button>
-          </div>
-        </div>
-
-        {/* Status tabs */}
-        <div className="flex gap-0.5 overflow-x-auto">
-          {statusTabs.map((tab) => (
-            <button key={tab.key} onClick={() => setStatus(tab.key)}
-              className={['flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-all rounded-t-lg',
-                statusFilter === tab.key
-                  ? 'border-[#F95C4B] text-[#F95C4B] bg-[#F95C4B]/5 dark:bg-[#F95C4B]/8'
-                  : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]'].join(' ')}>
-              {tab.key && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_META[tab.key].color }} />}
-              {tab.label}
-              {tab.count != null && (
-                <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-[#F5F5F4] dark:bg-[#202020] text-[#6B7280] dark:text-[#A1A1AA]">
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+      {view === 'files' ? (
+        <FileAssignView
+          targetCaller={targetCaller}
+          onClearTarget={() => setTargetCaller(null)}
+          onTargetAssigned={() => {
+            if (targetCaller?.requestId) fulfillRequestMut.mutate({ id: targetCaller.requestId })
+            setTargetCaller(null)
+          }}
+          onUpload={() => setModal('import')}
+        />
+      ) : (
+      <div key="contacts" className="glass-in relative space-y-4" style={{ '--d': '120ms' }}>
+        <LiquidTabs tabs={statusTabs} value={statusFilter} onChange={setStatus} />
 
       {/* ── Toolbar ───────────────────────────────────────────────────── */}
-      <div className="px-5 sm:px-8 py-3.5 flex flex-col gap-3 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+      <div className="flex flex-col gap-3">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
@@ -2142,7 +1917,7 @@ export default function ContactsPage() {
               placeholder="Scheme"
               allLabel="All Schemes"
               searchPlaceholder="Search schemes…"
-              accentColor="#8B5CF6"
+              accentColor="#F95C4B"
               value={schemeFilter}
               options={schemes.map((s) => ({ value: s, label: s }))}
               onChange={(v) => { setScheme(v); if (v) setBatchFilter('') }}
@@ -2155,7 +1930,7 @@ export default function ContactsPage() {
               placeholder="Uploaded File"
               allLabel="All Files"
               searchPlaceholder="Search files by name…"
-              accentColor="#3B82F6"
+              accentColor="#F95C4B"
               value={batchFilter}
               options={filesForFilter.map((f) => ({ value: f.batchId, label: f.displayName }))}
               onChange={(v) => { setBatchFilter(v); if (v) setScheme('') }}
@@ -2214,7 +1989,7 @@ export default function ContactsPage() {
       </div>
 
       {/* ── Table ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto px-5 sm:px-8 py-5">
+      <div>
         {isError && (
           <div className="flex items-center gap-2.5 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444] mb-4">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -2293,6 +2068,10 @@ export default function ContactsPage() {
         )}
       </div>
 
+      </div>
+      )}
+      </div>
+
       {/* ── Drawers & dialogs ─────────────────────────────────────────── */}
       {drawer && (
         <ContactDrawer mode={drawer.mode} contact={drawer.contact} callers={callers}
@@ -2317,13 +2096,6 @@ export default function ContactsPage() {
           duplicates={reviewingDuplicates}
           onClose={() => setReviewingDuplicates(null)}
           onDone={() => { setReviewingDuplicates(null); setModal(null) }}
-        />
-      )}
-
-      {modal === 'files' && (
-        <FilesVaultModal
-          onClose={() => setModal(null)}
-          onAssignFile={(f) => { setSmartAssignSeed({ mode: 'file', batchId: f.batchId }); setModal('smart-assign') }}
         />
       )}
 

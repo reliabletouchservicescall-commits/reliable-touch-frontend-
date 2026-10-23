@@ -27,7 +27,6 @@ import CommissionsPage from '../pages/admin/CommissionsPage'
 import LeaseRenewalsPage from '../pages/admin/LeaseRenewalsPage'
 import AgenciesPage from '../pages/admin/AgenciesPage'
 import AreasPage from '../pages/admin/AreasPage'
-import ExcelFilesPage from '../pages/admin/ExcelFilesPage'
 
 // Cold Caller pages
 import ColdCallerDashboard from '../pages/cold-caller/DashboardPage'
@@ -71,7 +70,6 @@ import FollowUpManagerNotificationsPage from '../pages/follow-up-manager/Notific
 import AdminCallLogsPage from '../pages/admin/CallLogsPage'
 import AdminChatPage from '../pages/admin/ChatPage'
 import PerformancePage from '../pages/admin/PerformancePage'
-import AgentsPerformancePage from '../pages/admin/AgentsPerformancePage'
 import ReportsPage from '../pages/admin/ReportsPage'
 import LoginActivityPage from '../pages/admin/LoginActivityPage'
 import AdminNotificationsPage from '../pages/admin/NotificationsPage'
@@ -135,10 +133,10 @@ export default function AppRouter() {
           <Route path="agencies" element={<AgenciesPage />} />
           <Route path="agencies/:id" element={<AgencyDetailPage />} />
           <Route path="areas" element={<AreasPage />} />
-          <Route path="excel-files" element={<ExcelFilesPage />} />
+          <Route path="excel-files" element={<Navigate to="/admin/contacts?view=files" replace />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="performance" element={<PerformancePage />} />
-          <Route path="agents-performance" element={<AgentsPerformancePage />} />
+          <Route path="agents-performance" element={<Navigate to="/admin/performance?view=agents" replace />} />
           <Route path="login-activity" element={<LoginActivityPage />} />
           <Route path="notifications" element={<AdminNotificationsPage />} />
           <Route path="chat" element={<AdminChatPage />} />

@@ -245,16 +245,16 @@ export default function ImportModal({ onClose, onDone, onReviewDuplicates, agenc
                 {result.stats.duplicates > 0 && onReviewDuplicates && (
                   <button
                     onClick={() => onReviewDuplicates(result.duplicates)}
-                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#8B5CF6]/8 border border-[#8B5CF6]/25 hover:bg-[#8B5CF6]/12 transition-colors text-left"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#F95C4B]/8 border border-[#F95C4B]/25 hover:bg-[#F95C4B]/12 transition-colors text-left"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-[#8B5CF6]/15 flex items-center justify-center flex-shrink-0">
-                      <Layers className="w-4 h-4 text-[#8B5CF6]" strokeWidth={1.75} />
+                    <div className="w-9 h-9 rounded-lg bg-[#F95C4B]/15 flex items-center justify-center flex-shrink-0">
+                      <Layers className="w-4 h-4 text-[#F95C4B]" strokeWidth={1.75} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-[#8B5CF6]">{result.stats.duplicates} duplicate{result.stats.duplicates !== 1 ? 's' : ''} matched an existing contact</p>
+                      <p className="text-sm font-bold text-[#F95C4B]">{result.stats.duplicates} duplicate{result.stats.duplicates !== 1 ? 's' : ''} matched an existing contact</p>
                       <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">Not created — click to review and decide what to do with them</p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-[#8B5CF6] flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[#F95C4B] flex-shrink-0" />
                   </button>
                 )}
 

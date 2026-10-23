@@ -29,7 +29,6 @@ import {
   BarChart2,
   ShieldCheck,
   Trash2,
-  FileSpreadsheet,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuthStore } from '../store/authStore'
@@ -44,13 +43,13 @@ const NAV = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
       { label: 'Leads', icon: TrendingUp, to: '/admin/leads' },
+      { label: 'Performance', icon: Trophy, to: '/admin/performance' },
     ],
   },
   {
     group: 'CRM',
     items: [
       { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
-      { label: 'Excel Files', icon: FileSpreadsheet, to: '/admin/excel-files' },
       { label: 'Campaigns', icon: Megaphone, to: '/admin/campaigns' },
       { label: 'Call Logs', icon: PhoneCall, to: '/admin/call-logs' },
       { label: 'Caller Workload', icon: Users, to: '/admin/caller-workload' },
@@ -70,8 +69,6 @@ const NAV = [
     group: 'Analytics',
     items: [
       { label: 'Reports',           icon: BarChart2,  to: '/admin/reports' },
-      { label: 'Performance',       icon: Trophy,     to: '/admin/performance' },
-      { label: 'Agent Rankings',    icon: TrendingUp, to: '/admin/agents-performance' },
     ],
   },
   {

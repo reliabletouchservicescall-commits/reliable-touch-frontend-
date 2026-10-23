@@ -66,7 +66,7 @@ function dateWindow(preset) {
   return null
 }
 
-function areaColor(id) {
+export function areaColor(id) {
   let h = 0
   for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   return AREA_PALETTE[h % AREA_PALETTE.length]
@@ -78,7 +78,7 @@ function fmtBytes(b) {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function initials(name = '') {
+export function initials(name = '') {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'
 }
 
@@ -92,7 +92,7 @@ function provinceOf(area) {
 
 // Who a file's contacts are with, for the card pill: admin's lock wins, otherwise the
 // person holding most of them.
-function holderOf(file) {
+export function holderOf(file) {
   if (file.assignment) return { id: String(file.assignment.assignedToId), name: file.assignment.assignedToName, locked: true }
   const top = file.assignees?.[0]
   if (top) return { id: top.id, name: top.name, partial: file.assignedCount < file.contactCount || (file.assignees?.length ?? 0) > 1 }
@@ -101,7 +101,7 @@ function holderOf(file) {
 
 /* ─── Small pieces ───────────────────────────────────────────────────────── */
 
-function DeleteFileDialog({ file, pending, onClose, onConfirm }) {
+export function DeleteFileDialog({ file, pending, onClose, onConfirm }) {
   return (
     <>
       <div data-lead-dialog className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] lead-backdrop-in" onClick={!pending ? onClose : undefined} />
@@ -149,7 +149,7 @@ function ContactStatusPill({ status }) {
   )
 }
 
-function FileContactsPanel({ file, person, onClose }) {
+export function FileContactsPanel({ file, person, onClose }) {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [term, setTerm] = useState('')
@@ -268,7 +268,7 @@ function StatTile({ icon: Icon, label, value, color, emphasise, delay, onClick, 
   )
 }
 
-function StatusPill({ file }) {
+export function StatusPill({ file }) {
   if (!file.areaId) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F59E0B]/12 text-[#B45309] dark:text-[#F59E0B] border border-[#F59E0B]/30">
@@ -630,7 +630,7 @@ function PeopleDock({ mode, people, loading, files, dragging, dragOver, setDragO
 
 /* ─── Confirm sheet ──────────────────────────────────────────────────────── */
 
-function AssignSheet({ mode, file, person, pending, onCancel, onConfirm }) {
+export function AssignSheet({ mode, file, person, pending, onCancel, onConfirm }) {
   const cfg = MODES[mode]
   const { data: preview } = useQuery({
     queryKey: ['assign-preview', file.batchId, person.id],
@@ -823,7 +823,7 @@ const HISTORY_META = {
   returned: { icon: RotateCcw, label: 'Returned to pool', color: '#10B981' },
 }
 
-function FileDetails({ mode, file, areas, people, onClose, onMove, moving, onAssign, onViewContacts, onDelete }) {
+export function FileDetails({ mode, file, areas, people, onClose, onMove, moving, onAssign, onViewContacts, onDelete, dragHint = true, bare = false }) {
   const cfg = MODES[mode]
   const qc = useQueryClient()
   const [personId, setPersonId] = useState('')
@@ -856,13 +856,15 @@ function FileDetails({ mode, file, areas, people, onClose, onMove, moving, onAss
   const canAssign = !cfg.needsAreaToAssign || file.areaId
 
   return (
-    <div className="mac-in bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden" style={{ '--d': '0ms' }}>
-      <div className="flex items-center gap-2 px-5 pt-4">
-        <h3 className="text-sm font-bold text-[#111111] dark:text-white flex-1">File details</h3>
-        <button type="button" onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+    <div className={bare ? '' : 'mac-in bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden'} style={{ '--d': '0ms' }}>
+      {!bare && (
+        <div className="flex items-center gap-2 px-5 pt-4">
+          <h3 className="text-sm font-bold text-[#111111] dark:text-white flex-1">File details</h3>
+          <button type="button" onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="px-5 py-4 flex items-start gap-3 border-b border-[#F1EFEC] dark:border-[#2A2A2A]">
         <span className="w-12 h-12 rounded-xl bg-[#10B981]/10 flex items-center justify-center flex-shrink-0">
@@ -955,7 +957,7 @@ function FileDetails({ mode, file, areas, people, onClose, onMove, moving, onAss
               </button>
             </div>
           )}
-          <p className="mt-1.5 text-[10px] text-[#9CA3AF] flex items-center gap-1"><Hand className="w-3 h-3" /> Or drag the card onto someone above the board</p>
+          {dragHint && <p className="mt-1.5 text-[10px] text-[#9CA3AF] flex items-center gap-1"><Hand className="w-3 h-3" /> Or drag the card onto someone above the board</p>}
           {cfg.canReturn && file.assignment && (
             <button type="button" onClick={() => returnMut.mutate()} disabled={returnMut.isPending}
               className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-[#059669] dark:text-[#34D399] hover:underline disabled:opacity-50">
@@ -1014,7 +1016,7 @@ function howItWorks(mode) {
   ]
 }
 
-export default function ExcelFilesBoard({ mode = 'admin' }) {
+export default function ExcelFilesBoard({ mode = 'admin', embedded = false }) {
   const cfg = MODES[mode]
   const qc = useQueryClient()
   const [params, setParams] = useSearchParams()
@@ -1239,9 +1241,10 @@ export default function ExcelFilesBoard({ mode = 'admin' }) {
   const clearPlace = () => setParams((prev) => { const p = new URLSearchParams(prev); p.delete('area'); p.delete('province'); return p }, { replace: true })
 
   return (
-    <div className="h-full overflow-y-auto thin-scroll bg-[#FAFAF9] dark:bg-[#0B0B0B]">
-      <div className="p-4 sm:p-6 xl:p-8 space-y-5">
+    <div className={embedded ? '' : 'h-full overflow-y-auto thin-scroll bg-[#FAFAF9] dark:bg-[#0B0B0B]'}>
+      <div className={embedded ? 'space-y-5' : 'p-4 sm:p-6 xl:p-8 space-y-5'}>
         {/* Header */}
+        {!embedded && (
         <div className="mac-in flex flex-col lg:flex-row lg:items-center gap-4" style={{ '--d': '0ms' }}>
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-[#F95C4B]/10 flex items-center justify-center flex-shrink-0">
@@ -1269,8 +1272,10 @@ export default function ExcelFilesBoard({ mode = 'admin' }) {
             </button>
           </div>
         </div>
+        )}
 
         {/* Stats */}
+        {!embedded && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatTile icon={Layers} label="Total files" value={files.length} color="#111111" delay={40} active={!statusFilter} onClick={() => setStatusFilter('')} />
           <StatTile icon={AlertTriangle} label="Unallocated" value={unallocated} color={UNALLOCATED_COLOR} emphasise={unallocated > 0 && statusFilter !== 'unallocated'} delay={80} active={statusFilter === 'unallocated'} onClick={() => setStatusFilter(statusFilter === 'unallocated' ? '' : 'unallocated')} />
@@ -1279,6 +1284,7 @@ export default function ExcelFilesBoard({ mode = 'admin' }) {
             ? <StatTile icon={Lock} label="Locked to callers" value={locked} color="#F95C4B" delay={160} active={statusFilter === 'locked'} onClick={() => setStatusFilter(statusFilter === 'locked' ? '' : 'locked')} />
             : <StatTile icon={UserPlus} label="Files with unassigned contacts" value={openFiles} color="#F95C4B" delay={160} active={statusFilter === 'open'} onClick={() => setStatusFilter(statusFilter === 'open' ? '' : 'open')} />}
         </div>
+        )}
 
         {isError && (
           <div className="flex items-center gap-2.5 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444]">
@@ -1400,6 +1406,7 @@ export default function ExcelFilesBoard({ mode = 'admin' }) {
         </div>
 
         {/* How it works */}
+        {!embedded && (
         <div className="mac-in grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px rounded-2xl overflow-hidden border border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#E5E7EB] dark:bg-[#2A2A2A]" style={{ '--d': '300ms' }}>
           {howItWorks(mode).map((s, i) => (
             <div key={s.title} className="bg-white dark:bg-[#181818] p-5 flex gap-3">
@@ -1411,6 +1418,7 @@ export default function ExcelFilesBoard({ mode = 'admin' }) {
             </div>
           ))}
         </div>
+        )}
       </div>
 
       {viewing && <FileContactsPanel file={viewing} person={cfg.person} onClose={() => setViewing(null)} />}

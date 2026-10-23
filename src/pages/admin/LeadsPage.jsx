@@ -6,6 +6,7 @@ import { format, isPast, differenceInDays } from 'date-fns'
 import {
   Plus, Search, X, Trash2, AlertTriangle, Loader2,
   FileText, Users, SlidersHorizontal, Info, ChevronDown, CalendarCheck, MapPin,
+  Phone, User, Briefcase, Clock, ChevronRight,
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
@@ -20,7 +21,7 @@ import { DateField, TimeField } from '../../components/common/DateTimeFields'
 import { useAuthStore } from '../../store/authStore'
 import {
   LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
-  ActiveFilterChips, FetchBar, TableSkeleton, AgencyFilter, AgencyBreakdown, FOCUS_LABELS, LEAD_STATUS_TILES,
+  ActiveFilterChips, FetchBar, AgencyFilter, AgencyBreakdown, FOCUS_LABELS, LEAD_STATUS_TILES,
 } from '../../components/leads/LeadsHub'
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
 import { AdminLeadDetail } from './LeadDetailPage'
@@ -669,83 +670,103 @@ function DeleteDialog({ lead, onClose, onDeleted }) {
 
 /* ─── Lead Row ────────────────────────────────────────────────────────────── */
 
-function LeadRow({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved, rowProps }) {
+// One lead as a card — the list shows three across on wide screens. A div (not a button)
+// because the quick follow-up date and delete controls inside it are buttons themselves.
+function LeadCard({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved, rowProps, index }) {
   const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const agentUser  = resolveUser(lead.assignedAgent)
   const agency     = resolveAgency(lead.agencyId)
   const callerUser = resolveUser(lead.createdBy)
   const followedUpToday = isLeadFollowedUpToday(lead)
   const followedUpByMeToday = isLeadFollowedUpByMeToday(lead, currentUserId)
+  const stop = (e) => e.stopPropagation()
 
   return (
-    <tr
+    <div
       {...rowProps}
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
+      onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); onOpen() } }}
       className={[
-        'group transition-colors cursor-pointer border-l-2',
+        'mac-in group relative h-full flex flex-col text-left rounded-2xl border p-5 cursor-pointer transition-all duration-200',
+        'hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F95C4B]/40',
         followedUpByMeToday
-          ? 'bg-[#10B981]/[0.05] hover:bg-[#10B981]/[0.08] dark:bg-[#10B981]/[0.07] dark:hover:bg-[#10B981]/10 border-l-transparent animate-glow-pulse-ring'
+          ? 'bg-[#10B981]/[0.05] dark:bg-[#10B981]/[0.07] border-[#10B981]/40 animate-glow-pulse-ring'
           : followedUpToday
-            ? 'bg-[#10B981]/[0.04] hover:bg-[#10B981]/[0.07] dark:bg-[#10B981]/[0.06] dark:hover:bg-[#10B981]/10 border-l-[#10B981]'
-            : 'border-l-transparent hover:bg-[#FAFAF9] dark:hover:bg-[#111111]',
+            ? 'bg-[#10B981]/[0.04] dark:bg-[#10B981]/[0.06] border-[#10B981]/40'
+            : 'bg-white dark:bg-[#181818] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40',
       ].join(' ')}
+      style={{ '--d': `${Math.min(index, 12) * 30}ms` }}
     >
-      <td className="px-4 py-3.5">
-        <p className="text-sm font-semibold text-[#111111] dark:text-white truncate max-w-[180px]">{lead.landlordName}</p>
-        <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate max-w-[180px]">{lead.propertyAddress}</p>
-        {lead.area?.name && (
-          <p className="text-[10px] font-semibold text-[#F95C4B] flex items-center gap-1 mt-0.5 truncate max-w-[180px]">
-            <MapPin className="w-2.5 h-2.5 flex-shrink-0" /> {lead.area.name}
-          </p>
-        )}
-        <div className="mt-1">
-          <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
+      {/* Landlord, status, place */}
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-sm font-bold text-[#111111] dark:text-white truncate max-w-full" title={lead.landlordName}>{lead.landlordName}</h3>
+            <LeadStatusBadge status={lead.status} />
+          </div>
+          {lead.propertyAddress && (
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate mt-1" title={lead.propertyAddress}>{lead.propertyAddress}</p>
+          )}
+          <div className="flex items-center gap-2 flex-wrap mt-1.5">
+            {lead.area?.name && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B]">
+                <MapPin className="w-3 h-3 flex-shrink-0" /> {lead.area.name}
+              </span>
+            )}
+            <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
+          </div>
         </div>
-      </td>
-      <td className="px-4 py-3.5">
-        <p className="text-sm text-[#111111] dark:text-white">{contactObj?.name ?? lead.landlordName}</p>
-        <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-mono">{lead.phone}</p>
-      </td>
-      <td className="px-4 py-3.5">
-        {callerUser ? (
-          <p className="text-sm text-[#111111] dark:text-white">{callerUser.firstName} {callerUser.lastName}</p>
-        ) : (
-          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">Unknown</span>
-        )}
-      </td>
-      <td className="px-4 py-3.5">
-        {agentUser ? (
-          <p className="text-sm text-[#111111] dark:text-white">{agentUser.firstName} {agentUser.lastName}</p>
-        ) : agency ? (
-          <p className="text-sm text-[#111111] dark:text-white">{agency.name}</p>
-        ) : (
-          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">Unassigned</span>
-        )}
-      </td>
-      <td className="px-4 py-3.5">
-        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{format(new Date(lead.createdAt), 'd MMM yyyy')}</p>
-      </td>
-      <td className="px-4 py-3.5">
-        <LeadStatusBadge status={lead.status} />
-      </td>
-      <td className="px-4 py-3.5">
-        <div className="flex items-center gap-1">
+        <div onClick={stop} className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
+          <ActionBtn icon={Trash2} title="Delete" onClick={onDelete} variant="red" />
+        </div>
+      </div>
+
+      {/* People and dates */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-4">
+        <div className="flex items-center gap-1.5 min-w-0" title="Contact">
+          <Phone className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
+          <span className="text-xs text-[#111111] dark:text-white truncate">{contactObj?.name ?? lead.landlordName}</span>
+        </div>
+        <div className="flex items-center gap-1.5 min-w-0" title="Phone">
+          <span className="text-[11px] font-mono text-[#6B7280] dark:text-[#A1A1AA] truncate">{lead.phone ?? '—'}</span>
+        </div>
+        <div className="flex items-center gap-1.5 min-w-0" title="Cold caller">
+          <User className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
+          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">
+            {callerUser ? `${callerUser.firstName} ${callerUser.lastName}` : <i>Unknown caller</i>}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 min-w-0" title="Agent">
+          <Briefcase className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
+          <span className={`text-xs truncate ${agentUser || agency ? 'text-[#6B7280] dark:text-[#A1A1AA]' : 'italic text-[#9CA3AF]'}`}>
+            {agentUser ? `${agentUser.firstName} ${agentUser.lastName}` : agency ? agency.name : 'No agent yet'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 min-w-0" title="Created">
+          <Clock className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
+          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{format(new Date(lead.createdAt), 'd MMM yyyy')}</span>
+        </div>
+        <div className="flex items-center gap-1 min-w-0" title="Next follow-up" onClick={stop}>
+          <CalendarCheck className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
           <FollowUpChip date={lead.followUpDate} />
           <QuickFollowUpDateButton lead={lead} onSaved={onFollowUpSaved} />
         </div>
-      </td>
-      <td className="px-4 py-3.5">
-        <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} />
-      </td>
-      <td className="px-4 py-3.5">
-        <LastFollowUpByCell lead={lead} />
-      </td>
-      <td className="px-4 py-3.5">
-        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-          <ActionBtn icon={Trash2} title="Delete" onClick={onDelete} variant="red" />
-        </div>
-      </td>
-    </tr>
+      </div>
+
+      {/* Latest follow-up note */}
+      <div className="mt-4 pt-3 border-t border-[#F1EFEC] dark:border-[#2A2A2A] flex-1">
+        <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} maxWidthClass="max-w-full" />
+      </div>
+
+      <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
+        <div className="min-w-0 text-xs">{lead.lastFollowUpBy ? <LastFollowUpByCell lead={lead} /> : <span className="text-[11px] text-[#9CA3AF]">No follow-up yet</span>}</div>
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B] group-hover:gap-1.5 transition-all flex-shrink-0">
+          View details <ChevronRight className="w-3.5 h-3.5" />
+        </span>
+      </div>
+    </div>
   )
 }
 
@@ -989,42 +1010,25 @@ export default function LeadsPage() {
         )}
 
         {isLoading ? (
-          <TableSkeleton rows={8} />
+          <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
+            {Array.from({ length: 9 }, (_, i) => <div key={i} className="shimmer h-[260px] rounded-2xl" />)}
+          </div>
         ) : !Array.isArray(leads) || leads.length === 0 ? (
           <EmptyState hasFilters={hasFilters} onAdd={() => setDrawer({ mode: 'create' })} />
         ) : (
-          <div className={`bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1250px]">
-                <thead className="bg-[#FAFAF9] dark:bg-[#111111] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-                  <tr>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Landlord / Address</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Contact</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Cold Caller</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Agent</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Created</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Status</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Follow-up</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Last Follow-Up</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Followed Up By</th>
-                    <th className="px-4 py-3.5 text-right text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
-                  {leads.map((lead) => (
-                    <LeadRow
-                      key={lead._id}
-                      lead={lead}
-                      onOpen={() => leadPanel.open(lead._id)}
-                      rowProps={leadRowProps(leadPanel, lead._id)}
-                      onDelete={() => setToDelete(lead)}
-                      currentUserId={user?._id}
-                      onFollowUpSaved={handleFollowUpSaved}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className={`grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 items-stretch transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
+            {leads.map((lead, i) => (
+              <LeadCard
+                key={lead._id}
+                index={i}
+                lead={lead}
+                onOpen={() => leadPanel.open(lead._id)}
+                rowProps={leadRowProps(leadPanel, lead._id)}
+                onDelete={() => setToDelete(lead)}
+                currentUserId={user?._id}
+                onFollowUpSaved={handleFollowUpSaved}
+              />
+            ))}
           </div>
         )}
 

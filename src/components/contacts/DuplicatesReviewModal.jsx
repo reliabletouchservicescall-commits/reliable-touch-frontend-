@@ -62,7 +62,7 @@ export default function DuplicatesReviewModal({ duplicates, onClose, onDone }) {
   const ACTION_META = {
     skip:   { label: 'Skip',            color: '#6B7280' },
     update: { label: 'Update Existing', color: '#3B82F6' },
-    create: { label: 'Create Separate', color: '#8B5CF6' },
+    create: { label: 'Create Separate', color: '#F95C4B' },
   }
 
   return (
@@ -74,8 +74,8 @@ export default function DuplicatesReviewModal({ duplicates, onClose, onDone }) {
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A] flex-shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#8B5CF6]/10 flex items-center justify-center">
-                <Layers className="w-5 h-5 text-[#8B5CF6]" strokeWidth={1.75} />
+              <div className="w-9 h-9 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
+                <Layers className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
               </div>
               <div>
                 <h2 className="text-sm font-bold text-[#111111] dark:text-white">Review Duplicates</h2>
@@ -139,7 +139,7 @@ export default function DuplicatesReviewModal({ duplicates, onClose, onDone }) {
                         )}
                       </div>
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8B5CF6] mb-1">New Row (Excel)</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#F95C4B] mb-1">New Row (Excel)</p>
                         <p className="font-semibold text-[#111111] dark:text-white truncate">{d.newData.name}</p>
                         <p className="text-[#6B7280] dark:text-[#A1A1AA] font-mono">{d.newData.phone}</p>
                         {d.newData.sectionalScheme && (
@@ -177,7 +177,7 @@ export default function DuplicatesReviewModal({ duplicates, onClose, onDone }) {
                     Cancel
                   </button>
                   <button onClick={() => mut.mutate()} disabled={mut.isPending}
-                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 flex items-center justify-center gap-2">
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 flex items-center justify-center gap-2">
                     {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                     Apply
                   </button>
