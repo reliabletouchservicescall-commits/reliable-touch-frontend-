@@ -7,6 +7,11 @@ import {
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { getSocket } from '../../lib/socket'
+import { useAuthStore } from '../../store/authStore'
+
+// Each signed-in person's own copy (an admin and a company manager in the same browser
+// never see each other's board)
+const useUid = () => useAuthStore((st) => st.user?._id ?? 'anon')
 import { Card, Skeleton, CardTitle, LinkButton } from './DashboardKit'
 
 // The admin dashboard's live operations board — who is working right now and what they're
@@ -15,6 +20,12 @@ import { Card, Skeleton, CardTitle, LinkButton } from './DashboardKit'
 // activity:new — see the backend's lib/presence.js and lib/activityLog.js).
 
 /* ─── Data ──────────────────────────────────────────────────────────────── */
+
+// Where things link to on each board
+export const SCOPES = {
+  admin: { leads: '/admin/leads', person: (id) => `/admin/users/${id}`, team: '/admin/performance', ranking: '/admin/performance', newLead: '/admin/leads?new=1' },
+  agency: { leads: '/agency/leads', person: (id) => `/agency/agents/${id}`, team: '/agency/team', ranking: '/agency/leaderboard', newLead: '/agency/leads' },
+}
 
 const ROLE_LABEL = { cold_caller: 'Cold caller', follow_up_manager: 'Follow-up manager', agency: 'Agent', admin: 'Admin' }
 const AVATAR = ['#F9A8D4', '#C4B5FD', '#93C5FD', '#FCD34D', '#6EE7B7', '#FCA5A5', '#A5F3FC', '#FDBA74']
@@ -51,10 +62,11 @@ export function useNow(ms = 1000) {
 }
 
 /** The team floor, kept live: presence changes and every bit of work land straight in it. */
-export function useLiveFloor() {
+export function useLiveFloor(enabled = true) {
   const qc = useQueryClient()
-  const key = ['live-floor']
+  const key = ['live-floor', useUid()]
   const query = useQuery({
+    enabled,
     queryKey: key,
     queryFn: () => axiosClient.get('/live/floor').then((r) => r.data.data),
     staleTime: 30_000,
@@ -126,18 +138,19 @@ function greeting(d) {
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
 }
 
-export function DashboardHeader({ user, floor, needsCount, period, onPeriod }) {
+export function DashboardHeader({ user, floor, needsCount, period, onPeriod, scope = 'admin', company }) {
   const navigate = useNavigate()
   const now = new Date(useNow(60_000))
-  const team = (floor?.people ?? []).filter((p) => p.role !== 'agency')
+  const team = (floor?.people ?? []).filter((p) => scope === 'agency' || p.role !== 'agency')
   const working = team.filter((p) => p.workedToday || p.online).length
   return (
     <div className="glass-in relative flex flex-col lg:flex-row lg:items-end gap-4" style={{ '--d': '0ms' }}>
       <div className="min-w-0">
+        {company && <p className="text-[11px] font-semibold uppercase tracking-widest text-[#F95C4B] mb-0.5">{company}</p>}
         <h1 className="text-2xl sm:text-[28px] font-bold text-[#111111] dark:text-white tracking-tight">{greeting(now)}, {user?.firstName ?? 'there'}</h1>
         <p className="mt-1 text-sm text-[#6B7280] dark:text-[#A1A1AA]">
           {format(now, 'EEEE d MMMM')}
-          {floor && <> · <b className="font-semibold text-[#059669] dark:text-[#34D399]">{working} of {team.length} people working</b></>}
+          {floor && <> · <b className="font-semibold text-[#059669] dark:text-[#34D399]">{working} of {team.length} {scope === 'agency' ? 'in your team' : 'people'} working</b></>}
           {needsCount != null && <> · {needsCount === 0 ? 'nothing needs you right now' : `${needsCount} thing${needsCount === 1 ? '' : 's'} need${needsCount === 1 ? 's' : ''} you today`}</>}
         </p>
       </div>
@@ -152,7 +165,7 @@ export function DashboardHeader({ user, floor, needsCount, period, onPeriod }) {
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => navigate('/admin/leads?new=1')}
+        <button type="button" onClick={() => navigate(SCOPES[scope].newLead)}
           className="mac-press flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-[0_10px_24px_-10px_rgba(249,92,75,0.9)]">
           <Plus className="w-4 h-4" /> Add lead
         </button>
@@ -168,13 +181,13 @@ const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0)
 
 export function FunnelStrip({ period }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['live-funnel', period],
+    queryKey: ['live-funnel', period, useUid()],
     queryFn: () => axiosClient.get('/live/funnel', { params: { period } }).then((r) => r.data.data),
     staleTime: 55_000,
     refetchInterval: 60_000,
   })
   const t = data?.totals, p = data?.previousTotals
-  const tiles = t ? [
+  const tiles = data?.tiles ? data.tiles : t ? [
     { key: 'calls', label: 'Calls made', color: '#9CA3AF', value: t.calls, prev: p.calls, sub: `${compact(p.calls)} last` },
     { key: 'leads', label: 'Leads created', color: '#F472B6', value: t.leadsCreated, prev: p.leadsCreated, sub: `${pct(t.leadsCreated, t.calls)}% of calls` },
     { key: 'follow', label: 'Followed up', color: '#A78BFA', value: t.followUps, prev: p.followUps, sub: 'touches' },
@@ -195,7 +208,7 @@ export function FunnelStrip({ period }) {
         )}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-2.5">
-        {isLoading || !t ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[104px]" />) : tiles.map((tile, i) => {
+        {isLoading || !tiles.length ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[104px]" />) : tiles.map((tile, i) => {
           const change = tile.prev ? Math.round(((tile.value - tile.prev) / tile.prev) * 100) : null
           return (
             <div key={tile.key} className="mac-pop rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#141414] px-3.5 py-3" style={{ '--d': `${100 + i * 55}ms` }}>
@@ -228,10 +241,10 @@ const TONE = {
 
 // The server's list, plus what only the live floor knows: who is idle right now, and who
 // hasn't done any work today
-export function useAttentionItems(overview, floor, now) {
+export function useAttentionItems(overview, floor, now, scope = 'admin') {
   return useMemo(() => {
     const items = [...(overview?.attention ?? [])]
-    const team = (floor?.people ?? []).filter((p) => p.role !== 'agency')
+    const team = (floor?.people ?? []).filter((p) => scope === 'agency' || p.role !== 'agency')
     const idle = team.map((p) => ({ p, s: presenceOf(p, now) })).filter(({ s }) => s.rank === 3 && s.idle >= 30)
       .sort((a, b) => b.s.idle - a.s.idle).slice(0, 2)
     idle.forEach(({ p, s }) => items.push({
@@ -241,7 +254,7 @@ export function useAttentionItems(overview, floor, now) {
         p.connectedAt ? `online since ${format(new Date(p.connectedAt), 'HH:mm')}` : null,
         `${p.today.calls} call${p.today.calls === 1 ? '' : 's'} today${p.dailyCallTarget ? ` (target ${p.dailyCallTarget})` : ''}`,
       ].filter(Boolean).join(' · '),
-      action: { label: 'Timeline', to: `/admin/users/${p.userId}` },
+      action: { label: 'Timeline', to: SCOPES[scope].person(p.userId) },
     }))
     const hour = new Date(now).getHours()
     const quiet = team.filter((p) => !p.workedToday && !p.online)
@@ -254,7 +267,7 @@ export function useAttentionItems(overview, floor, now) {
       })
     }
     return items
-  }, [overview, floor, now])
+  }, [overview, floor, now, scope])
 }
 
 export function NeedsAttention({ items, loading }) {
@@ -316,7 +329,7 @@ const FLOOR_FILTERS = [
   { key: 'idle', label: 'Not working' },
 ]
 
-export function OnTheFloor({ floor, loading, now }) {
+export function OnTheFloor({ floor, loading, now, scope = 'admin' }) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
   const rows = useMemo(() => (floor?.people ?? [])
@@ -333,7 +346,7 @@ export function OnTheFloor({ floor, loading, now }) {
             On the floor now
             <span className="relative flex w-2 h-2"><span className="absolute inset-0 rounded-full bg-[#10B981] animate-ping opacity-60" /><span className="relative w-2 h-2 rounded-full bg-[#10B981]" /></span>
           </h3>
-          <button type="button" onClick={() => navigate('/admin/performance')} className="text-xs font-semibold text-[#F95C4B] hover:text-[#E84B3A]">Team view</button>
+          <button type="button" onClick={() => navigate(SCOPES[scope].team)} className="text-xs font-semibold text-[#F95C4B] hover:text-[#E84B3A]">Team view</button>
         </div>
         <p className="text-[11px] text-[#9CA3AF] mt-0.5">
           {online} online{notWorked ? <> · <span className="text-[#E11D48] dark:text-[#FB7185] font-semibold">{notWorked} haven&apos;t worked today</span></> : ''}
@@ -352,7 +365,7 @@ export function OnTheFloor({ floor, loading, now }) {
         {!loading && shown.length === 0 && <li className="py-10 text-center text-xs text-[#9CA3AF]">Nobody here</li>}
         {shown.map(({ p, s }, i) => (
           <li key={p.userId}>
-            <button type="button" onClick={() => navigate(`/admin/users/${p.userId}`)}
+            <button type="button" onClick={() => navigate(SCOPES[scope].person(p.userId))}
               className={`mac-in w-full flex items-center gap-3 px-5 py-3 text-left transition-colors ${s.flag ? 'bg-[#EF4444]/[0.05] hover:bg-[#EF4444]/[0.09]' : 'hover:bg-[#FAFAF9] dark:hover:bg-[#1C1C1C]'}`}
               style={{ '--d': `${Math.min(i, 10) * 30}ms` }}>
               <span className="relative w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-[#111111] flex-shrink-0" style={{ backgroundColor: avatarColor(p.userId), opacity: p.online ? 1 : 0.75 }}>
@@ -362,7 +375,7 @@ export function OnTheFloor({ floor, loading, now }) {
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-[#111111] dark:text-white truncate">{p.name}</span>
                 <span className="block text-[11px] text-[#9CA3AF] truncate">
-                  {ROLE_LABEL[p.role] ?? p.role}{p.place ? ` · ${p.place}` : ''}
+                  {scope === 'agency' ? (p.isAgencyManager ? 'Manager' : 'Agent') : (ROLE_LABEL[p.role] ?? p.role)}{p.place ? ` · ${p.place}` : ''}
                   {s.sub ? <span className="text-[#6B7280] dark:text-[#A1A1AA]"> · {s.sub}</span> : null}
                 </span>
               </span>
@@ -423,12 +436,13 @@ function headlineOf(a) {
   return a.summary
 }
 
-export function LiveActivity() {
+export function LiveActivity({ scope = 'admin' }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [type, setType] = useState('')
   const [fresh, setFresh] = useState(() => new Set())
-  const key = ['live-activity', type]
+  const uid = useUid()
+  const key = ['live-activity', type, uid]
   const { data, isLoading } = useQuery({
     queryKey: key,
     queryFn: () => axiosClient.get('/live/activity', { params: { type: type || undefined, limit: 30 } }).then((r) => r.data.data),
@@ -437,7 +451,7 @@ export function LiveActivity() {
   useSocketEvent('activity:new', (a) => {
     Object.entries({ '': null, ...FEED_TYPES }).forEach(([k, types]) => {
       if (types && !types.includes(a.type)) return
-      qc.setQueryData(['live-activity', k], (old) => old && ({ ...old, items: [a, ...old.items.filter((x) => x._id !== a._id)].slice(0, 60) }))
+      qc.setQueryData(['live-activity', k, uid], (old) => old && ({ ...old, items: [a, ...old.items.filter((x) => x._id !== a._id)].slice(0, 60) }))
     })
     setFresh((s) => new Set(s).add(a._id))
   })
@@ -473,7 +487,7 @@ export function LiveActivity() {
           const at = new Date(a.at)
           return (
             <li key={a._id}>
-              <button type="button" disabled={!a.lead} onClick={() => a.lead && navigate(`/admin/leads?lead=${a.lead.id}`)}
+              <button type="button" disabled={!a.lead} onClick={() => a.lead && navigate(`${SCOPES[scope].leads}?lead=${a.lead.id}`)}
                 className={`${fresh.has(a._id) ? 'feed-arrive' : 'mac-in'} w-full flex items-start gap-3.5 px-5 py-3.5 text-left transition-colors enabled:hover:bg-[#FAFAF9] dark:enabled:hover:bg-[#1C1C1C] disabled:cursor-default`}
                 style={{ '--d': `${Math.min(i, 10) * 30}ms` }}>
                 <time className="w-11 pt-0.5 text-xs text-[#9CA3AF] tabular-nums flex-shrink-0" title={format(at, 'd MMM yyyy, HH:mm')}>
@@ -502,7 +516,7 @@ export function LiveActivity() {
 
 /* ─── Lead temperature ──────────────────────────────────────────────────── */
 
-export function LeadTemperature({ temperature }) {
+export function LeadTemperature({ temperature, scope = 'admin' }) {
   if (!temperature) return <Card delay={240} className="p-5"><Skeleton className="h-[220px]" /></Card>
   const { hot, warm, cold, week } = temperature
   const total = hot + warm + cold || 1
@@ -513,7 +527,7 @@ export function LeadTemperature({ temperature }) {
   ]
   return (
     <Card delay={240} className="p-5">
-      <CardTitle title="Lead temperature" subtitle="Open leads, by how soon the follow-up is" action={<LinkButton to="/admin/leads">Open leads</LinkButton>} />
+      <CardTitle title="Lead temperature" subtitle={scope === 'agency' ? 'Your company\u2019s open leads, by how soon the follow-up is' : 'Open leads, by how soon the follow-up is'} action={<LinkButton to={SCOPES[scope].leads}>Open leads</LinkButton>} />
       <div className="flex h-2.5 rounded-full overflow-hidden gap-1">
         {rows.map((r, i) => <span key={r.key} className="mac-grow-x h-full rounded-full" style={{ width: `${(r.n / total) * 100}%`, backgroundColor: r.color, '--d': `${280 + i * 80}ms` }} />)}
       </div>
@@ -536,9 +550,9 @@ export function LeadTemperature({ temperature }) {
 
 /* ─── Leading this month ────────────────────────────────────────────────── */
 
-export function LeadingThisMonth({ leaders }) {
+export function LeadingThisMonth({ leaders, scope = 'admin' }) {
   const navigate = useNavigate()
-  const rows = leaders ? [
+  const rows = leaders?.rows ? leaders.rows.map((r) => ({ key: r.key, label: r.label, color: r.color, l: r })) : leaders ? [
     { key: 'cc', label: 'Cold caller', color: '#F472B6', l: leaders.coldCaller },
     { key: 'fu', label: 'Follow-up', color: '#A78BFA', l: leaders.followUp },
     { key: 'ag', label: 'Agent', color: '#FBBF24', l: leaders.agent },
@@ -548,7 +562,7 @@ export function LeadingThisMonth({ leaders }) {
     <Card delay={280} className="overflow-hidden">
       <div className="flex items-center justify-between px-5 pt-4 pb-3">
         <h3 className="text-[15px] font-bold text-[#111111] dark:text-white">Leading this month</h3>
-        <button type="button" onClick={() => navigate('/admin/performance')} className="text-xs font-semibold text-[#F95C4B] hover:text-[#E84B3A]">Full ranking</button>
+        <button type="button" onClick={() => navigate(SCOPES[scope].ranking)} className="text-xs font-semibold text-[#F95C4B] hover:text-[#E84B3A]">Full ranking</button>
       </div>
       {!leaders ? <div className="px-5 pb-5"><Skeleton className="h-[220px]" /></div> : rows.length === 0 ? (
         <p className="px-5 pb-6 text-xs text-[#9CA3AF]">No scores yet this month.</p>
@@ -573,12 +587,84 @@ export function LeadingThisMonth({ leaders }) {
   )
 }
 
+/* ─── What happens to the leads (company): from Reliable Touch vs own ───── */
+
+const SOURCE_STEPS = [
+  ['total', 'Leads'], ['worked', 'Followed up'], ['withAgent', 'With an agent'], ['appointment', 'Appointment'],
+  ['listed', 'Listed / negotiating'], ['won', 'Rented / sold'], ['paid', 'Paid'],
+]
+const SOURCE_STATUS = [
+  ['cold', 'Cold', '#60A5FA'], ['warm', 'Warm', '#FBBF24'], ['hot', 'Hot', '#F87171'], ['still_negotiating', 'Negotiating', '#FF8C7A'],
+  ['listed', 'Listed', '#A78BFA'], ['rented_out', 'Rented', '#34D399'], ['sold', 'Sold', '#10B981'], ['lost', 'Lost', '#9CA3AF'],
+]
+
+function SourceColumn({ title, sub, color, d, to, delay }) {
+  const navigate = useNavigate()
+  const max = Math.max(1, d.total)
+  return (
+    <div className="mac-in rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4" style={{ '--d': `${delay}ms`, borderTop: `3px solid ${color}` }}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-[#111111] dark:text-white">{title}</p>
+          <p className="text-[11px] text-[#9CA3AF]">{sub}</p>
+        </div>
+        <button type="button" onClick={() => navigate(to)} className="text-[11px] font-semibold text-[#F95C4B] hover:underline whitespace-nowrap">Open leads</button>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-3 text-center">
+        {[[d.total, 'leads'], [`${d.closeRate}%`, 'closed'], [d.medianResponseHours == null ? '—' : d.medianResponseHours < 48 ? `${d.medianResponseHours}h` : `${Math.round(d.medianResponseHours / 24)}d`, 'first reply']].map(([v, l]) => (
+          <div key={l} className="rounded-xl bg-[#FAFAF9] dark:bg-[#141414] py-2">
+            <p className="text-lg font-bold text-[#111111] dark:text-white tabular-nums leading-tight">{v}</p>
+            <p className="text-[10px] text-[#9CA3AF]">{l}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF]">What happened to them</p>
+      <ul className="mt-1.5 space-y-1.5">
+        {SOURCE_STEPS.map(([k, l], i) => (
+          <li key={k} className="grid grid-cols-[110px_minmax(0,1fr)_40px] items-center gap-2 text-xs">
+            <span className="text-[#6B7280] dark:text-[#A1A1AA] truncate">{l}</span>
+            <span className="h-2 rounded-full bg-[#F5F5F4] dark:bg-[#202020] overflow-hidden">
+              <span className="mac-grow-x block h-full rounded-full" style={{ width: `${(d[k] / max) * 100}%`, backgroundColor: color, opacity: 1 - i * 0.08, '--d': `${delay + 150 + i * 60}ms` }} />
+            </span>
+            <span className="text-right font-semibold text-[#111111] dark:text-white tabular-nums">{d[k]}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF]">Where they are now</p>
+      <div className="flex h-2.5 rounded-full overflow-hidden mt-1.5 bg-[#F5F5F4] dark:bg-[#202020]">
+        {SOURCE_STATUS.map(([k, l, c]) => (d.byStatus[k] ? <span key={k} className="mac-grow-x h-full" title={`${l}: ${d.byStatus[k]}`} style={{ width: `${(d.byStatus[k] / max) * 100}%`, backgroundColor: c }} /> : null))}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+        {SOURCE_STATUS.filter(([k]) => d.byStatus[k]).map(([k, l, c]) => (
+          <span key={k} className="inline-flex items-center gap-1 text-[10px] text-[#6B7280] dark:text-[#A1A1AA]"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: c }} />{l} <b className="text-[#111111] dark:text-white">{d.byStatus[k]}</b></span>
+        ))}
+      </div>
+      <p className="mt-3 text-[11px] text-[#9CA3AF]">{d.thisMonth} new this month · {d.open} still open · {d.lost} lost</p>
+    </div>
+  )
+}
+
+export function SourcesReport({ sources }) {
+  if (!sources) return <Card delay={300} className="p-5"><Skeleton className="h-[320px]" /></Card>
+  return (
+    <Card delay={300} className="p-5">
+      <CardTitle title="What happens to your leads" subtitle="Leads Reliable Touch handed to you against the ones your team found — from arrival to a paid deal" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SourceColumn title="From Reliable Touch" sub="Handed to your company" color="#F95C4B" d={sources.reliableTouch} to="/agency/leads?source=reliable_touch" delay={340} />
+        <SourceColumn title="Your own leads" sub="Your team found these themselves" color="#8B5CF6" d={sources.own} to="/agency/leads?source=agency_self_sourced" delay={400} />
+      </div>
+    </Card>
+  )
+}
+
 /* ─── Whole board ───────────────────────────────────────────────────────── */
 
-export function useLiveOverview() {
+export function useLiveOverview(enabled = true) {
   const qc = useQueryClient()
+  const uid = useUid()
   const query = useQuery({
-    queryKey: ['live-overview'],
+    enabled,
+    queryKey: ['live-overview', uid],
     queryFn: () => axiosClient.get('/live/overview').then((r) => r.data.data),
     staleTime: 30_000,
     refetchInterval: 60_000,

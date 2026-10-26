@@ -22,7 +22,8 @@ export default function App() {
           isAuthenticated: true,
         })
       })
-      .catch(() => clearAuth())
+      // Signed out only if the server refused the session — not because it couldn't be reached
+      .catch((err) => { if ([401, 403].includes(err?.response?.status)) clearAuth() })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return <AppRouter />

@@ -12,6 +12,9 @@ import { useTheme } from '../../context/ThemeContext'
 import WorkingHoursSection from '../../components/performance/WorkingHoursSection'
 import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
 import {
+  CallerHero, CallsRing, HappeningFeed, DealsStarted, MonthCard, LeadsOnTheMove, TodaysList, useCallerBoard,
+} from '../../components/dashboard/CallerBoard'
+import {
   Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, TemperatureDonut,
   TrendChart, ChartLegend, CallsByHourChart, ScopedProvinceCard, TodaysTasks, PhotoCard, CallOutcomes,
   UpcomingVisits, CompanySnapshot, OUTCOME_META, CORAL,
@@ -20,6 +23,8 @@ import {
 // The cold caller's dashboard — the admin command centre's look, built around the job:
 // work the contact list, turn calls into leads, keep those leads followed up — plus where
 // the whole company stands. Data: GET /reports/my-overview (+ /performance/me for rank).
+// On top, the live board (GET /reports/my-board): what's happening to the leads they found,
+// the deals they started, the month's milestone, leads on the move and today's list.
 
 const DAILY_SERIES = [
   { key: 'calls',      name: 'Calls',              color: CORAL,     kind: 'area' },
@@ -132,6 +137,7 @@ export default function ColdCallerDashboard() {
     staleTime: 60_000,
   })
   const { data: dayRank } = useQuery(rankQuery('day'))
+  const { data: board, isLoading: boardLoading } = useCallerBoard()
   const { data: monthRank } = useQuery(rankQuery('month'))
 
   function refreshNow() {
@@ -163,24 +169,25 @@ export default function ColdCallerDashboard() {
   }
 
   return (
-    <div className="p-4 sm:p-6 xl:p-8">
+    <div className="p-4 sm:p-6 xl:p-8 space-y-6">
+      {/* ── Live board ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6 items-stretch">
+        <CallerHero user={user} board={board} />
+        <CallsRing callsToday={k?.callsToday ?? 0} toCall={k?.toCall ?? 0} loading={!o} />
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
+        <HappeningFeed board={board} loading={boardLoading} />
+        <div className="space-y-6">
+          <DealsStarted deals={board?.deals} />
+          <MonthCard milestone={o?.milestone} rank={board?.rank} hotLeadPoints={board?.hotLeadPoints} conversion={k?.conversionMonth} />
+        </div>
+      </div>
+      <LeadsOnTheMove moving={board?.moving} />
+      <TodaysList today={board?.today} overview={o} />
+
       <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
         {/* ── Main column ─────────────────────────────────────────────── */}
         <div className="space-y-6 min-w-0">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-            <Hero
-              user={user}
-              now={now}
-              eyebrow="Cold calling"
-              subtitle="Every call is a door. Here's your day at a glance."
-              stats={[
-                { icon: PhoneCall, label: 'calls today', value: k?.callsToday, to: '/cold-caller/call-logs' },
-                { icon: TrendingUp, label: 'leads today', value: k?.leadsToday, to: '/cold-caller/leads' },
-                { icon: PhoneIncoming, label: 'callbacks waiting', value: k?.callbacks, to: '/cold-caller/contacts?outcome=callback_requested' },
-              ]}
-            />
-            {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o.milestone} to="/cold-caller/leads" />}
-          </div>
 
           {isError && !o && <ErrorBanner onRetry={() => refetch()} />}
 
@@ -248,19 +255,13 @@ export default function ColdCallerDashboard() {
 
         {/* ── Right rail ──────────────────────────────────────────────── */}
         <aside className="space-y-6 min-w-0">
-          <Card delay={120} className="p-5">
-            <CardTitle
-              title="Today's tasks"
-              action={(
-                <button type="button" onClick={refreshNow} title="Refresh now"
-                  className="flex items-center gap-1 text-[11px] font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B]">
-                  <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-                  {dataUpdatedAt ? format(new Date(dataUpdatedAt), 'HH:mm') : ''}
-                </button>
-              )}
-            />
-            {!o ? <Skeleton className="h-[300px]" /> : <TodaysTasks tasks={o.tasks} />}
-          </Card>
+          <div className="flex justify-end">
+            <button type="button" onClick={refreshNow} title="Refresh now"
+              className="flex items-center gap-1 text-[11px] font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B]">
+              <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+              Updated {dataUpdatedAt ? format(new Date(dataUpdatedAt), 'HH:mm') : ''}
+            </button>
+          </div>
           <RankCard day={dayRank} month={monthRank} />
           <Card delay={200} className="p-5">
             <CardTitle title="Upcoming visits" subtitle={`${(k?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/cold-caller/appointments">All</LinkButton>} />

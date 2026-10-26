@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Trophy,
   TrendingUp,
+  Handshake,
   Users,
   BookUser,
   FileSpreadsheet,
@@ -22,6 +23,8 @@ import {
   PhoneOff,
   ShieldCheck,
   UserCircle,
+  PhoneOutgoing,
+  AlarmClock,
 } from 'lucide-react'
 import logo from '../assets/logo-reliable-touch.png'
 import { useTheme } from '../context/ThemeContext'
@@ -31,6 +34,7 @@ import NotificationBell from '../components/notifications/NotificationBell'
 import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
 import ChatWidget from '../components/chat/ChatWidget'
 import { useSocket } from '../context/SocketContext'
+import { CallModeBadge } from '../lib/useCallMode'
 
 const NAV = [
   {
@@ -38,11 +42,14 @@ const NAV = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/agency', end: true },
       { label: 'My Leads',  icon: TrendingUp,      to: '/agency/leads' },
+      { label: 'Deal Tracker', icon: Handshake,    to: '/agency/deal-tracker' },
     ],
   },
   {
     group: 'My Work',
     items: [
+      { label: 'Call mode',    icon: PhoneOutgoing, to: '/agency/call-mode', callMode: true },
+      { label: 'Callbacks',    icon: AlarmClock,    to: '/agency/callbacks', callMode: 'callbacks' },
       { label: 'Contacts',     icon: BookUser,      to: '/agency/contacts' },
       { label: 'Calling Workload', icon: Gauge,     to: '/agency/caller-workload', managerOnly: true },
       { label: 'Do Not Call',  icon: PhoneOff,      to: '/agency/dnc' },
@@ -71,7 +78,7 @@ const NAV = [
   },
 ]
 
-function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge, selfLink }) {
+function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge, callMode, selfLink }) {
   const { chatUnread } = useSocket()
   const { user } = useAuthStore()
   const resolvedTo = selfLink ? `${to}/${user?._id}` : to
@@ -90,6 +97,7 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge, sel
     >
       <div className="relative flex-shrink-0">
         <Icon className={`w-[18px] h-[18px] ${collapsed ? 'mx-auto' : ''}`} strokeWidth={1.75} />
+        {callMode && collapsed && <CallModeBadge collapsed mode={callMode === 'callbacks' ? 'callbacks' : 'all'} />}
         {hasBadge && chatUnread > 0 && collapsed && (
           <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">
             {chatUnread > 9 ? '9+' : chatUnread}
@@ -99,6 +107,7 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge, sel
       {!collapsed && (
         <span className="flex-1 truncate flex items-center gap-2">
           {label}
+          {callMode && <CallModeBadge mode={callMode === 'callbacks' ? 'callbacks' : 'all'} />}
           {hasBadge && chatUnread > 0 && (
             <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#F95C4B] text-white text-[9px] font-bold flex items-center justify-center">
               {chatUnread > 99 ? '99+' : chatUnread}

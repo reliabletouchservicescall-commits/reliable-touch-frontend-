@@ -14,6 +14,8 @@ import FollowUpManagerLayout from '../layouts/FollowUpManagerLayout'
 // Admin pages
 import AdminDashboard from '../pages/admin/DashboardPage'
 import ContactsPage from '../pages/admin/ContactsPage'
+import DealTrackerPage from '../pages/shared/DealTrackerPage'
+import CallModePage from '../pages/shared/CallModePage'
 import CallerWorkloadPage from '../pages/admin/CallerWorkloadPage'
 import UsersPage from '../pages/admin/UsersPage'
 import UserDetailPage from '../pages/admin/UserDetailPage'
@@ -39,6 +41,7 @@ import ColdCallerDncPage from '../pages/cold-caller/DncPage'
 import ColdCallerCampaignsPage from '../pages/cold-caller/CampaignsPage'
 import ColdCallerNotificationsPage from '../pages/cold-caller/NotificationsPage'
 import LeaderboardPage from '../pages/cold-caller/LeaderboardPage'
+import MyProgressPage from '../pages/cold-caller/MyProgressPage'
 
 // Agency pages
 import AgencyDashboard from '../pages/agency/DashboardPage'
@@ -123,6 +126,7 @@ export default function AppRouter() {
           <Route path="caller-workload" element={<CallerWorkloadPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="leads/:id" element={<AdminLeadDetailPage />} />
+          <Route path="deal-tracker" element={<DealTrackerPage role="admin" />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="call-logs" element={<AdminCallLogsPage />} />
           <Route path="dnc" element={<DncPage />} />
@@ -154,6 +158,9 @@ export default function AppRouter() {
         >
           <Route index element={<ColdCallerDashboard />} />
           <Route path="contacts" element={<MyContactsPage />} />
+          <Route path="call-mode" element={<CallModePage />} />
+          <Route path="callbacks" element={<CallModePage mode="callbacks" key="callbacks" />} />
+          <Route path="deal-tracker" element={<DealTrackerPage role="cold_caller" />} />
           <Route path="leads" element={<ColdCallerLeadsPage />} />
           <Route path="leads/new/:contactId" element={<ColdCallerLeadsPage />} />
           <Route path="leads/:id" element={<ColdCallerLeadDetailPage />} />
@@ -162,6 +169,7 @@ export default function AppRouter() {
           <Route path="dnc" element={<ColdCallerDncPage />} />
           <Route path="campaigns" element={<ColdCallerCampaignsPage />} />
           <Route path="leaderboard" element={<LeaderboardPage />} />
+          <Route path="progress" element={<MyProgressPage />} />
           <Route path="notifications" element={<ColdCallerNotificationsPage />} />
           <Route path="chat" element={<ColdCallerChatPage />} />
         </Route>
@@ -177,6 +185,8 @@ export default function AppRouter() {
         >
           <Route index element={<AgencyDashboard />} />
           <Route path="contacts" element={<AgencyContactsPage />} />
+          <Route path="call-mode" element={<CallModePage />} />
+          <Route path="callbacks" element={<CallModePage mode="callbacks" key="callbacks" />} />
           <Route path="caller-workload" element={<AgencyCallerWorkloadPage />} />
           <Route path="dnc" element={<AgencyDncPage />} />
           <Route path="excel-files" element={<AgencyExcelFilesPage />} />
@@ -185,6 +195,7 @@ export default function AppRouter() {
           <Route path="appointments" element={<AgencyAppointmentsPage />} />
           <Route path="leads" element={<AgencyLeadsPage />} />
           <Route path="leads/:id" element={<AgencyLeadDetailPage />} />
+          <Route path="deal-tracker" element={<DealTrackerPage role="agency" />} />
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
           <Route path="notifications" element={<AgencyNotificationsPage />} />
           <Route path="team" element={<AgencyTeamPage />} />

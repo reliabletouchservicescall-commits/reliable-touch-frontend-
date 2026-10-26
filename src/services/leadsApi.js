@@ -21,4 +21,6 @@ export const leadsApi = {
   history: (id) => axiosClient.get(`/leads/${id}/history`),
   // Admin: hand to agent / assign follow-up / change stage for many leads at once
   bulk: (data) => axiosClient.post('/leads/bulk', data),
+  // The lead's deal (Deal Tracker) — admin / the company working it
+  updateDeal: (id, data) => axiosClient.patch(`/leads/${id}/deal`, data),
 }

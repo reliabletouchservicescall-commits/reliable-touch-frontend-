@@ -307,3 +307,13 @@ button[data-lead-selected], div[role="button"][data-lead-selected] { border-colo
 }
 .feed-arrive { animation: feed-arrive 1600ms var(--ease-mac) both; }
 @media (prefers-reduced-motion: reduce) { .feed-arrive { animation: mac-fade 200ms ease both; } }
+
+/* Deal Tracker workflow canvas (flow-editor look): dotted grid, data flowing along the
+   arrows, a soft glow on the step a deal is at now */
+.flow-grid { background-image: radial-gradient(circle, rgb(17 17 17 / 0.13) 1px, transparent 1.2px); background-size: 22px 22px; }
+.dark .flow-grid { background-image: radial-gradient(circle, rgb(255 255 255 / 0.10) 1px, transparent 1.2px); }
+@keyframes flow-dots { to { stroke-dashoffset: -28; } }
+.flow-dots { stroke-dasharray: 2 26; animation: flow-dots 1.1s linear infinite; }
+@keyframes node-glow { 0%, 100% { box-shadow: 0 0 0 0 rgb(245 158 11 / 0.0), 0 12px 30px -16px rgb(245 158 11 / 0.6); } 50% { box-shadow: 0 0 0 6px rgb(245 158 11 / 0.15), 0 12px 30px -16px rgb(245 158 11 / 0.6); } }
+.node-glow { animation: node-glow 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .flow-dots, .node-glow { animation: none; } }

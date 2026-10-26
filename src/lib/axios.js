@@ -64,8 +64,14 @@ axiosClient.interceptors.response.use(
       return axiosClient(original)
     } catch (err) {
       processQueue(err, null)
-      clearAuth()
-      window.location.href = '/select-role'
+      // Only sign out when the server actually refused the refresh token. A dropped
+      // connection, a slow network or the server restarting just fails this one request —
+      // the next one tries again — instead of throwing the person out of the app.
+      const refused = [401, 403].includes(err.response?.status)
+      if (refused) {
+        clearAuth()
+        window.location.href = '/select-role'
+      }
       return Promise.reject(err)
     } finally {
       isRefreshing = false

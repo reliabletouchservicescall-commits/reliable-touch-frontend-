@@ -14,6 +14,7 @@ import ContactCallHistory from '../contacts/ContactCallHistory'
 import LeadCallButton from './LeadCallButton'
 import LeadAppointments from '../appointments/LeadAppointments'
 import LeadHistory from './LeadHistory'
+import LeadDealCard from './LeadDealCard'
 import { useLeadPresence, reportActivity, onLeadEvent } from '../../lib/livePresence'
 import {
   LeadStatusBadge, LeadSourceBadge, ListingBadge, ListingFields, PropertyFromContact, FollowUpComments,
@@ -1074,6 +1075,12 @@ export default function LeadDetailScreen({
                   </button>
                 )}
               </form>
+
+              {/* The deal (Deal Tracker): admin and the company working the lead */}
+              {['admin', 'agency'].includes(currentUserRole)
+                && (lead.assignedAgent || lead.agencyId || ['still_negotiating', 'listed', 'rented_out', 'sold'].includes(lead.status) || lead.deal?.updatedAt) && (
+                <LeadDealCard lead={lead} isAdmin={currentUserRole === 'admin'} onSaved={setLead} />
+              )}
 
               {!isPanel && appointmentsEl}
 

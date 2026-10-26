@@ -175,15 +175,16 @@ export function useCallFlow(invalidateKeys = []) {
     }
   }, [userId])
 
-  const saveOutcome = useCallback(async ({ outcome, notes }) => {
+  // callbackAt (optional) — when the owner asked to be called back (Callback requested)
+  const saveOutcome = useCallback(async ({ outcome, notes, callbackAt }) => {
     const call = activeCall
     if (!call) throw new Error('No call in progress')
     const logId = await resolveLogId(call)
     let id = logId
     if (logId) {
-      await callLogsApi.update(logId, { outcome, notes: notes || undefined })
+      await callLogsApi.update(logId, { outcome, notes: notes || undefined, callbackAt: callbackAt ?? undefined })
     } else {
-      const res = await callLogsApi.create({ contactId: call.contact._id, outcome, notes: notes || undefined, calledAt: call.startedAt, leadId: call.leadId ?? undefined })
+      const res = await callLogsApi.create({ contactId: call.contact._id, outcome, notes: notes || undefined, calledAt: call.startedAt, leadId: call.leadId ?? undefined, callbackAt: callbackAt ?? undefined })
       id = res.data?.data?.callLog?._id ?? null
     }
     refresh()

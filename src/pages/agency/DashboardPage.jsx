@@ -12,6 +12,10 @@ import { useTheme } from '../../context/ThemeContext'
 import { agenciesApi } from '../../services/agenciesApi'
 import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
 import {
+  DashboardHeader, FunnelStrip, NeedsAttention, OnTheFloor, LiveActivity, LeadTemperature, LeadingThisMonth, SourcesReport,
+  useLiveFloor, useLiveOverview, useAttentionItems, useNow,
+} from '../../components/dashboard/LiveOps'
+import {
   Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, TemperatureDonut, IntentBars,
   TrendChart, ChartLegend, CallsByHourChart, ProvincePanel, TodaysTasks, RecentActivity, PhotoCard,
   CallOutcomes, UpcomingVisits, CORAL, CORAL_3, STATUS_COLORS, STATUS_LABEL,
@@ -19,7 +23,10 @@ import {
 
 // The company dashboard — same look and motion as the admin command centre, scoped by
 // GET /reports/agency-overview: a company manager sees the whole company and the team
-// table, an agent sees only their own book and where they stand.
+// table, an agent sees only their own book and where they stand. A manager also gets the
+// live board admin has, for their own company (GET /live/*, agencyLive.service.js): who in
+// the team is working right now and who hasn't today, the live feed, what needs them, and
+// what happens to the leads Reliable Touch gave them against the ones they found.
 
 const OWN_SOURCE = 'agency_self_sourced'
 const RT_SOURCE = 'reliable_touch'
@@ -339,6 +346,14 @@ export default function AgencyDashboard() {
     refetch().finally(() => { freshRef.current = false })
   }
 
+  // Live board (managers)
+  const [period, setPeriod] = useState(() => { try { return localStorage.getItem('rt-dash-period') || 'month' } catch { return 'month' } })
+  const choosePeriod = (p) => { setPeriod(p); try { localStorage.setItem('rt-dash-period', p) } catch { /* private mode */ } }
+  const tick = useNow(15_000)
+  const { data: floor, isLoading: floorLoading } = useLiveFloor(isManager)
+  const { data: live, isLoading: liveLoading } = useLiveOverview(isManager)
+  const attention = useAttentionItems(live, floor, tick, 'agency')
+
   const k = o?.kpis
   const you = isManager ? 'your team' : 'you'
   const kpiCards = useMemo(() => [
@@ -365,11 +380,34 @@ export default function AgencyDashboard() {
   }
 
   return (
-    <div className="p-4 sm:p-6 xl:p-8">
-      <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
+    <div className="relative p-4 sm:p-6 xl:p-8 space-y-6">
+      {isManager && (
+        <>
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[320px] overflow-hidden">
+            <span className="aurora w-[520px] h-[240px] -top-24 left-[4%] bg-[#F95C4B]/18 dark:bg-[#F95C4B]/14" />
+            <span className="aurora w-[420px] h-[200px] -top-16 right-[8%] bg-[#8B5CF6]/14 dark:bg-[#8B5CF6]/10" style={{ animationDelay: '-9s', animationDuration: '28s' }} />
+            <span className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[#FAFAF9] dark:to-[#0B0B0B]" />
+          </div>
+          <DashboardHeader user={user} floor={floor} needsCount={liveLoading ? null : attention.length} period={period} onPeriod={choosePeriod} scope="agency" company={live?.company ?? agency?.name} />
+          <div className="relative"><FunnelStrip period={period} /></div>
+          <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+            <NeedsAttention items={attention} loading={liveLoading} />
+            <OnTheFloor floor={floor} loading={floorLoading} now={tick} scope="agency" />
+          </div>
+          <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+            <LiveActivity scope="agency" />
+            <div className="space-y-6">
+              <LeadTemperature temperature={live?.temperature} scope="agency" />
+              <LeadingThisMonth leaders={live?.leaders} scope="agency" />
+            </div>
+          </div>
+          <div className="relative"><SourcesReport sources={live?.sources} /></div>
+        </>
+      )}
+      <div className="relative grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
         {/* ── Main column ─────────────────────────────────────────────── */}
         <div className="space-y-6 min-w-0">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+          {!isManager && <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
             <Hero
               user={user}
               now={now}
@@ -382,7 +420,7 @@ export default function AgencyDashboard() {
               ]}
             />
             {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o.milestone} to="/agency/leaderboard" />}
-          </div>
+          </div>}
 
           {isError && !o && <ErrorBanner onRetry={() => refetch()} />}
 
@@ -486,6 +524,7 @@ export default function AgencyDashboard() {
 
         {/* ── Right rail ──────────────────────────────────────────────── */}
         <aside className="space-y-6 min-w-0">
+          {isManager && (!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o.milestone} to="/agency/leaderboard" />)}
           <Card delay={120} className="p-5">
             <CardTitle
               title="Today's tasks"

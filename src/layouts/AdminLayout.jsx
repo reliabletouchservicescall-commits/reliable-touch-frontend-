@@ -26,6 +26,7 @@ import {
   Shield,
   Briefcase,
   Trophy,
+  Handshake,
   BarChart2,
   ShieldCheck,
   Trash2,
@@ -47,6 +48,7 @@ const NAV = [
       { label: 'Performance', icon: Trophy, to: '/admin/performance' },
       { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
       { label: 'Reports', icon: BarChart2, to: '/admin/reports' },
+      { label: 'Deal Tracker', icon: Handshake, to: '/admin/deal-tracker' },
     ],
   },
   {

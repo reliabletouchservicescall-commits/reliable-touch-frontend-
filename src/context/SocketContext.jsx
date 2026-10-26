@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { Flame, Trophy, MessageSquare, PhoneCall, PencilLine, Sparkles, Repeat } from 'lucide-react'
+import { Flame, Trophy, MessageSquare, PhoneCall, PencilLine, Sparkles, Repeat, Heart } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { connectSocket, disconnectSocket, getSocket } from '../lib/socket'
 import { attachPresence } from '../lib/livePresence'
@@ -116,6 +116,12 @@ export function SocketProvider({ children }) {
           onClick: () => { window.history.pushState({}, '', url); window.dispatchEvent(new PopStateEvent('popstate')) },
         },
       })
+    })
+
+    // Someone said thanks for work you did on a lead
+    socket.on('thanks', ({ title, message } = {}) => {
+      toast(title ?? 'Someone said thanks', { description: message, icon: <Heart className="w-4 h-4 text-[#F43F5E] fill-current" />, duration: 7000 })
+      qc.invalidateQueries({ queryKey: ['notifications'] })
     })
 
     // A cold caller (other than you) just landed a hot lead — live, competitive nudge.

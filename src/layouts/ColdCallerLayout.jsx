@@ -18,6 +18,10 @@ import {
   Clock,
   FileText,
   Trophy,
+  PhoneOutgoing,
+  AlarmClock,
+  Handshake,
+  Award,
 } from 'lucide-react'
 import logo from '../assets/logo-reliable-touch.png'
 import { useTheme } from '../context/ThemeContext'
@@ -27,6 +31,7 @@ import NotificationBell from '../components/notifications/NotificationBell'
 import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
 import ChatWidget from '../components/chat/ChatWidget'
 import { useSocket } from '../context/SocketContext'
+import { CallModeBadge } from '../lib/useCallMode'
 
 const NAV = [
   {
@@ -34,11 +39,14 @@ const NAV = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/cold-caller', end: true },
       { label: 'My Leads', icon: FileText, to: '/cold-caller/leads' },
+      { label: 'Deal Tracker', icon: Handshake, to: '/cold-caller/deal-tracker' },
     ],
   },
   {
     group: 'My Work',
     items: [
+      { label: 'Call mode', icon: PhoneOutgoing, to: '/cold-caller/call-mode', callMode: true },
+      { label: 'Callbacks', icon: AlarmClock, to: '/cold-caller/callbacks', callMode: 'callbacks' },
       { label: 'My Contacts', icon: Users, to: '/cold-caller/contacts' },
       { label: 'Call Logs', icon: PhoneCall, to: '/cold-caller/call-logs' },
       { label: 'Appointments', icon: CalendarCheck, to: '/cold-caller/appointments' },
@@ -47,6 +55,7 @@ const NAV = [
   {
     group: 'Performance',
     items: [
+      { label: 'My progress', icon: Award, to: '/cold-caller/progress' },
       { label: 'Leaderboard', icon: Trophy, to: '/cold-caller/leaderboard' },
     ],
   },
@@ -70,7 +79,7 @@ function PendingBadge() {
   )
 }
 
-function NavItem({ icon: Icon, label, to, end, pending, collapsed, onClick, hasBadge }) {
+function NavItem({ icon: Icon, label, to, end, pending, collapsed, onClick, hasBadge, callMode }) {
   const { chatUnread } = useSocket()
   return (
     <NavLink
@@ -87,6 +96,7 @@ function NavItem({ icon: Icon, label, to, end, pending, collapsed, onClick, hasB
     >
       <div className="relative flex-shrink-0">
         <Icon className={`w-[18px] h-[18px] ${collapsed ? 'mx-auto' : ''}`} strokeWidth={1.75} />
+        {callMode && collapsed && <CallModeBadge collapsed mode={callMode === 'callbacks' ? 'callbacks' : 'all'} />}
         {hasBadge && chatUnread > 0 && collapsed && (
           <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">
             {chatUnread > 9 ? '9+' : chatUnread}
@@ -96,6 +106,7 @@ function NavItem({ icon: Icon, label, to, end, pending, collapsed, onClick, hasB
       {!collapsed && (
         <span className="flex-1 truncate flex items-center gap-2">
           {label}
+          {callMode && <CallModeBadge mode={callMode === 'callbacks' ? 'callbacks' : 'all'} />}
           {hasBadge && chatUnread > 0 ? (
             <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#F95C4B] text-white text-[9px] font-bold flex items-center justify-center">
               {chatUnread > 99 ? '99+' : chatUnread}
