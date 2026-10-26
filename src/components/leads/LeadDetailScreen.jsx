@@ -13,6 +13,8 @@ import { chatApi } from '../../services/chatApi'
 import ContactCallHistory from '../contacts/ContactCallHistory'
 import LeadCallButton from './LeadCallButton'
 import LeadAppointments from '../appointments/LeadAppointments'
+import LeadHistory from './LeadHistory'
+import { useLeadPresence, reportActivity, onLeadEvent } from '../../lib/livePresence'
 import {
   LeadStatusBadge, LeadSourceBadge, ListingBadge, ListingFields, PropertyFromContact, FollowUpComments,
   Field, inputCls, LEAD_STATUS_META, getApiErrorMessage, AgentOrAgencyPicker,
@@ -460,7 +462,27 @@ export default function LeadDetailScreen({
     })
   }, [initialLead]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function setField(k, v) { dirtyRef.current.add(k); setForm((f) => ({ ...f, [k]: v })) }
+  // Live: admins see "viewing / editing <lead>" on their floor; changes by anyone else
+  // refresh this screen and say who made them
+  useLeadPresence(lead)
+  const [liveNote, setLiveNote] = useState(null)
+  useEffect(() => onLeadEvent((event, p) => {
+    if (event !== 'lead:changed' || p?.leadId !== lead._id || p.byId === currentUserId) return
+    qc.invalidateQueries({ queryKey: ['lead', lead._id] })
+    if (invalidateQueryKey) qc.invalidateQueries({ queryKey: invalidateQueryKey })
+    setLiveNote(`${p.byName ?? 'Someone'} just ${p.type === 'comment' ? 'commented' : p.type === 'call' ? 'logged a call' : 'updated this lead'}`)
+  }), [lead._id, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!liveNote) return undefined
+    const t = setTimeout(() => setLiveNote(null), 6000)
+    return () => clearTimeout(t)
+  }, [liveNote])
+
+  function setField(k, v) {
+    if (dirtyRef.current.size === 0) reportActivity('editing', { leadId: lead._id, leadName: lead.landlordName })
+    dirtyRef.current.add(k)
+    setForm((f) => ({ ...f, [k]: v }))
+  }
   function has(field) { return editableFields.has(field) }
 
   const saveMut = useMutation({
@@ -469,6 +491,7 @@ export default function LeadDetailScreen({
       qc.invalidateQueries({ queryKey: invalidateQueryKey })
       toast.success('Lead updated')
       dirtyRef.current.clear()
+      reportActivity('viewing', { leadId: lead._id, leadName: lead.landlordName })
       setLead(res.data.data.lead)
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Failed to update lead')),
@@ -512,28 +535,6 @@ export default function LeadDetailScreen({
   const commentCount = lead.followUpComments?.length ?? 0
   const initials = (lead.landlordName ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
 
-  const statusHistoryCard = historyCount > 0 ? (
-    <InfoCard icon={History} title="Status History">
-      <div className="p-4 space-y-2.5">
-        {[...lead.statusHistory].reverse().map((h, i) => {
-          const changer = resolveUser(h.changedBy)
-          return (
-            <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-              <div className="flex-shrink-0 mt-0.5"><LeadStatusBadge status={h.status} /></div>
-              <div className="min-w-0 flex-1">
-                {h.reason && <p className="text-sm text-[#111111] dark:text-white leading-relaxed">"{h.reason}"</p>}
-                <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] mt-1">
-                  {changer ? `${changer.firstName} ${changer.lastName}` : 'System'}
-                  {h.changedAt && ` · ${format(new Date(h.changedAt), 'd MMM yyyy, HH:mm')}`}
-                </p>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </InfoCard>
-  ) : null
-
   const appointmentsEl = (
     <LeadAppointments
       lead={lead}
@@ -557,7 +558,7 @@ export default function LeadDetailScreen({
     { key: 'details', label: 'Overview', icon: FileText },
     { key: 'comments', label: 'Activity & Comments', icon: MessagesSquare, count: commentCount },
     { key: 'appointments', label: 'Appointments', icon: CalendarCheck },
-    { key: 'history', label: 'History', icon: History, count: historyCount },
+    { key: 'history', label: 'History & audit', icon: History, count: historyCount },
     { key: 'calls', label: 'Call Logs', icon: PhoneCall },
   ]
 
@@ -721,6 +722,7 @@ export default function LeadDetailScreen({
         <div className="flex gap-0.5">
           {[
             { key: 'details', label: 'Details', icon: FileText },
+            { key: 'history', label: 'History & audit', icon: History },
             { key: 'calls', label: 'Call Logs', icon: PhoneCall },
           ].map((t) => {
             const TIcon = t.icon
@@ -745,6 +747,15 @@ export default function LeadDetailScreen({
 
       )}
 
+      {liveNote && (
+        <div className="relative z-20 flex justify-center -mb-9 pointer-events-none">
+          <span className="selection-bar-in mt-2 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full liquid-glass-solid text-xs font-semibold text-[#111111] dark:text-white shadow-lg">
+            <span className="relative flex w-2 h-2"><span className="absolute inset-0 rounded-full bg-[#10B981] animate-ping opacity-60" /><span className="relative w-2 h-2 rounded-full bg-[#10B981]" /></span>
+            {liveNote}
+          </span>
+        </div>
+      )}
+
       {/* Content */}
       <div className={`flex-1 overflow-y-auto bg-[#FAFAF9] dark:bg-[#0B0B0B] ${isPanel ? 'px-5 py-5' : 'px-5 sm:px-8 py-6'}`}>
         {tab === 'comments' ? (
@@ -752,8 +763,8 @@ export default function LeadDetailScreen({
         ) : tab === 'appointments' ? (
           <div key="appointments" className="lead-panel-swap">{appointmentsEl}</div>
         ) : tab === 'history' ? (
-          <div key="history" className="lead-panel-swap">
-            {statusHistoryCard ?? <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] text-center py-10">No status changes recorded yet.</p>}
+          <div key="history" className={isPanel ? 'lead-panel-swap' : 'lead-panel-swap max-w-3xl mx-auto'}>
+            <LeadHistory leadId={lead._id} />
           </div>
         ) : tab === 'calls' ? (
           <div className="max-w-3xl mx-auto">
@@ -1064,7 +1075,6 @@ export default function LeadDetailScreen({
                 )}
               </form>
 
-              {!isPanel && statusHistoryCard}
               {!isPanel && appointmentsEl}
 
               <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">

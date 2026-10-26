@@ -37,6 +37,11 @@ export const FOCUS_LABELS = {
   no_agent: 'Not with an agent yet',
   new_week: 'New this week',
   closed_month: 'Closed this month',
+  warmed_week: 'Cold → Warm this week',
+  hot_week: 'Turned Hot this week',
+  auto_hot_week: 'Turned Hot by the system this week',
+  missed_callbacks: 'Missed callbacks',
+  agent_silent: 'Agent silent 48h+',
 }
 
 export function useLeadInsights(scopeParams = {}) {

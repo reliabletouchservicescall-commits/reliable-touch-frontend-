@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format, isPast, differenceInDays } from 'date-fns'
@@ -25,6 +25,9 @@ import {
 } from '../../components/leads/LeadsHub'
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
 import { AdminLeadDetail } from './LeadDetailPage'
+import {
+  InsightStrip, SmartViews, ViewToggle, useLeadsView, SelectBox, BulkBar, BulkDialog, LeadListTable,
+} from '../../components/leads/LeadsWorkbench'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
@@ -672,7 +675,7 @@ function DeleteDialog({ lead, onClose, onDeleted }) {
 
 // One lead as a card — the list shows three across on wide screens. A div (not a button)
 // because the quick follow-up date and delete controls inside it are buttons themselves.
-function LeadCard({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved, rowProps, index }) {
+function LeadCard({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved, rowProps, index, selected, selecting, onSelect }) {
   const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
   const agentUser  = resolveUser(lead.assignedAgent)
   const agency     = resolveAgency(lead.agencyId)
@@ -691,7 +694,8 @@ function LeadCard({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved, rowP
       className={[
         'mac-in group relative h-full flex flex-col text-left rounded-2xl border p-5 cursor-pointer transition-all duration-200',
         'hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F95C4B]/40',
-        followedUpByMeToday
+        selected ? 'bg-[#F95C4B]/[0.05] dark:bg-[#F95C4B]/[0.08] border-[#F95C4B]/60 ring-2 ring-[#F95C4B]/15' : '',
+        selected ? '' : followedUpByMeToday
           ? 'bg-[#10B981]/[0.05] dark:bg-[#10B981]/[0.07] border-[#10B981]/40 animate-glow-pulse-ring'
           : followedUpToday
             ? 'bg-[#10B981]/[0.04] dark:bg-[#10B981]/[0.06] border-[#10B981]/40'
@@ -701,6 +705,9 @@ function LeadCard({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved, rowP
     >
       {/* Landlord, status, place */}
       <div className="flex items-start gap-3">
+        <div className={`pt-0.5 transition-all duration-200 ${selecting || selected ? 'w-[18px] opacity-100' : 'w-0 opacity-0 group-hover:w-[18px] group-hover:opacity-100'}`}>
+          <SelectBox checked={Boolean(selected)} onChange={onSelect} />
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-bold text-[#111111] dark:text-white truncate max-w-full" title={lead.landlordName}>{lead.landlordName}</h3>
@@ -816,10 +823,26 @@ export default function LeadsPage() {
   const [agency,        setAgency]      = useState(null) // { value: agencyId | 'none', label }
   const [drawer,        setDrawer]      = useState(null)
   const [toDelete,      setToDelete]    = useState(null)
+  const [view,          setView]        = useLeadsView() // 'cards' (3 a row) | 'list'
+  const [selected,      setSelected]    = useState(() => new Set())
+  const [bulk,          setBulk]        = useState(null) // 'agent' | 'follow_up' | 'stage'
+
+  // ?new=1 (the dashboard's "Add lead") opens the new-lead form straight away
+  const [urlParams, setUrlParams] = useSearchParams()
+  // ?focus=<smart view> (links from the dashboard's "Needs your attention") opens that view
+  useEffect(() => {
+    const wantNew = urlParams.get('new') === '1'
+    const wantFocus = urlParams.get('focus')
+    if (!wantNew && !wantFocus) return
+    if (wantNew) setDrawer({ mode: 'create' })
+    if (wantFocus && FOCUS_LABELS[wantFocus]) setFocus(wantFocus)
+    setUrlParams((prev) => { const n = new URLSearchParams(prev); n.delete('new'); n.delete('focus'); return n }, { replace: true })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const debouncedSearch = useDebounce(search)
 
-  useEffect(() => { /* reset page if needed */ }, [debouncedSearch, statusFilter, listingTypeFilter, callerFilter, fumFilter, followedUpFilter, hasFollowUpFilter, hasCommentFilter, createdFrom, createdTo, sort])
+  // A different set of leads on screen starts a fresh selection
+  useEffect(() => { setSelected(new Set()) }, [debouncedSearch, statusFilter, listingTypeFilter, callerFilter, fumFilter, followedUpFilter, hasFollowUpFilter, hasCommentFilter, createdFrom, createdTo, sort, focus, place, agency])
 
   // Shared by the leads query and the status-tab counts below — everything EXCEPT status
   // itself, so both always reflect "what am I currently filtering by" identically.
@@ -890,6 +913,14 @@ export default function LeadsPage() {
     setCreatedFrom(''); setCreatedTo(''); setSearch('')
   }
 
+  const toggleSelected = (id) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const toggleAllShown = () => setSelected((s) => {
+    const all = leads.length > 0 && leads.every((l) => s.has(l._id))
+    const n = new Set(s)
+    leads.forEach((l) => (all ? n.delete(l._id) : n.add(l._id)))
+    return n
+  })
+
   function handleFollowUpSaved() {
     qc.invalidateQueries({ queryKey: ['leads'] })
     qc.invalidateQueries({ queryKey: ['leads-stats'] })
@@ -909,7 +940,11 @@ export default function LeadsPage() {
 
         <CountTiles items={statusTileItems(statsData)} value={statusFilter} onChange={setStatus} />
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+        <InsightStrip insights={insights} focus={focus} onFocus={setFocus} />
+        <SmartViews insights={insights} focus={focus} onFocus={setFocus} />
+
+        {/* The list view takes the full width — its columns need the room */}
+        <div className={`grid grid-cols-1 gap-5 items-start ${view === 'list' ? '' : 'xl:grid-cols-[minmax(0,1fr)_300px]'}`}>
           <div className="space-y-4 min-w-0">
             <LeadSidePanel panel={leadPanel}>
               {(id) => (
@@ -985,7 +1020,8 @@ export default function LeadsPage() {
             onChange={({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) }}
           />
 
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] ml-auto">
+          <div className="ml-auto"><ViewToggle value={view} onChange={setView} /></div>
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A]">
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" />
             <select
               value={sort}
@@ -1015,12 +1051,25 @@ export default function LeadsPage() {
           </div>
         ) : !Array.isArray(leads) || leads.length === 0 ? (
           <EmptyState hasFilters={hasFilters} onAdd={() => setDrawer({ mode: 'create' })} />
+        ) : view === 'list' ? (
+          <LeadListTable
+            leads={leads}
+            selected={selected}
+            onToggle={toggleSelected}
+            onToggleAll={toggleAllShown}
+            onOpen={(id) => leadPanel.open(id)}
+            rowProps={(id) => leadRowProps(leadPanel, id)}
+            refreshing={refreshing}
+          />
         ) : (
           <div className={`grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 items-stretch transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
             {leads.map((lead, i) => (
               <LeadCard
                 key={lead._id}
                 index={i}
+                selected={selected.has(lead._id)}
+                selecting={selected.size > 0}
+                onSelect={() => toggleSelected(lead._id)}
                 lead={lead}
                 onOpen={() => leadPanel.open(lead._id)}
                 rowProps={leadRowProps(leadPanel, lead._id)}
@@ -1052,15 +1101,23 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          <LeadsRail role="admin" insights={insights} focus={focus} onFocus={setFocus} places="provinces" place={place} onPlace={setPlace}>
-            <AgencyBreakdown params={agencyCountParams} agency={agency} onAgency={setAgency} />
-          </LeadsRail>
+          {view !== 'list' && (
+            <LeadsRail role="admin" insights={insights} focus={focus} onFocus={setFocus} places="provinces" place={place} onPlace={setPlace}>
+              <AgencyBreakdown params={agencyCountParams} agency={agency} onAgency={setAgency} />
+            </LeadsRail>
+          )}
         </div>
       </div>
 
       {/* ── Drawers / panels ─────────────────────────────────────────────── */}
       {drawer?.mode === 'create' && (
         <CreateDrawer onClose={() => setDrawer(null)} onSaved={() => setDrawer(null)} />
+      )}
+
+      {/* ── Bulk actions ──────────────────────────────────────────────────── */}
+      <BulkBar count={selected.size} onAction={setBulk} onClear={() => setSelected(new Set())} />
+      {bulk && (
+        <BulkDialog kind={bulk} ids={[...selected]} onClose={() => setBulk(null)} onDone={() => { setBulk(null); setSelected(new Set()) }} />
       )}
 
       {/* ── Delete dialog ─────────────────────────────────────────────────── */}

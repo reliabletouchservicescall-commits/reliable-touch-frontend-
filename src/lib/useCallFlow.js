@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { callLogsApi } from '../services/callLogsApi'
 import { useAuthStore } from '../store/authStore'
+import { reportActivity, clearActivity } from './livePresence'
 
 /**
  * "Call → record the outcome" flow that holds up on every phone.
@@ -79,6 +80,15 @@ export function useCallFlow(invalidateKeys = []) {
   const createRef = useRef(null) // in-flight placeholder create: { startedAt, promise }
   const keysRef = useRef(invalidateKeys)
   keysRef.current = invalidateKeys
+
+  // Admin's live floor shows "On call 4:12" from the tap on Call until the outcome is saved
+  useEffect(() => {
+    if (activeCall) {
+      reportActivity('on_call', { since: activeCall.startedAt, leadId: activeCall.leadId ?? null, contactName: activeCall.contact?.name ?? null })
+    } else {
+      clearActivity('on_call')
+    }
+  }, [activeCall?.startedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(() => {
     keysRef.current.forEach((queryKey) => qc.invalidateQueries({ queryKey }))

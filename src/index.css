@@ -293,3 +293,17 @@ button[data-lead-selected], div[role="button"][data-lead-selected] { border-colo
   .glass-in, .glass-in-stagger > *, .file-row, .picker-in, .picker-row, .selection-bar-in { animation: mac-fade 200ms ease both; }
   .liquid-stretch, .aurora { animation: none; }
 }
+
+/* Typing dots in the follow-up chat */
+@keyframes typing-dot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.45; } 30% { transform: translateY(-4px); opacity: 1; } }
+.typing-dot { animation: typing-dot 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .typing-dot { animation: none; } }
+
+/* Live activity: a new row drops in at the top with a brief coral wash */
+@keyframes feed-arrive {
+  0%   { opacity: 0; transform: translateY(-10px); filter: blur(6px); background-color: rgb(249 92 75 / 0.12); }
+  60%  { opacity: 1; transform: none; filter: none; background-color: rgb(249 92 75 / 0.08); }
+  100% { background-color: transparent; }
+}
+.feed-arrive { animation: feed-arrive 1600ms var(--ease-mac) both; }
+@media (prefers-reduced-motion: reduce) { .feed-arrive { animation: mac-fade 200ms ease both; } }

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Flame, Trophy, MessageSquare, PhoneCall, PencilLine, Sparkles, Repeat } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { connectSocket, disconnectSocket, getSocket } from '../lib/socket'
+import { attachPresence } from '../lib/livePresence'
 import Fireworks from '../components/common/Fireworks'
 
 const SocketContext = createContext(null)
@@ -24,6 +25,7 @@ export function SocketProvider({ children }) {
     }
 
     const socket = connectSocket(accessToken)
+    attachPresence()
 
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket.id)
@@ -87,19 +89,23 @@ export function SocketProvider({ children }) {
       if (handler) handler({ byUserId })
     })
 
-    // Someone you share a company lead with just worked it (see leadActivity.js on the
-    // server) — refresh whatever shows that lead, and when it's news for you (an agent's
-    // change reaching their manager, or the manager's comment reaching the agent) say so.
+    // Someone worked a lead you're on (see leadActivity.js on the server — company leads,
+    // and notifyLeadParticipants for everyone involved: admin, its cold caller, its
+    // follow-up managers, its agent) — refresh whatever shows that lead, and when it's news
+    // for you, say so with a link straight to it.
     const LEAD_ACTIVITY_ICONS = { comment: MessageSquare, call: PhoneCall, updated: PencilLine, created: Sparkles, status: Repeat }
     socket.on('lead_activity', (a = {}) => {
       const keys = [
         ['lead', a.leadId], ['lead-comments', a.leadId], ['call-history'], ['agent-leads'], ['agent-leads-stats'],
         ['lead-insights'], ['agency-overview'], ['notifications'], ['agency-notifications-page'],
+        ['lead-history', a.leadId], ['leads'], ['admin-leads'],
       ]
       keys.forEach((queryKey) => qc.invalidateQueries({ queryKey }))
       if (a.quiet || !a.message) return
       const Icon = LEAD_ACTIVITY_ICONS[a.kind] ?? Sparkles
-      const url = `/agency/leads?lead=${a.leadId}`
+      const role = useAuthStore.getState().user?.role
+      const base = { admin: '/admin', cold_caller: '/cold-caller', follow_up_manager: '/follow-up-manager', agency: '/agency' }[role] ?? '/agency'
+      const url = `${base}/leads?lead=${a.leadId}`
       toast(a.title ?? `${a.byName} worked a lead`, {
         description: a.message,
         icon: <Icon className="w-4 h-4 text-[#F95C4B]" />,

@@ -43,13 +43,15 @@ const NAV = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
       { label: 'Leads', icon: TrendingUp, to: '/admin/leads' },
+      { label: 'Appointments', icon: CalendarCheck, to: '/admin/appointments' },
       { label: 'Performance', icon: Trophy, to: '/admin/performance' },
+      { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
+      { label: 'Reports', icon: BarChart2, to: '/admin/reports' },
     ],
   },
   {
     group: 'CRM',
     items: [
-      { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
       { label: 'Campaigns', icon: Megaphone, to: '/admin/campaigns' },
       { label: 'Call Logs', icon: PhoneCall, to: '/admin/call-logs' },
       { label: 'Caller Workload', icon: Users, to: '/admin/caller-workload' },
@@ -59,16 +61,9 @@ const NAV = [
   {
     group: 'Operations',
     items: [
-      { label: 'Appointments', icon: CalendarCheck, to: '/admin/appointments' },
       { label: 'Agents', icon: Briefcase, to: '/admin/agents' },
       { label: 'Commissions', icon: DollarSign, to: '/admin/commissions' },
       { label: 'Lease Renewals', icon: RotateCcw, to: '/admin/lease-renewals' },
-    ],
-  },
-  {
-    group: 'Analytics',
-    items: [
-      { label: 'Reports',           icon: BarChart2,  to: '/admin/reports' },
     ],
   },
   {
@@ -250,6 +245,10 @@ function Sidebar({ collapsed, onClose, isMobile }) {
 }
 
 export default function AdminLayout() {
+  const navigate = useNavigate()
+  const { onlineUsers } = useSocket()
+  const me = useAuthStore((st) => st.user?._id)
+  const othersOnline = [...(onlineUsers ?? [])].filter((id) => id !== me).length
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -310,6 +309,13 @@ export default function AdminLayout() {
           </button>
 
           <div className="flex-1" />
+
+          {/* Who else is in the system right now — the dashboard's floor has the detail */}
+          <button type="button" onClick={() => navigate('/admin')} title="People online now — see the dashboard's floor"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#10B981]/10 text-[#059669] dark:text-[#34D399] border border-[#10B981]/20 hover:bg-[#10B981]/15 transition-colors">
+            <span className="relative flex w-2 h-2"><span className="absolute inset-0 rounded-full bg-current animate-ping opacity-50" /><span className="relative w-2 h-2 rounded-full bg-current" /></span>
+            {othersOnline} online
+          </button>
 
           <span className="hidden sm:block text-[10px] uppercase tracking-widest font-medium text-[#6B7280] dark:text-[#A1A1AA]">
             Admin Portal

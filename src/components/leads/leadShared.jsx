@@ -11,6 +11,7 @@ import { areasApi } from '../../services/areasApi'
 import { contactsApi } from '../../services/contactsApi'
 import { leadsApi } from '../../services/leadsApi'
 import { DateField } from '../common/DateTimeFields'
+import { watchLead, unwatchLead, sendTyping, onLeadEvent } from '../../lib/livePresence'
 
 function useDebounce(value, delay = 300) {
   const [debounced, setDebounced] = useState(value)
@@ -53,9 +54,7 @@ export const AGENCY_STATUS_OPTIONS = [
 // Statuses a cold caller may pick when logging a new lead — matches the backend's
 // LEAD_STATUS_CALLER_OPTIONS. '' means "let the system decide from the follow-up date".
 export const LEAD_TEMPERATURE_OPTIONS = [
-  // "Auto" (status worked out from the follow-up date) is disabled along with automatic
-  // status on the server (Lead.model.js) — uncomment to bring it back.
-  // { value: '',     label: 'Auto', hint: 'Based on follow-up date', icon: Sparkles,            color: '#3B82F6' },
+  { value: '',     label: 'Auto', hint: 'Follows the follow-up date — and once Hot, it stays Hot', icon: Sparkles, color: '#3B82F6' },
   { value: 'cold', label: 'Cold', hint: 'Not urgent',               icon: ThermometerSnowflake, color: '#6B7280' },
   { value: 'warm', label: 'Warm', hint: 'Follow up soon',           icon: ThermometerSun,       color: '#F59E0B' },
   { value: 'hot',  label: 'Hot',  hint: 'Ready to move — urgent',   icon: Flame,                color: '#EF4444' },
@@ -1326,11 +1325,74 @@ export const COMMENT_AUTHOR_META = {
  * else (or even your own, after navigating away and back within the lead query's cache
  * window) would silently fail to appear until a hard refresh.
  */
+// "Nolo is typing…" — the people typing in this lead's chat right now
+function TypingIndicator({ typers }) {
+  if (!typers.length) return null
+  const names = typers.map((t) => t.name.split(' ')[0])
+  const text = names.length === 1 ? `${names[0]} is typing` : names.length === 2 ? `${names[0]} and ${names[1]} are typing` : `${names.length} people are typing`
+  const meta = COMMENT_AUTHOR_META[typers[0].role]
+  return (
+    <div className="mac-in flex items-end gap-2" style={{ '--d': '0ms' }}>
+      <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: meta?.color ?? '#9CA3AF' }}>
+        {typers[0].name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+      </div>
+      <div className="flex flex-col items-start">
+        <span className="text-[10px] font-semibold text-[#6B7280] dark:text-[#A1A1AA] mb-1 px-1">{text}…</span>
+        <div className="flex items-center gap-1 px-3.5 py-3 rounded-2xl rounded-tl-sm bg-[#F5F5F4] dark:bg-[#202020]">
+          {[0, 1, 2].map((i) => <span key={i} className="typing-dot w-1.5 h-1.5 rounded-full bg-[#9CA3AF]" style={{ animationDelay: `${i * 160}ms` }} />)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
   const qc = useQueryClient()
   const [text, setText] = useState('')
   const scrollRef = useRef(null)
   const wasAtBottomRef = useRef(true)
+
+  // Live typing: tell others watching this lead when I'm typing, and show who else is
+  const [typers, setTypers] = useState([]) // [{ userId, name, role, at }]
+  const typingRef = useRef({ on: false, timer: null })
+  useEffect(() => {
+    watchLead(lead._id)
+    const off = onLeadEvent((event, p) => {
+      if (p?.leadId !== lead._id) return
+      if (event === 'lead:changed') { qc.invalidateQueries({ queryKey: ['lead-comments', lead._id] }); return }
+      if (event !== 'lead:typing' || p.userId === currentUserId) return
+      setTypers((list) => {
+        const rest = list.filter((t) => t.userId !== p.userId)
+        return p.isTyping ? [...rest, { userId: p.userId, name: p.name, role: p.role, at: Date.now() }] : rest
+      })
+    })
+    // Someone whose "stopped typing" never arrived drops off after a few seconds
+    const sweep = setInterval(() => setTypers((list) => list.filter((t) => Date.now() - t.at < 8000)), 2000)
+    return () => {
+      off(); clearInterval(sweep)
+      if (typingRef.current.on) sendTyping(lead._id, lead.landlordName, false)
+      clearTimeout(typingRef.current.timer)
+      unwatchLead(lead._id)
+    }
+  }, [lead._id, currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function stopTyping() {
+    clearTimeout(typingRef.current.timer)
+    if (typingRef.current.on) { typingRef.current.on = false; sendTyping(lead._id, lead.landlordName, false) }
+  }
+  function onTyping(value) {
+    setText(value)
+    if (!value.trim()) { stopTyping(); return }
+    // (Re)announce every few seconds while typing, so viewers who join mid-sentence see it
+    const now = Date.now()
+    if (!typingRef.current.on || now - (typingRef.current.sentAt ?? 0) > 4000) {
+      typingRef.current.on = true
+      typingRef.current.sentAt = now
+      sendTyping(lead._id, lead.landlordName, true)
+    }
+    clearTimeout(typingRef.current.timer)
+    typingRef.current.timer = setTimeout(stopTyping, 3500)
+  }
 
   const commentsQueryKey = ['lead-comments', lead._id]
 
@@ -1368,12 +1430,13 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
     if (scrollRef.current && wasAtBottomRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [sorted.length])
+  }, [sorted.length, typers.length])
 
   function handleSubmit(e) {
     e.preventDefault()
     if (!text.trim() || mut.isPending) return
     wasAtBottomRef.current = true
+    stopTyping()
     mut.mutate()
   }
 
@@ -1471,13 +1534,15 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
             )
           })
         )}
+        <TypingIndicator typers={typers} />
       </div>
 
       {canComment ? (
         <form onSubmit={handleSubmit} className="flex items-end gap-2 p-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] flex-shrink-0">
           <textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => onTyping(e.target.value)}
+            onBlur={stopTyping}
             placeholder="Type a message…"
             rows={1}
             className="flex-1 px-4 py-2.5 rounded-full text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] resize-none outline-none focus:border-[#F95C4B] focus:ring-2 focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40 max-h-24"

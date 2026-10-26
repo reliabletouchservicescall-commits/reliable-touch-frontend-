@@ -11,7 +11,11 @@ import { useTheme } from '../../context/ThemeContext'
 import { contactRequestsApi } from '../../services/contactRequestsApi'
 import FinancePanel from '../../components/dashboard/FinancePanel'
 import {
-  Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, TemperatureDonut, IntentBars,
+  DashboardHeader, FunnelStrip, NeedsAttention, OnTheFloor, LiveActivity, LeadTemperature, LeadingThisMonth,
+  useLiveFloor, useLiveOverview, useAttentionItems, useNow,
+} from '../../components/dashboard/LiveOps'
+import {
+  Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Milestone, Kpi, Pipeline, TemperatureDonut, IntentBars,
   TrendChart, CallsByHourChart, ProvincePanel, TodaysTasks, RecentActivity, PhotoCard, STATUS_COLORS, STATUS_LABEL,
 } from '../../components/dashboard/DashboardKit'
 
@@ -221,6 +225,14 @@ export default function DashboardPage() {
     refetch().finally(() => { freshRef.current = false })
   }
 
+  // Live operations board (top of the page)
+  const [period, setPeriod] = useState(() => { try { return localStorage.getItem('rt-dash-period') || 'month' } catch { return 'month' } })
+  const choosePeriod = (p) => { setPeriod(p); try { localStorage.setItem('rt-dash-period', p) } catch { /* private mode */ } }
+  const tick = useNow(15_000)
+  const { data: floor, isLoading: floorLoading } = useLiveFloor()
+  const { data: live, isLoading: liveLoading } = useLiveOverview()
+  const attention = useAttentionItems(live, floor, tick)
+
   const k = o?.kpis
   const kpiCards = useMemo(() => [
     { icon: Users, label: 'Total leads', value: k?.totalLeads, sub: `${(k?.leadsThisWeek ?? 0).toLocaleString()} this week`, trend: k?.leadsWeekChangePct, to: '/admin/leads' },
@@ -231,18 +243,33 @@ export default function DashboardPage() {
   ], [k])
 
   return (
-    <div className="p-4 sm:p-6 xl:p-8">
-      <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
+    <div className="relative p-4 sm:p-6 xl:p-8 space-y-6">
+      {/* Slow aurora behind the header */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[320px] overflow-hidden">
+        <span className="aurora w-[520px] h-[240px] -top-24 left-[4%] bg-[#F95C4B]/18 dark:bg-[#F95C4B]/14" />
+        <span className="aurora w-[420px] h-[200px] -top-16 right-[8%] bg-[#10B981]/14 dark:bg-[#10B981]/10" style={{ animationDelay: '-9s', animationDuration: '28s' }} />
+        <span className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[#FAFAF9] dark:to-[#0B0B0B]" />
+      </div>
+
+      <DashboardHeader user={user} floor={floor} needsCount={liveLoading ? null : attention.length} period={period} onPeriod={choosePeriod} />
+      <div className="relative"><FunnelStrip period={period} /></div>
+
+      <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+        <NeedsAttention items={attention} loading={liveLoading} />
+        <OnTheFloor floor={floor} loading={floorLoading} now={tick} />
+      </div>
+
+      <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+        <LiveActivity />
+        <div className="space-y-6">
+          <LeadTemperature temperature={live?.temperature} />
+          <LeadingThisMonth leaders={live?.leaders} />
+        </div>
+      </div>
+
+      <div className="relative grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
         {/* ── Main column ─────────────────────────────────────────────── */}
         <div className="space-y-6 min-w-0">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-            <Hero user={user} now={now} stats={[
-              { icon: PhoneCall, label: 'calls today', value: k?.callsToday },
-              { icon: Flame, label: 'hot leads', value: k?.qualified },
-              { icon: CalendarCheck, label: 'visits today', value: k?.apptsToday },
-            ]} />
-            {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o?.milestone} />}
-          </div>
 
           {isError && !o && (
             <ErrorBanner onRetry={() => refetch()} />
@@ -315,6 +342,7 @@ export default function DashboardPage() {
 
         {/* ── Right rail ──────────────────────────────────────────────── */}
         <aside className="space-y-6 min-w-0">
+          {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o?.milestone} />}
           <Card delay={120} className="p-5">
             <CardTitle
               title="Today's tasks"

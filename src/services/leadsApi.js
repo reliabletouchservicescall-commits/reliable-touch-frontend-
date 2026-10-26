@@ -17,4 +17,8 @@ export const leadsApi = {
   // Companies + agents a lead can be handed to — admin and follow-up manager
   assignees: () => axiosClient.get('/leads/assignees'),
   getLinkPreview: (url) => axiosClient.get('/leads/link-preview', { params: { url } }),
+  // Full audit trail: status moves (who, from → to, why), field edits, calls, comments
+  history: (id) => axiosClient.get(`/leads/${id}/history`),
+  // Admin: hand to agent / assign follow-up / change stage for many leads at once
+  bulk: (data) => axiosClient.post('/leads/bulk', data),
 }
