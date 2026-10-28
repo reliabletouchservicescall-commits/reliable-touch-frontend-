@@ -15,10 +15,11 @@ import SidePanel from '../../components/common/SidePanel'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import { useAuthStore } from '../../store/authStore'
 import {
-  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
-  ActiveFilterChips, FetchBar, CardGridSkeleton, FOCUS_LABELS, LEAD_STATUS_TILES,
+  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, Panel, useLeadInsights,
+  ActiveFilterChips, FetchBar, FOCUS_LABELS, LEAD_STATUS_TILES,
 } from '../../components/leads/LeadsHub'
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
+import { InsightStrip, SmartViews, LeadListTable } from '../../components/leads/LeadsWorkbench'
 import { ColdCallerLeadDetail } from './LeadDetailPage'
 
 // Leads load in batches of 300 ("Load more" appends the next batch).
@@ -104,54 +105,6 @@ function ContactPickerPanel({ onClose, onPick }) {
 
 /* ─── Lead Card ──────────────────────────────────────────────────────────── */
 
-function LeadCard({ lead, onOpen, currentUserId, rowProps }) {
-  const areaObj = (lead.area && typeof lead.area === 'object') ? lead.area : null
-  return (
-    <button
-      {...rowProps}
-      onClick={onOpen}
-      className="w-full text-left bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#D1D5DB] dark:hover:border-[#3A3A3A] hover:shadow-card transition-all p-4"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{lead.landlordName}</p>
-          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5 truncate">{lead.propertyAddress}</p>
-        </div>
-        <LeadStatusBadge status={lead.status} />
-      </div>
-
-      {lead.listingType && <div className="mt-2"><ListingBadge listingType={lead.listingType} /></div>}
-
-      <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 mt-3">
-        <span className="flex items-center gap-1 text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
-          <Phone className="w-3 h-3 flex-shrink-0" />
-          {lead.phone}
-        </span>
-        {areaObj && (
-          <span className="flex items-center gap-1 text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
-            <MapPin className="w-3 h-3 flex-shrink-0" />
-            {areaObj.name}
-          </span>
-        )}
-        <span className="flex items-center gap-1 text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
-          <Calendar className="w-3 h-3 flex-shrink-0" />
-          {format(new Date(lead.createdAt), 'd MMM')}
-        </span>
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
-        <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} maxWidthClass="max-w-full" />
-      </div>
-
-      <div className="flex items-center justify-between mt-3">
-        <FollowUpChip date={lead.followUpDate} />
-        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B]">
-          View details <ChevronRight className="w-3 h-3" />
-        </span>
-      </div>
-    </button>
-  )
-}
 
 /* ─── Empty state ────────────────────────────────────────────────────────── */
 
@@ -293,7 +246,10 @@ export default function ColdCallerLeadsPage() {
 
         <CountTiles items={statusTileItems(statsData)} value={statusFilter} onChange={setStatusFilter} />
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+        <InsightStrip insights={insights} focus={focus} onFocus={setFocus} />
+        <SmartViews insights={insights} focus={focus} onFocus={setFocus} />
+
+        <div className="grid grid-cols-1 gap-5 items-start">
           <div className="space-y-4 min-w-0">
             <LeadSidePanel panel={leadPanel}>
               {(id) => (
@@ -354,15 +310,11 @@ export default function ColdCallerLeadsPage() {
         )}
 
         {isLoading ? (
-          <CardGridSkeleton count={6} />
+          <div className="space-y-2">{Array.from({ length: 8 }, (_, i) => <div key={i} className="shimmer h-[86px] rounded-2xl" />)}</div>
         ) : leads.length === 0 ? (
           <EmptyState hasFilters={hasFilters} onAdd={() => setPickerOpen(true)} />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
-            {leads.map((lead) => (
-              <LeadCard key={lead._id} lead={lead} onOpen={() => leadPanel.open(lead._id)} rowProps={leadRowProps(leadPanel, lead._id)} currentUserId={user?._id} />
-            ))}
-          </div>
+          <LeadListTable leads={leads} onOpen={(id) => leadPanel.open(id)} rowProps={(id) => leadRowProps(leadPanel, id)} refreshing={refreshing} />
         )}
 
         {!isLoading && leads.length > 0 && (
@@ -385,7 +337,6 @@ export default function ColdCallerLeadsPage() {
             </div>
           </div>
 
-          <LeadsRail role="cold_caller" insights={insights} focus={focus} onFocus={setFocus} places="areas" place={place} onPlace={setPlace} />
         </div>
       </div>
 

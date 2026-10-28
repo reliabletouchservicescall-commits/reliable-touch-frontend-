@@ -23,4 +23,11 @@ export const leadsApi = {
   bulk: (data) => axiosClient.post('/leads/bulk', data),
   // The lead's deal (Deal Tracker) — admin / the company working it
   updateDeal: (id, data) => axiosClient.patch(`/leads/${id}/deal`, data),
+  // Deal documents (Firebase): formData = { type, files[] }; onProgress(0–100)
+  uploadDealDocuments: (id, formData, onProgress) => axiosClient.post(`/leads/${id}/deal/documents`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 0,
+    onUploadProgress: (e) => onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0),
+  }),
+  removeDealDocument: (id, docId) => axiosClient.delete(`/leads/${id}/deal/documents/${docId}`),
 }

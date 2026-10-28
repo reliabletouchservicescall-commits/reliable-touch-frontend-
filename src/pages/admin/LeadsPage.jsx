@@ -20,13 +20,13 @@ import {
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 import { useAuthStore } from '../../store/authStore'
 import {
-  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
-  ActiveFilterChips, FetchBar, AgencyFilter, AgencyBreakdown, FOCUS_LABELS, LEAD_STATUS_TILES,
+  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, Panel, useLeadInsights,
+  ActiveFilterChips, FetchBar, AgencyFilter, FOCUS_LABELS, LEAD_STATUS_TILES,
 } from '../../components/leads/LeadsHub'
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
 import { AdminLeadDetail } from './LeadDetailPage'
 import {
-  InsightStrip, SmartViews, ViewToggle, useLeadsView, SelectBox, BulkBar, BulkDialog, LeadListTable,
+  InsightStrip, SmartViews, SelectBox, BulkBar, BulkDialog, LeadListTable,
 } from '../../components/leads/LeadsWorkbench'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
@@ -673,109 +673,6 @@ function DeleteDialog({ lead, onClose, onDeleted }) {
 
 /* ─── Lead Row ────────────────────────────────────────────────────────────── */
 
-// One lead as a card — the list shows three across on wide screens. A div (not a button)
-// because the quick follow-up date and delete controls inside it are buttons themselves.
-function LeadCard({ lead, onOpen, onDelete, currentUserId, onFollowUpSaved, rowProps, index, selected, selecting, onSelect }) {
-  const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
-  const agentUser  = resolveUser(lead.assignedAgent)
-  const agency     = resolveAgency(lead.agencyId)
-  const callerUser = resolveUser(lead.createdBy)
-  const followedUpToday = isLeadFollowedUpToday(lead)
-  const followedUpByMeToday = isLeadFollowedUpByMeToday(lead, currentUserId)
-  const stop = (e) => e.stopPropagation()
-
-  return (
-    <div
-      {...rowProps}
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); onOpen() } }}
-      className={[
-        'mac-in group relative h-full flex flex-col text-left rounded-2xl border p-5 cursor-pointer transition-all duration-200',
-        'hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F95C4B]/40',
-        selected ? 'bg-[#F95C4B]/[0.05] dark:bg-[#F95C4B]/[0.08] border-[#F95C4B]/60 ring-2 ring-[#F95C4B]/15' : '',
-        selected ? '' : followedUpByMeToday
-          ? 'bg-[#10B981]/[0.05] dark:bg-[#10B981]/[0.07] border-[#10B981]/40 animate-glow-pulse-ring'
-          : followedUpToday
-            ? 'bg-[#10B981]/[0.04] dark:bg-[#10B981]/[0.06] border-[#10B981]/40'
-            : 'bg-white dark:bg-[#181818] border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40',
-      ].join(' ')}
-      style={{ '--d': `${Math.min(index, 12) * 30}ms` }}
-    >
-      {/* Landlord, status, place */}
-      <div className="flex items-start gap-3">
-        <div className={`pt-0.5 transition-all duration-200 ${selecting || selected ? 'w-[18px] opacity-100' : 'w-0 opacity-0 group-hover:w-[18px] group-hover:opacity-100'}`}>
-          <SelectBox checked={Boolean(selected)} onChange={onSelect} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-bold text-[#111111] dark:text-white truncate max-w-full" title={lead.landlordName}>{lead.landlordName}</h3>
-            <LeadStatusBadge status={lead.status} />
-          </div>
-          {lead.propertyAddress && (
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate mt-1" title={lead.propertyAddress}>{lead.propertyAddress}</p>
-          )}
-          <div className="flex items-center gap-2 flex-wrap mt-1.5">
-            {lead.area?.name && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B]">
-                <MapPin className="w-3 h-3 flex-shrink-0" /> {lead.area.name}
-              </span>
-            )}
-            <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
-          </div>
-        </div>
-        <div onClick={stop} className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
-          <ActionBtn icon={Trash2} title="Delete" onClick={onDelete} variant="red" />
-        </div>
-      </div>
-
-      {/* People and dates */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-4">
-        <div className="flex items-center gap-1.5 min-w-0" title="Contact">
-          <Phone className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
-          <span className="text-xs text-[#111111] dark:text-white truncate">{contactObj?.name ?? lead.landlordName}</span>
-        </div>
-        <div className="flex items-center gap-1.5 min-w-0" title="Phone">
-          <span className="text-[11px] font-mono text-[#6B7280] dark:text-[#A1A1AA] truncate">{lead.phone ?? '—'}</span>
-        </div>
-        <div className="flex items-center gap-1.5 min-w-0" title="Cold caller">
-          <User className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
-          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">
-            {callerUser ? `${callerUser.firstName} ${callerUser.lastName}` : <i>Unknown caller</i>}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 min-w-0" title="Agent">
-          <Briefcase className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
-          <span className={`text-xs truncate ${agentUser || agency ? 'text-[#6B7280] dark:text-[#A1A1AA]' : 'italic text-[#9CA3AF]'}`}>
-            {agentUser ? `${agentUser.firstName} ${agentUser.lastName}` : agency ? agency.name : 'No agent yet'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 min-w-0" title="Created">
-          <Clock className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
-          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{format(new Date(lead.createdAt), 'd MMM yyyy')}</span>
-        </div>
-        <div className="flex items-center gap-1 min-w-0" title="Next follow-up" onClick={stop}>
-          <CalendarCheck className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
-          <FollowUpChip date={lead.followUpDate} />
-          <QuickFollowUpDateButton lead={lead} onSaved={onFollowUpSaved} />
-        </div>
-      </div>
-
-      {/* Latest follow-up note */}
-      <div className="mt-4 pt-3 border-t border-[#F1EFEC] dark:border-[#2A2A2A] flex-1">
-        <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} maxWidthClass="max-w-full" />
-      </div>
-
-      <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
-        <div className="min-w-0 text-xs">{lead.lastFollowUpBy ? <LastFollowUpByCell lead={lead} /> : <span className="text-[11px] text-[#9CA3AF]">No follow-up yet</span>}</div>
-        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B] group-hover:gap-1.5 transition-all flex-shrink-0">
-          View details <ChevronRight className="w-3.5 h-3.5" />
-        </span>
-      </div>
-    </div>
-  )
-}
 
 /* ─── Empty state ─────────────────────────────────────────────────────────── */
 
@@ -823,7 +720,6 @@ export default function LeadsPage() {
   const [agency,        setAgency]      = useState(null) // { value: agencyId | 'none', label }
   const [drawer,        setDrawer]      = useState(null)
   const [toDelete,      setToDelete]    = useState(null)
-  const [view,          setView]        = useLeadsView() // 'cards' (3 a row) | 'list'
   const [selected,      setSelected]    = useState(() => new Set())
   const [bulk,          setBulk]        = useState(null) // 'agent' | 'follow_up' | 'stage'
 
@@ -943,8 +839,8 @@ export default function LeadsPage() {
         <InsightStrip insights={insights} focus={focus} onFocus={setFocus} />
         <SmartViews insights={insights} focus={focus} onFocus={setFocus} />
 
-        {/* The list view takes the full width — its columns need the room */}
-        <div className={`grid grid-cols-1 gap-5 items-start ${view === 'list' ? '' : 'xl:grid-cols-[minmax(0,1fr)_300px]'}`}>
+        {/* The list takes the full width — its columns need the room */}
+        <div className="grid grid-cols-1 gap-5 items-start">
           <div className="space-y-4 min-w-0">
             <LeadSidePanel panel={leadPanel}>
               {(id) => (
@@ -1020,7 +916,7 @@ export default function LeadsPage() {
             onChange={({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) }}
           />
 
-          <div className="ml-auto"><ViewToggle value={view} onChange={setView} /></div>
+          <div className="ml-auto" />
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A]">
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" />
             <select
@@ -1046,12 +942,10 @@ export default function LeadsPage() {
         )}
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
-            {Array.from({ length: 9 }, (_, i) => <div key={i} className="shimmer h-[260px] rounded-2xl" />)}
-          </div>
+          <div className="space-y-2">{Array.from({ length: 8 }, (_, i) => <div key={i} className="shimmer h-[86px] rounded-2xl" />)}</div>
         ) : !Array.isArray(leads) || leads.length === 0 ? (
           <EmptyState hasFilters={hasFilters} onAdd={() => setDrawer({ mode: 'create' })} />
-        ) : view === 'list' ? (
+        ) : (
           <LeadListTable
             leads={leads}
             selected={selected}
@@ -1061,24 +955,6 @@ export default function LeadsPage() {
             rowProps={(id) => leadRowProps(leadPanel, id)}
             refreshing={refreshing}
           />
-        ) : (
-          <div className={`grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 items-stretch transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
-            {leads.map((lead, i) => (
-              <LeadCard
-                key={lead._id}
-                index={i}
-                selected={selected.has(lead._id)}
-                selecting={selected.size > 0}
-                onSelect={() => toggleSelected(lead._id)}
-                lead={lead}
-                onOpen={() => leadPanel.open(lead._id)}
-                rowProps={leadRowProps(leadPanel, lead._id)}
-                onDelete={() => setToDelete(lead)}
-                currentUserId={user?._id}
-                onFollowUpSaved={handleFollowUpSaved}
-              />
-            ))}
-          </div>
         )}
 
         {!isLoading && leads.length > 0 && (
@@ -1101,11 +977,6 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          {view !== 'list' && (
-            <LeadsRail role="admin" insights={insights} focus={focus} onFocus={setFocus} places="provinces" place={place} onPlace={setPlace}>
-              <AgencyBreakdown params={agencyCountParams} agency={agency} onAgency={setAgency} />
-            </LeadsRail>
-          )}
         </div>
       </div>
 

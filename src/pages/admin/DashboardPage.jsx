@@ -254,14 +254,14 @@ export default function DashboardPage() {
       <DashboardHeader user={user} floor={floor} needsCount={liveLoading ? null : attention.length} period={period} onPeriod={choosePeriod} />
       <div className="relative"><FunnelStrip period={period} /></div>
 
-      <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
-        <NeedsAttention items={attention} loading={liveLoading} />
-        <OnTheFloor floor={floor} loading={floorLoading} now={tick} />
-      </div>
-
-      <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
-        <LiveActivity />
-        <div className="space-y-6">
+      {/* Two columns; Live activity stretches to the right column's height — no gaps either side */}
+      <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6">
+        <div className="flex flex-col gap-6 min-w-0">
+          <NeedsAttention items={attention} loading={liveLoading} />
+          <LiveActivity fill />
+        </div>
+        <div className="space-y-6 self-start">
+          <OnTheFloor floor={floor} loading={floorLoading} now={tick} />
           <LeadTemperature temperature={live?.temperature} />
           <LeadingThisMonth leaders={live?.leaders} />
         </div>

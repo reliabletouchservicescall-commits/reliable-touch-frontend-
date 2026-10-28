@@ -390,13 +390,14 @@ export default function AgencyDashboard() {
           </div>
           <DashboardHeader user={user} floor={floor} needsCount={liveLoading ? null : attention.length} period={period} onPeriod={choosePeriod} scope="agency" company={live?.company ?? agency?.name} />
           <div className="relative"><FunnelStrip period={period} /></div>
-          <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
-            <NeedsAttention items={attention} loading={liveLoading} />
-            <OnTheFloor floor={floor} loading={floorLoading} now={tick} scope="agency" />
-          </div>
-          <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
-            <LiveActivity scope="agency" />
-            <div className="space-y-6">
+          {/* Two columns; Live activity stretches to the right column's height — no gaps either side */}
+          <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6">
+            <div className="flex flex-col gap-6 min-w-0">
+              <NeedsAttention items={attention} loading={liveLoading} />
+              <LiveActivity scope="agency" fill />
+            </div>
+            <div className="space-y-6 self-start">
+              <OnTheFloor floor={floor} loading={floorLoading} now={tick} scope="agency" />
               <LeadTemperature temperature={live?.temperature} scope="agency" />
               <LeadingThisMonth leaders={live?.leaders} scope="agency" />
             </div>

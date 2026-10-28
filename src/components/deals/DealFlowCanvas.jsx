@@ -3,6 +3,7 @@ import { format, isToday } from 'date-fns'
 import {
   PhoneCall, Sparkles, MessagesSquare, Flame, UserCheck, CalendarCheck, Home, KeyRound, Wallet, BadgePercent,
   Bell, MessageSquare, GitBranch, Trophy, XCircle, Minus, Plus, Maximize2, Check, Clock, Ban, X, TrendingUp, TrendingDown,
+  Paperclip,
 } from 'lucide-react'
 
 // One deal as a node workflow (n8n / Wati style): every step is a card on a dotted canvas,
@@ -149,6 +150,11 @@ function StepCard({ n, touches, selected, onSelect }) {
         <span className="min-w-0 flex-1 px-3 py-2 flex flex-col justify-center">
           <span className="flex items-center gap-1.5">
             <span className="text-[13px] font-bold text-[#111111] dark:text-white truncate">{s.label}</span>
+            {s.docs > 0 && (
+              <span title={`${s.docs} document${s.docs === 1 ? '' : 's'} uploaded`} className="ml-auto inline-flex items-center gap-0.5 px-1.5 py-px rounded-md text-[10px] font-bold text-white bg-[#10B981] flex-shrink-0">
+                <Paperclip className="w-2.5 h-2.5" />{s.docs}
+              </span>
+            )}
           </span>
           <span className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] truncate">
             {s.at ? when(s.at) : s.predictedAt ? `~ ${format(new Date(s.predictedAt), 'd MMM yyyy')}` : faded ? 'No record' : s.state === 'done' ? 'Date not recorded' : 'Not yet'}
@@ -270,6 +276,7 @@ function Inspector({ row, id, onClose }) {
           {step.by ? ` · ${step.by}` : ''}
         </p>
         {step.detail && <p className="mt-2 text-xs text-[#111111] dark:text-white">{step.detail}</p>}
+        {step.docs > 0 && <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#059669] dark:text-[#34D399]"><Paperclip className="w-3.5 h-3.5" /> {step.docs} document{step.docs === 1 ? '' : 's'} uploaded for this step</p>}
         <p className="mt-4 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF]">Sent during this step · {touches.length}</p>
         <ul className="mt-2 space-y-2">
           {touches.length === 0 && <li className="text-xs text-[#9CA3AF]">No notifications or messages.</li>}

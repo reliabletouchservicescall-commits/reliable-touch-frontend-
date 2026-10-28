@@ -15,6 +15,7 @@ import LeadCallButton from './LeadCallButton'
 import LeadAppointments from '../appointments/LeadAppointments'
 import LeadHistory from './LeadHistory'
 import LeadDealCard from './LeadDealCard'
+import { LeadHero, QuickActions, ActivityFeed, FirstCallCard, useLeadActivity, QUICK_REPLIES } from './LeadLive'
 import { useLeadPresence, reportActivity, onLeadEvent } from '../../lib/livePresence'
 import {
   LeadStatusBadge, LeadSourceBadge, ListingBadge, ListingFields, PropertyFromContact, FollowUpComments,
@@ -400,7 +401,9 @@ function InfoRow({ icon: Icon, label, value, href }) {
  * Full-page lead detail screen shared by every role (admin, cold caller, follow-up
  * manager, agency) — each role's thin wrapper page fetches the lead and passes its own
  * capability flags in; this component owns the layout, editing, status/delete dialogs,
- * the two tabs, and the chat-style comment thread.
+ * and the page itself: the journey hero (LeadLive), one-tap actions, the Follow-up chat
+ * beside the live activity column, and "More about this lead" (details form, appointments,
+ * deal, call logs, history) one section at a time. Panel and full page share the layout.
  */
 export default function LeadDetailScreen({
   lead: initialLead,
@@ -533,8 +536,19 @@ export default function LeadDetailScreen({
 
   const isPanel = variant === 'panel'
   const historyCount = lead.statusHistory?.length ?? 0
-  const commentCount = lead.followUpComments?.length ?? 0
-  const initials = (lead.landlordName ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+
+  // The live side: journey, who has it open, every open and change, read receipts
+  const { data: live, isLoading: liveLoading } = useLeadActivity(lead._id)
+  const [more, setMore] = useState(null) // the one "More about this lead" section that's open
+  const moreRef = useRef(null)
+  const openMore = (k) => { setMore(k); setTimeout(() => moreRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60) }
+  // A quick action saved the lead — take it, and keep the edit form in step so a later
+  // "Save changes" doesn't put the old follow-up date / agent back
+  const takeLead = (l) => {
+    setLead(l)
+    const fresh = formFromLead(l)
+    setForm((f) => ({ ...f, followUpDate: fresh.followUpDate, assignedAgent: fresh.assignedAgent, agencyId: fresh.agencyId }))
+  }
 
   const appointmentsEl = (
     <LeadAppointments
@@ -546,207 +560,103 @@ export default function LeadDetailScreen({
     />
   )
 
+  const events = (live?.timeline ?? [])
+    .filter((t) => ['assigned', 'status'].includes(t.type))
+    .map((t) => ({ id: t.id, at: t.at, text: `${t.who.me ? 'You' : t.who.name === 'System' ? 'The system' : t.who.name.split(' ')[0]} ${t.text}` }))
   const commentsEl = (
     <FollowUpComments
       lead={lead}
       currentUserId={currentUserId}
       canComment={canComment}
       onAdded={setLead}
+      seen={live?.seen ?? []}
+      events={events}
+      quickReplies={canComment ? QUICK_REPLIES[currentUserRole] ?? [] : []}
+      placeholder={currentUserRole === 'cold_caller' ? 'Add something you heard on the call…' : 'Write to everyone on this lead…'}
     />
   )
 
-  const PANEL_TABS = [
-    { key: 'details', label: 'Overview', icon: FileText },
-    { key: 'comments', label: 'Activity & Comments', icon: MessagesSquare, count: commentCount },
-    { key: 'appointments', label: 'Appointments', icon: CalendarCheck },
-    { key: 'history', label: 'History & audit', icon: History, count: historyCount },
-    { key: 'calls', label: 'Call Logs', icon: PhoneCall },
-  ]
+  const fum = resolveUser(lead.followUpManager) ?? resolveUser(lead.lastFollowUpBy)
+  const peopleEl = (
+    <InfoCard icon={User} title="Contact & team">
+      <InfoRow icon={Phone} label="Landlord phone" value={contact?.phone ?? lead.phone} href={(contact?.phone ?? lead.phone) ? `tel:${cleanPhone(contact?.phone ?? lead.phone)}` : undefined} />
+      {contact?.altPhone && <InfoRow icon={Phone} label="Alt phone" value={contact.altPhone} href={`tel:${cleanPhone(contact.altPhone)}`} />}
+      <InfoRow icon={Mail} label="Email" value={contact?.email ?? lead.email} href={(contact?.email ?? lead.email) ? `mailto:${contact?.email ?? lead.email}` : undefined} />
+      {area && <InfoRow icon={MapPin} label="Area" value={`${area.name}${area.region ? `, ${area.region}` : ''}`} />}
+      {creator && (
+        <div className="flex items-center gap-3 px-4 py-3">
+          <User className="w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA] flex-shrink-0" strokeWidth={1.75} />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">{lead.source === 'agency_self_sourced' ? 'Created by' : 'Cold caller'}</p>
+            <p className="text-sm text-[#111111] dark:text-white truncate">{creator._id === currentUserId ? 'You' : `${creator.firstName} ${creator.lastName}`}</p>
+          </div>
+          {chatBasePath && creator._id !== currentUserId && <ChatWithButton targetUser={creator} targetLabel="cold caller" lead={lead} chatBasePath={chatBasePath} />}
+        </div>
+      )}
+      {fum && <InfoRow icon={MessagesSquare} label="Follow-up" value={fum._id === currentUserId ? 'You' : `${fum.firstName} ${fum.lastName}`} />}
+      {assignedAgentUser ? (
+        <>
+          <AssignedAgentDetails agent={assignedAgentUser} agency={assignedAgency} assignedBy={assignedAgentByUser} assignedAt={lead.assignedAgentAt} />
+          {chatBasePath && assignedAgentUser._id !== currentUserId && (
+            <div className="px-4 py-2.5 flex justify-end"><ChatWithButton targetUser={assignedAgentUser} targetLabel="agent" lead={lead} chatBasePath={chatBasePath} /></div>
+          )}
+        </>
+      ) : assignedAgency ? (
+        <>
+          <InfoRow icon={Building2} label="Company" value={assignedAgency.name} />
+          {assignedAgency.contactPhone && <InfoRow icon={Phone} label="Company phone" value={assignedAgency.contactPhone} href={`tel:${cleanPhone(assignedAgency.contactPhone)}`} />}
+        </>
+      ) : (
+        <p className="px-4 py-3 text-sm text-[#6B7280] dark:text-[#A1A1AA] italic">No agent yet</p>
+      )}
+    </InfoCard>
+  )
 
-  const followUpDue = lead.followUpDate ? new Date(lead.followUpDate) : null
-  const followUpOverdue = followUpDue && isPast(followUpDue) && !isToday(followUpDue) && !['listed', 'rented_out', 'sold', 'lost'].includes(lead.status)
-  const summaryTiles = [
-    {
-      icon: CalendarClock, label: 'Next follow-up',
-      value: followUpDue ? format(followUpDue, 'd MMM yyyy') : 'Not set',
-      sub: followUpDue ? (isToday(followUpDue) ? 'Due today' : followUpOverdue ? 'Overdue' : formatDistanceToNow(followUpDue, { addSuffix: true })) : 'Set one below',
-      tone: followUpOverdue ? '#DC2626' : followUpDue && isToday(followUpDue) ? '#F59E0B' : '#F95C4B',
-    },
-    {
-      icon: CalendarCheck, label: 'Appointment',
-      value: lead.appointmentDate ? format(new Date(lead.appointmentDate), 'd MMM yyyy') : 'None booked',
-      sub: lead.appointmentDate ? (lead.appointmentTime || 'Time not set') : 'Book from Appointments',
-      tone: '#10B981',
-    },
-    {
-      icon: MessageCircle, label: 'Last follow-up',
-      value: lead.lastFollowUpAt ? formatDistanceToNow(new Date(lead.lastFollowUpAt), { addSuffix: true }) : 'Never',
-      sub: lead.lastFollowUpAt ? format(new Date(lead.lastFollowUpAt), 'd MMM, HH:mm') : 'No note yet',
-      tone: '#8B5CF6',
-    },
-    {
-      icon: Clock, label: 'Created',
-      value: format(new Date(lead.createdAt), 'd MMM yyyy'),
-      sub: creator ? `by ${creator.firstName} ${creator.lastName}` : format(new Date(lead.createdAt), 'HH:mm'),
-      tone: '#111111',
-    },
-  ]
+  const showDeal = ['admin', 'agency'].includes(currentUserRole)
+    && (lead.assignedAgent || lead.agencyId || ['still_negotiating', 'listed', 'rented_out', 'sold'].includes(lead.status) || lead.deal?.updatedAt)
+  const MORE = [
+    { key: 'details', label: 'Lead details', sub: canEdit ? 'Landlord, listing, dates — edit and save' : 'Landlord, listing and dates', icon: FileText },
+    { key: 'appointments', label: 'Appointments', sub: lead.appointmentDate ? `Next: ${format(new Date(lead.appointmentDate), 'd MMM')}${lead.appointmentTime ? `, ${lead.appointmentTime}` : ''}` : 'None booked yet', icon: CalendarCheck },
+    showDeal && { key: 'deal', label: 'Deal', sub: 'Tenant, rent, fees and payments', icon: Key },
+    { key: 'calls', label: 'Call logs', sub: 'Every call to the landlord', icon: PhoneCall },
+    { key: 'history', label: 'History & audit', sub: `${historyCount} status change${historyCount === 1 ? '' : 's'} and every edit`, icon: History },
+  ].filter(Boolean)
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {isPanel ? (
-        <div className="px-5 pt-3.5 pb-0 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          {/* Toolbar: step through the list · actions · full page · close */}
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-1">
-              {[{ dir: 'prev', icon: ChevronUp, on: panel?.onPrev, ok: panel?.hasPrev, title: 'Previous lead (↑)' },
-                { dir: 'next', icon: ChevronDown, on: panel?.onNext, ok: panel?.hasNext, title: 'Next lead (↓)' }].map((b) => (
-                <button key={b.dir} type="button" onClick={b.on} disabled={!b.ok} title={b.title}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] border border-[#E5E7EB] dark:border-[#2A2A2A] hover:text-[#F95C4B] hover:border-[#F95C4B]/40 disabled:opacity-35 disabled:pointer-events-none active:scale-95 transition-all">
-                  <b.icon className="w-4 h-4" />
-                </button>
-              ))}
-              {panel?.position && (
-                <span className="ml-1.5 text-[11px] text-[#9CA3AF] tabular-nums">{panel.position.index} of {panel.position.total.toLocaleString()}</span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {canCall && <LeadCallButton lead={lead} notifyManager={callNotifiesManager} size="sm" />}
-              {canChangeStatus && (
-                <button type="button" onClick={() => setStatusDialog(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] active:scale-[0.97] transition-all">
-                  <Repeat className="w-3.5 h-3.5" /> Update status
-                </button>
-              )}
-              {canDelete && (
-                <button type="button" onClick={() => setDeleteDialog(true)} title="Delete lead"
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-colors">
-                  <Trash2 className="w-4 h-4" strokeWidth={1.75} />
-                </button>
-              )}
-              {panel?.onExpand && (
-                <button type="button" onClick={panel.onExpand} title="Open full page"
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white transition-colors">
-                  <Maximize2 className="w-4 h-4" />
-                </button>
-              )}
-              <button type="button" onClick={panel?.onClose ?? onBack} title="Close (Esc)"
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white transition-colors">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Identity */}
-          <div className="flex items-start gap-3.5 pb-4">
-            <div className="w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center text-sm font-bold text-white bg-gradient-to-br from-[#F95C4B] to-[#FF8C7A] shadow-[0_10px_24px_-10px_rgba(249,92,75,0.7)]">
-              {initials}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg font-bold text-[#111111] dark:text-white tracking-tight truncate max-w-full">{lead.landlordName}</h2>
-                <LeadStatusBadge status={lead.status} size="lg" />
-                {showSourceBadge && <LeadSourceBadge source={lead.source} size="lg" />}
-              </div>
-              <div className="flex items-center gap-2 flex-wrap mt-1.5">
-                {area && (
-                  <span className="inline-flex items-center gap-1 text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-                    <MapPin className="w-3.5 h-3.5" /> {area.name}{area.region ? `, ${area.region}` : ''}
-                  </span>
-                )}
-                {lead.listingType && <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />}
-              </div>
-              {lead.propertyAddress && <p className="text-[11px] text-[#9CA3AF] mt-1 truncate">{lead.propertyAddress}</p>}
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-0.5 overflow-x-auto -mb-px">
-            {PANEL_TABS.map((t) => (
-              <button key={t.key} type="button" onClick={() => setTab(t.key)}
-                className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors ${tab === t.key ? 'text-[#F95C4B]' : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'}`}>
-                <t.icon className="w-3.5 h-3.5" /> {t.label}
-                {t.count > 0 && <span className={`px-1.5 rounded-full text-[10px] ${tab === t.key ? 'bg-[#F95C4B]/12' : 'bg-[#F5F5F4] dark:bg-[#202020]'}`}>{t.count}</span>}
-                {tab === t.key && <span className="mac-grow-x absolute left-2 right-2 bottom-0 h-0.5 rounded-full bg-[#F95C4B]" />}
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
+        {isPanel ? (
+          <div className="flex items-center gap-1">
+            {[{ dir: 'prev', icon: ChevronUp, on: panel?.onPrev, ok: panel?.hasPrev, title: 'Previous lead (↑)' },
+              { dir: 'next', icon: ChevronDown, on: panel?.onNext, ok: panel?.hasNext, title: 'Next lead (↓)' }].map((b) => (
+              <button key={b.dir} type="button" onClick={b.on} disabled={!b.ok} title={b.title}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] border border-[#E5E7EB] dark:border-[#2A2A2A] hover:text-[#F95C4B] hover:border-[#F95C4B]/40 disabled:opacity-35 disabled:pointer-events-none active:scale-95 transition-all">
+                <b.icon className="w-4 h-4" />
               </button>
             ))}
+            {panel?.position && <span className="ml-1.5 text-[11px] text-[#9CA3AF] tabular-nums">{panel.position.index} of {panel.position.total.toLocaleString()}</span>}
           </div>
-        </div>
-      ) : (
-      /* Header */
-      <div className="px-5 sm:px-8 pt-6 pb-0 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-xs font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B] dark:hover:text-[#F95C4B] transition-colors mb-4"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Leads
-        </button>
-
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 pb-5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight">{lead.landlordName}</h1>
-              <LeadStatusBadge status={lead.status} size="lg" />
-              {showSourceBadge && <LeadSourceBadge source={lead.source} size="lg" />}
-            </div>
-            {lead.propertyAddress && (
-              <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] mt-1 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 flex-shrink-0" /> {lead.propertyAddress}
-              </p>
-            )}
-            {lead.listingType && <div className="mt-2"><ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} size="lg" /></div>}
-          </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {canCall && <LeadCallButton lead={lead} notifyManager={callNotifiesManager} />}
-            {canChangeStatus && (
-              <button
-                onClick={() => setStatusDialog(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-[#F95C4B] border border-[#F95C4B]/30 hover:bg-[#F95C4B]/10 transition-colors"
-              >
-                <Repeat className="w-3.5 h-3.5" /> Change Status
-              </button>
-            )}
-            {canDelete && (
-              <button
-                onClick={() => setDeleteDialog(true)}
-                title="Delete lead"
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-colors"
-              >
-                <Trash2 className="w-4 h-4" strokeWidth={1.75} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-0.5">
-          {[
-            { key: 'details', label: 'Details', icon: FileText },
-            { key: 'history', label: 'History & audit', icon: History },
-            { key: 'calls', label: 'Call Logs', icon: PhoneCall },
-          ].map((t) => {
-            const TIcon = t.icon
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={[
-                  'flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap',
-                  'border-b-2 transition-all rounded-t-lg',
-                  tab === t.key
-                    ? 'border-[#F95C4B] text-[#F95C4B] bg-[#F95C4B]/5 dark:bg-[#F95C4B]/8'
-                    : 'border-transparent text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020]',
-                ].join(' ')}
-              >
-                <TIcon className="w-3.5 h-3.5" /> {t.label}
-              </button>
-            )
-          })}
+        ) : (
+          <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B] transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to leads
+          </button>
+        )}
+        <div className="flex items-center gap-1">
+          {panel?.onExpand && (
+            <button type="button" onClick={panel.onExpand} title="Open full page"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white transition-colors">
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          )}
+          {isPanel && (
+            <button type="button" onClick={panel?.onClose ?? onBack} title="Close (Esc)"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
-
-      )}
 
       {liveNote && (
         <div className="relative z-20 flex justify-center -mb-9 pointer-events-none">
@@ -758,137 +668,59 @@ export default function LeadDetailScreen({
       )}
 
       {/* Content */}
-      <div className={`flex-1 overflow-y-auto bg-[#FAFAF9] dark:bg-[#0B0B0B] ${isPanel ? 'px-5 py-5' : 'px-5 sm:px-8 py-6'}`}>
-        {tab === 'comments' ? (
-          <div key="comments" className="lead-panel-swap">{commentsEl}</div>
-        ) : tab === 'appointments' ? (
-          <div key="appointments" className="lead-panel-swap">{appointmentsEl}</div>
-        ) : tab === 'history' ? (
-          <div key="history" className={isPanel ? 'lead-panel-swap' : 'lead-panel-swap max-w-3xl mx-auto'}>
-            <LeadHistory leadId={lead._id} />
+      <div className="flex-1 overflow-y-auto thin-scroll bg-[#FAFAF9] dark:bg-[#0B0B0B]">
+        <div className={`space-y-4 ${isPanel ? 'px-4 sm:px-5 py-4' : 'max-w-7xl mx-auto px-4 sm:px-6 xl:px-8 py-6'}`}>
+          <LeadHero lead={lead} data={live} showSourceBadge={showSourceBadge} />
+
+          <QuickActions
+            lead={lead}
+            onLead={takeLead}
+            invalidateQueryKey={invalidateQueryKey}
+            currentUserRole={currentUserRole}
+            currentUserId={currentUserId}
+            canCall={canCall}
+            callNotifiesManager={callNotifiesManager}
+            canChangeStatus={canChangeStatus}
+            onStatus={() => setStatusDialog(true)}
+            canSetFollowUp={has('followUpDate')}
+            canBook={canEdit}
+            canAssign={canAssignAgency}
+            assignableTeam={assignableTeam}
+            canEdit={editableFields.size > 0}
+            onEdit={() => openMore('details')}
+            canDelete={canDelete}
+            onDelete={() => setDeleteDialog(true)}
+          />
+
+          <div className={isPanel ? 'space-y-4' : 'grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-4 items-start'}>
+            <div className="min-w-0 space-y-4">{commentsEl}</div>
+            <div className="space-y-4 min-w-0">
+              <ActivityFeed data={live} isLoading={liveLoading} />
+              <FirstCallCard data={live} />
+              {peopleEl}
+            </div>
           </div>
-        ) : tab === 'calls' ? (
-          <div className="max-w-3xl mx-auto">
-            {contact ? (
-              <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] p-5">
-                <ContactCallHistory contactId={contact._id} />
-              </div>
-            ) : (
-              <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] text-center py-10">No contact linked to this lead.</p>
-            )}
-          </div>
-        ) : (
-          <div key="details" className={isPanel ? 'lead-panel-swap' : 'max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6'}>
-            {/* Main column */}
-            <div className={isPanel ? 'space-y-5' : 'lg:col-span-3 space-y-5'}>
-              {isPanel && (
-                <>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {summaryTiles.map((t, i) => (
-                      <div key={t.label} className="mac-pop rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] p-3" style={{ '--d': `${60 + i * 50}ms` }}>
-                        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">
-                          <t.icon className={`w-3.5 h-3.5 ${t.tone === '#111111' ? 'dark:!text-white' : ''}`} style={{ color: t.tone }} /> {t.label}
-                        </p>
-                        <p className="text-sm font-bold text-[#111111] dark:text-white mt-1.5 truncate">{t.value}</p>
-                        <p className="text-[11px] truncate" style={{ color: t.tone === '#111111' ? undefined : t.tone }}>{t.sub}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {lead.lastFollowUpText && (
-                    <button type="button" onClick={() => setTab('comments')}
-                      className="mac-in group w-full text-left flex items-start gap-3 p-3.5 rounded-xl bg-[#F95C4B]/6 border border-[#F95C4B]/20 hover:border-[#F95C4B]/45 transition-colors" style={{ '--d': '220ms' }}>
-                      <MessagesSquare className="w-4 h-4 text-[#F95C4B] flex-shrink-0 mt-0.5" />
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#F95C4B]">Latest comment</span>
-                        <span className="block text-sm text-[#111111] dark:text-white line-clamp-2 mt-0.5">{lead.lastFollowUpText}</span>
-                      </span>
-                      <span className="flex items-center gap-1 text-xs font-semibold text-[#F95C4B] whitespace-nowrap">View all <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" /></span>
-                    </button>
-                  )}
-                </>
-              )}
-              <InfoCard icon={User} title="Contact">
-                <InfoRow icon={User} label="Name" value={contact?.name ?? lead.landlordName} />
-                <InfoRow
-                  icon={Phone}
-                  label="Phone"
-                  value={contact?.phone ?? lead.phone}
-                  href={(contact?.phone ?? lead.phone) ? `tel:${cleanPhone(contact?.phone ?? lead.phone)}` : undefined}
-                />
-                {contact?.altPhone && (
-                  <InfoRow icon={Phone} label="Alt Phone" value={contact.altPhone} href={`tel:${cleanPhone(contact.altPhone)}`} />
-                )}
-                <InfoRow icon={Mail} label="Email" value={contact?.email ?? lead.email} />
-                {area && <InfoRow icon={MapPin} label="Area" value={`${area.name}${area.region ? `, ${area.region}` : ''}`} />}
-              </InfoCard>
 
-              {creator && (
-                <InfoCard
-                  icon={User}
-                  title={lead.source === 'agency_self_sourced' ? 'Created By' : 'Cold Caller'}
-                  action={chatBasePath && creator._id !== currentUserId ? (
-                    <ChatWithButton targetUser={creator} targetLabel={lead.source === 'agency_self_sourced' ? 'the creator' : 'cold caller'} lead={lead} chatBasePath={chatBasePath} />
-                  ) : null}
-                >
-                  <InfoRow icon={User} label="Name" value={`${creator.firstName} ${creator.lastName}`} />
-                  <InfoRow icon={Mail} label="Email" value={creator.email} />
-                </InfoCard>
-              )}
-
-              <InfoCard
-                icon={Building2}
-                title="Assigned Agent"
-                action={chatBasePath && assignedAgentUser && assignedAgentUser._id !== currentUserId ? (
-                  <ChatWithButton targetUser={assignedAgentUser} targetLabel="agency" lead={lead} chatBasePath={chatBasePath} />
-                ) : null}
-              >
-                {canAssignAgency ? (
-                  <>
-                    {assignedAgentUser && (
-                      <AssignedAgentDetails agent={assignedAgentUser} agency={assignedAgency} assignedBy={assignedAgentByUser} assignedAt={lead.assignedAgentAt} />
-                    )}
-                    <div className="p-4">
-                      {assignedAgentUser && <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-1.5">Reassign</p>}
-                      <AgentOrAgencyPicker
-                        teamMembers={assignableTeam}
-                        assignedAgent={form.assignedAgent}
-                        agencyId={form.agencyId}
-                        onChange={({ assignedAgent, agencyId }) => { dirtyRef.current.add('assignedAgent'); dirtyRef.current.add('agencyId'); setForm((f) => ({ ...f, assignedAgent, agencyId })) }}
-                        className={inputCls(false)}
-                      />
-                    </div>
-                    {!assignedAgentUser && assignedAgency && assignedAgentByUser && lead.assignedAgentAt && (
-                      <InfoRow
-                        icon={Calendar}
-                        label="Assigned By"
-                        value={`${assignedAgentByUser.firstName} ${assignedAgentByUser.lastName} · ${format(new Date(lead.assignedAgentAt), 'd MMM yyyy')}`}
-                      />
-                    )}
-                  </>
-                ) : assignedAgentUser ? (
-                  <AssignedAgentDetails agent={assignedAgentUser} agency={assignedAgency} assignedBy={assignedAgentByUser} assignedAt={lead.assignedAgentAt} />
-                ) : assignedAgency ? (
-                  <>
-                    <InfoRow icon={Building2} label="Agency" value={assignedAgency.name} />
-                    {assignedAgency.contactEmail && <InfoRow icon={Mail} label="Email" value={assignedAgency.contactEmail} />}
-                    {assignedAgency.contactPhone && (
-                      <InfoRow icon={Phone} label="Phone" value={assignedAgency.contactPhone} href={`tel:${cleanPhone(assignedAgency.contactPhone)}`} />
-                    )}
-                    {assignedAgentByUser && lead.assignedAgentAt && (
-                      <InfoRow
-                        icon={Calendar}
-                        label="Assigned By"
-                        value={`${assignedAgentByUser.firstName} ${assignedAgentByUser.lastName} · ${format(new Date(lead.assignedAgentAt), 'd MMM yyyy')}`}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <p className="px-4 py-3 text-sm text-[#6B7280] dark:text-[#A1A1AA] italic">Unassigned</p>
-                )}
-              </InfoCard>
-
-              {contact && <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] p-4"><PropertyFromContact contact={contact} /></div>}
-
+          {/* More about this lead — one section open at a time */}
+          <div ref={moreRef} className="scroll-mt-4 rounded-3xl border border-[#E5E7EB] dark:border-[#262626] bg-white dark:bg-[#151515] overflow-hidden divide-y divide-[#F1EFEC] dark:divide-[#232323]">
+            {MORE.map((m) => {
+              const isOpen = more === m.key
+              return (
+                <div key={m.key}>
+                  <button type="button" onClick={() => setMore(isOpen ? null : m.key)}
+                    className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-[#FAFAF9] dark:hover:bg-[#1A1A1A] transition-colors">
+                    <span className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isOpen ? 'bg-[#F95C4B] text-white' : 'bg-[#F95C4B]/10 text-[#F95C4B]'}`}><m.icon className="w-4 h-4" /></span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[15px] font-bold text-[#111111] dark:text-white">{m.label}</span>
+                      <span className="block text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">{m.sub}</span>
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-[#9CA3AF] transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="files-collapse px-5 pb-5 pt-1">
+                      {m.key === 'details' && (
+                        <div className="space-y-5">
+                          {contact && <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] p-4"><PropertyFromContact contact={contact} /></div>}
               <form id="lead-detail-form" onSubmit={handleSave} className="space-y-5">
                 <InfoCard icon={FileText} title="Lead Details">
                   <div className="p-4 space-y-4">
@@ -1075,30 +907,24 @@ export default function LeadDetailScreen({
                   </button>
                 )}
               </form>
-
-              {/* The deal (Deal Tracker): admin and the company working the lead */}
-              {['admin', 'agency'].includes(currentUserRole)
-                && (lead.assignedAgent || lead.agencyId || ['still_negotiating', 'listed', 'rented_out', 'sold'].includes(lead.status) || lead.deal?.updatedAt) && (
-                <LeadDealCard lead={lead} isAdmin={currentUserRole === 'admin'} onSaved={setLead} />
-              )}
-
-              {!isPanel && appointmentsEl}
-
-              <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-                Created {format(new Date(lead.createdAt), 'd MMM yyyy, HH:mm')}
-                {creator && ` by ${creator.firstName} ${creator.lastName}`}
-                {' · '}Updated {format(new Date(lead.updatedAt), 'd MMM yyyy, HH:mm')}
-              </p>
-            </div>
-
-            {/* Chat column */}
-            {!isPanel && (
-              <div className="lg:col-span-2">
-                <div className="lg:sticky lg:top-6">{commentsEl}</div>
-              </div>
-            )}
+                          <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
+                            Created {format(new Date(lead.createdAt), 'd MMM yyyy, HH:mm')}
+                            {creator && ` by ${creator.firstName} ${creator.lastName}`}
+                            {' · '}Updated {format(new Date(lead.updatedAt), 'd MMM yyyy, HH:mm')}
+                          </p>
+                        </div>
+                      )}
+                      {m.key === 'appointments' && appointmentsEl}
+                      {m.key === 'deal' && <LeadDealCard lead={lead} isAdmin={currentUserRole === 'admin'} onSaved={setLead} />}
+                      {m.key === 'calls' && (contact ? <ContactCallHistory contactId={contact._id} /> : <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] text-center py-6">No contact linked to this lead.</p>)}
+                      {m.key === 'history' && <LeadHistory leadId={lead._id} />}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
-        )}
+        </div>
       </div>
 
       {statusDialog && (
@@ -1107,7 +933,7 @@ export default function LeadDetailScreen({
           invalidateQueryKey={invalidateQueryKey}
           options={statusOptions}
           onClose={() => setStatusDialog(false)}
-          onUpdated={(updated) => { setStatusDialog(false); if (updated) setLead(updated); qc.invalidateQueries({ queryKey: invalidateQueryKey }) }}
+          onUpdated={(updated) => { setStatusDialog(false); if (updated) setLead(updated); qc.invalidateQueries({ queryKey: invalidateQueryKey }); qc.invalidateQueries({ queryKey: ['lead-activity', lead._id] }) }}
         />
       )}
       {deleteDialog && (

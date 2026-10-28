@@ -5,6 +5,8 @@ import { Handshake, Loader2, Lock, Percent } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { getApiErrorMessage } from './leadShared'
 import { DateField } from '../common/DateTimeFields'
+import DealDocuments from '../deals/DealDocuments'
+import { useAuthStore } from '../../store/authStore'
 
 // The lead's deal, as the Deal Tracker shows it: tenant, rent and fees, payments, occupation,
 // desk fees. The company's manager / the agent fill it in; how the commission is split
@@ -41,6 +43,7 @@ function formOf(d = {}) {
 
 export default function LeadDealCard({ lead, isAdmin, onSaved }) {
   const qc = useQueryClient()
+  const me = useAuthStore((s) => s.user?._id)
   const [f, setF] = useState(() => formOf(lead.deal))
   const [dirty, setDirty] = useState(false)
   useEffect(() => { if (!dirty) setF(formOf(lead.deal)) }, [lead.deal]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -151,6 +154,20 @@ export default function LeadDealCard({ lead, isAdmin, onSaved }) {
           {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />} Save deal
         </button>
       </form>
+
+      {/* Paperwork — tenant ID, payslips, lease, commission… (Firebase) */}
+      <div className="border-t border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
+        <p className="text-sm font-bold text-[#111111] dark:text-white mb-3">Documents</p>
+        <DealDocuments
+          leadId={lead._id}
+          listingType={lead.listingType}
+          documents={lead.deal?.documents ?? []}
+          canUpload
+          isAdmin={isAdmin}
+          currentUserId={me}
+          onChange={(documents) => onSaved?.({ ...lead, deal: { ...(lead.deal ?? {}), documents } })}
+        />
+      </div>
     </div>
   )
 }

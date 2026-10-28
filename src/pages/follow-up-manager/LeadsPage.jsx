@@ -14,10 +14,11 @@ import {
 } from '../../components/leads/leadShared'
 import { useAuthStore } from '../../store/authStore'
 import {
-  LeadsHeader, CountTiles, LeadsRail, Panel, useLeadInsights,
-  ActiveFilterChips, FetchBar, TableSkeleton, FOCUS_LABELS,
+  LeadsHeader, CountTiles, Panel, useLeadInsights,
+  ActiveFilterChips, FetchBar, FOCUS_LABELS,
 } from '../../components/leads/LeadsHub'
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
+import { InsightStrip, SmartViews, LeadListTable } from '../../components/leads/LeadsWorkbench'
 import { FollowUpManagerLeadDetail } from './LeadDetailPage'
 
 // Leads load in batches of 300 ("Load more" appends the next batch).
@@ -164,75 +165,6 @@ function FollowUpManagerStrip({ fumFilter, onFumChange, collapsed, onToggleColla
 
 /* ─── Lead Row ───────────────────────────────────────────────────────────── */
 
-function LeadRow({ lead, onOpen, currentUserId, onFollowUpSaved, rowProps }) {
-  const contactObj = (lead.contactId && typeof lead.contactId === 'object') ? lead.contactId : null
-  const agentUser  = resolveUser(lead.assignedAgent)
-  const agency     = resolveAgency(lead.agencyId)
-  const callerUser = resolveUser(lead.createdBy)
-  const followedUpToday = isLeadFollowedUpToday(lead)
-  const followedUpByMeToday = isLeadFollowedUpByMeToday(lead, currentUserId)
-
-  return (
-    <tr
-      {...rowProps}
-      onClick={onOpen}
-      className={[
-        'transition-colors cursor-pointer border-l-2',
-        followedUpByMeToday
-          ? 'bg-[#10B981]/[0.05] hover:bg-[#10B981]/[0.08] dark:bg-[#10B981]/[0.07] dark:hover:bg-[#10B981]/10 border-l-transparent animate-glow-pulse-ring'
-          : followedUpToday
-            ? 'bg-[#10B981]/[0.04] hover:bg-[#10B981]/[0.07] dark:bg-[#10B981]/[0.06] dark:hover:bg-[#10B981]/10 border-l-[#10B981]'
-            : 'border-l-transparent hover:bg-[#FAFAF9] dark:hover:bg-[#111111]',
-      ].join(' ')}
-    >
-      <td className="px-4 py-3.5">
-        <p className="text-sm font-semibold text-[#111111] dark:text-white truncate max-w-[180px]">{lead.landlordName}</p>
-        <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate max-w-[180px]">{lead.propertyAddress}</p>
-        <div className="mt-1">
-          <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
-        </div>
-      </td>
-      <td className="px-4 py-3.5">
-        <p className="text-sm text-[#111111] dark:text-white">{contactObj?.name ?? lead.landlordName}</p>
-        <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] font-mono">{lead.phone}</p>
-      </td>
-      <td className="px-4 py-3.5">
-        {callerUser ? (
-          <p className="text-sm text-[#111111] dark:text-white">{callerUser.firstName} {callerUser.lastName}</p>
-        ) : (
-          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] italic">Unknown</span>
-        )}
-      </td>
-      <td className="px-4 py-3.5">
-        {agentUser ? (
-          <p className="text-sm text-[#111111] dark:text-white">{agentUser.firstName} {agentUser.lastName}</p>
-        ) : agency ? (
-          <p className="text-sm text-[#111111] dark:text-white">{agency.name}</p>
-        ) : (
-          <span className="text-xs text-[#F59E0B] font-semibold">Unassigned</span>
-        )}
-      </td>
-      <td className="px-4 py-3.5">
-        <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{format(new Date(lead.createdAt), 'd MMM yyyy')}</p>
-      </td>
-      <td className="px-4 py-3.5">
-        <LeadStatusBadge status={lead.status} />
-      </td>
-      <td className="px-4 py-3.5">
-        <div className="flex items-center gap-1">
-          <FollowUpChip date={lead.followUpDate} />
-          <QuickFollowUpDateButton lead={lead} onSaved={onFollowUpSaved} />
-        </div>
-      </td>
-      <td className="px-4 py-3.5">
-        <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} />
-      </td>
-      <td className="px-4 py-3.5">
-        <LastFollowUpByCell lead={lead} />
-      </td>
-    </tr>
-  )
-}
 
 /* ─── Empty state ────────────────────────────────────────────────────────── */
 
@@ -364,7 +296,10 @@ export default function FollowUpManagerLeadsPage() {
 
         <CountTiles items={progressTiles} value={activeTile} onChange={(k) => TILE_FILTERS[k]?.()} />
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+        <InsightStrip insights={insights} focus={focus} onFocus={(k) => { setFollowedUpFilter(''); setFocus(k) }} />
+        <SmartViews insights={insights} focus={focus} onFocus={(k) => { setFollowedUpFilter(''); setFocus(k) }} />
+
+        <div className="grid grid-cols-1 gap-5 items-start">
           <div className="space-y-4 min-w-0">
             <LeadSidePanel panel={leadPanel}>
               {(id) => (
@@ -453,41 +388,11 @@ export default function FollowUpManagerLeadsPage() {
         )}
 
         {isLoading ? (
-          <TableSkeleton rows={8} />
+          <div className="space-y-2">{Array.from({ length: 8 }, (_, i) => <div key={i} className="shimmer h-[86px] rounded-2xl" />)}</div>
         ) : leads.length === 0 ? (
           <EmptyState hasFilters={hasFilters} />
         ) : (
-          <div className={`bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1150px]">
-                <thead className="bg-[#FAFAF9] dark:bg-[#111111] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-                  <tr>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Landlord / Address</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Contact</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Cold Caller</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Agent</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Created</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Status</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Follow-up</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Last Follow-Up</th>
-                    <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Followed Up By</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
-                  {leads.map((lead) => (
-                    <LeadRow
-                      key={lead._id}
-                      lead={lead}
-                      onOpen={() => leadPanel.open(lead._id)}
-                      rowProps={leadRowProps(leadPanel, lead._id)}
-                      currentUserId={user?._id}
-                      onFollowUpSaved={handleFollowUpSaved}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <LeadListTable leads={leads} onOpen={(id) => leadPanel.open(id)} rowProps={(id) => leadRowProps(leadPanel, id)} refreshing={refreshing} />
         )}
 
         {!isLoading && leads.length > 0 && (
@@ -510,7 +415,6 @@ export default function FollowUpManagerLeadsPage() {
             </div>
           </div>
 
-          <LeadsRail role="follow_up_manager" insights={insights} focus={focus} onFocus={(k) => { setFollowedUpFilter(''); setFocus(k) }} places="provinces" place={place} onPlace={setPlace} />
         </div>
       </div>
     </div>

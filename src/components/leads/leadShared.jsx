@@ -1346,7 +1346,13 @@ function TypingIndicator({ typers }) {
   )
 }
 
-export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
+const CHAT_TONES = ['#C4B5FD', '#FCD34D', '#FDA4AF', '#93C5FD', '#6EE7B7', '#F9A8D4']
+const chatTone = (s = '') => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CHAT_TONES[h % CHAT_TONES.length] }
+
+// The lead's Follow-up chat. Optional extras from the lead screen: `seen` (when each person
+// last looked at the lead → "Read by …" under messages), `events` (hand-overs and status
+// changes shown in line), `quickReplies` (one-tap messages) and the input's `placeholder`.
+export function FollowUpComments({ lead, currentUserId, canComment, onAdded, seen = [], events = [], quickReplies = [], placeholder = 'Type a message…' }) {
   const qc = useQueryClient()
   const [text, setText] = useState('')
   const scrollRef = useRef(null)
@@ -1407,7 +1413,7 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
   const sorted = [...comments].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
 
   const mut = useMutation({
-    mutationFn: () => leadsApi.addComment(lead._id, text.trim()),
+    mutationFn: (t) => leadsApi.addComment(lead._id, t),
     onSuccess: (res) => {
       setText('')
       const updatedLead = res.data.data.lead
@@ -1437,35 +1443,48 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
     if (!text.trim() || mut.isPending) return
     wasAtBottomRef.current = true
     stopTyping()
-    mut.mutate()
+    mut.mutate(text.trim())
+  }
+  function sendQuick(t) {
+    if (mut.isPending) return
+    wasAtBottomRef.current = true
+    mut.mutate(t)
+  }
+
+  // Messages and hand-overs / status changes in one timeline
+  const timeline = [
+    ...sorted.map((c) => ({ kind: 'msg', at: c.createdAt, c })),
+    ...events.map((e) => ({ kind: 'event', at: e.at, e })),
+  ].sort((a, b) => new Date(a.at) - new Date(b.at))
+  const people = [...new Map(sorted.map((c) => [c.authorId?._id ?? c.authorId, c.authorId]).filter(([k, a]) => k && a && typeof a === 'object')).values()].slice(0, 5)
+  const readersOf = (c) => {
+    const authorId = c.authorId?._id ?? c.authorId
+    const r = seen.filter((p) => String(p.id) !== String(authorId) && new Date(p.at) > new Date(c.createdAt))
+    if (!r.length) return null
+    const names = r.map((p) => (p.me || String(p.id) === String(currentUserId) ? 'you' : p.name.split(' ')[0]))
+    return `Read by ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}`
   }
 
   return (
-    <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between gap-2.5 px-4 py-3.5 border-b border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
-            <MessageSquare className="w-4 h-4 text-[#F95C4B]" strokeWidth={1.75} />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-[#111111] dark:text-white">Follow-Up Chat</p>
-            <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">
-              {isLoading ? 'Loading…' : `${sorted.length} message${sorted.length !== 1 ? 's' : ''}`}
-            </p>
+    <div className="rounded-3xl border border-[#E5E7EB] dark:border-[#262626] bg-white dark:bg-[#151515] flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between gap-2.5 px-5 py-4 border-b border-[#F1EFEC] dark:border-[#232323] flex-shrink-0">
+        <div>
+          <p className="text-lg font-bold text-[#111111] dark:text-white">Follow-up chat</p>
+          <p className="text-xs text-[#9CA3AF]">{isLoading ? 'Loading…' : `${sorted.length} message${sorted.length !== 1 ? 's' : ''} · everyone on the lead sees this`}</p>
+        </div>
+        <div className="flex items-center">
+          {isError && <button type="button" onClick={() => refetch()} className="mr-3 text-xs font-semibold text-[#EF4444] hover:underline">Retry</button>}
+          <div className="flex -space-x-2">
+            {people.map((a) => (
+              <span key={a._id} title={`${a.firstName ?? ''} ${a.lastName ?? ''}`.trim()} className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-[#111111] ring-2 ring-white dark:ring-[#151515]" style={{ backgroundColor: chatTone(a._id) }}>
+                {`${a.firstName?.[0] ?? ''}${a.lastName?.[0] ?? ''}`.toUpperCase() || '?'}
+              </span>
+            ))}
           </div>
         </div>
-        {isError && (
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="text-[10px] font-semibold text-[#EF4444] hover:underline flex-shrink-0"
-          >
-            Retry
-          </button>
-        )}
       </div>
 
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-[220px] max-h-[520px]">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto thin-scroll px-5 py-4 space-y-4 min-h-[260px] max-h-[560px]">
         {isLoading ? (
           <div className="h-full min-h-[180px] flex items-center justify-center">
             <Loader2 className="w-5 h-5 animate-spin text-[#6B7280] dark:text-[#A1A1AA]" />
@@ -1475,60 +1494,46 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
             <AlertTriangle className="w-8 h-8 text-[#EF4444]/40" strokeWidth={1.5} />
             <p className="text-xs text-[#EF4444]">Couldn't load messages — check your connection and retry.</p>
           </div>
-        ) : sorted.length === 0 ? (
+        ) : timeline.length === 0 ? (
           <div className="h-full min-h-[180px] flex flex-col items-center justify-center gap-2 text-center">
             <MessageSquare className="w-8 h-8 text-[#6B7280]/20 dark:text-[#A1A1AA]/20" strokeWidth={1.5} />
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-              No messages yet{canComment ? ' — start the conversation' : ''}.
-            </p>
+            <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">No messages yet{canComment ? ' — tap a quick message below or type one' : ''}.</p>
           </div>
         ) : (
-          sorted.map((c, i) => {
+          timeline.map((row, i) => {
+            if (row.kind === 'event') {
+              return (
+                <div key={`e-${row.e.id ?? i}`} className="flex justify-center">
+                  <span className="px-4 py-1.5 rounded-full text-xs text-[#6B7280] dark:text-[#A1A1AA] border border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111]">{row.e.text} · {format(new Date(row.e.at), 'd MMM')}</span>
+                </div>
+              )
+            }
+            const c = row.c
             const author = (c.authorId && typeof c.authorId === 'object') ? c.authorId : null
             const meta = COMMENT_AUTHOR_META[c.authorRole] ?? { label: c.authorRole ?? 'Unknown', color: '#6B7280' }
             const isMine = Boolean(author?._id) && author._id === currentUserId
-            const fullName = author ? `${author.firstName ?? ''} ${author.lastName ?? ''}`.trim() || 'Unknown' : 'Unknown'
+            const shortName = author ? (author.firstName || 'Unknown') : 'Unknown'
             const initials = author && (author.firstName || author.lastName)
               ? `${author.firstName?.[0] ?? ''}${author.lastName?.[0] ?? ''}`.toUpperCase()
               : '?'
+            const read = readersOf(c)
             return (
-              <div key={c._id ?? i} className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : ''}`}>
-                <div
-                  className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                  style={{ backgroundColor: meta.color }}
-                  title={fullName}
-                >
+              <div key={c._id ?? i} className={`mac-in flex items-end gap-2.5 ${isMine ? 'flex-row-reverse' : ''}`}>
+                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-[#111111]" style={{ backgroundColor: chatTone(author?._id ?? c.authorRole) }} title={author ? `${author.firstName ?? ''} ${author.lastName ?? ''}`.trim() : ''}>
                   {initials}
                 </div>
-                <div className={`max-w-[75%] flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                  <div className={`flex items-center gap-1.5 mb-1 px-1 flex-wrap ${isMine ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-[10px] font-semibold text-[#111111] dark:text-white">
-                      {fullName}{isMine && <span className="text-[#6B7280] dark:text-[#A1A1AA] font-normal"> (You)</span>}
-                    </span>
-                    <span
-                      className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                      style={{ color: meta.color, backgroundColor: `${meta.color}18` }}
-                    >
-                      {meta.label}
-                    </span>
-                  </div>
-                  <div
-                    className={`px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
-                      isMine
-                        ? 'bg-[#F95C4B] text-white rounded-2xl rounded-tr-sm'
-                        : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#111111] dark:text-white rounded-2xl rounded-tl-sm'
-                    }`}
-                  >
+                <div className={`max-w-[78%] flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                  <p className="mb-1 px-1 text-xs">
+                    <b className="text-[#111111] dark:text-white">{isMine ? 'You' : shortName}</b>
+                    {!isMine && <span className="text-[#6B7280] dark:text-[#A1A1AA]"> · {c.authorRole === 'agency' ? 'agent' : c.authorRole === 'follow_up_manager' ? 'follow-up' : meta.label.toLowerCase()}</span>}
+                    {c.createdAt && <span className="text-[#9CA3AF]" title={format(new Date(c.createdAt), 'd MMM yyyy, HH:mm')}> · {isToday(new Date(c.createdAt)) ? `Today ${format(new Date(c.createdAt), 'HH:mm')}` : format(new Date(c.createdAt), 'd MMM')}</span>}
+                  </p>
+                  <div className={`px-4 py-3 text-[15px] leading-relaxed whitespace-pre-wrap break-words ${
+                    isMine ? 'bg-[#E11D48] text-white rounded-2xl rounded-br-md' : 'bg-[#F5F5F4] dark:bg-[#222222] text-[#111111] dark:text-white rounded-2xl rounded-bl-md'
+                  }`}>
                     {c.text}
                   </div>
-                  {c.createdAt && (
-                    <p
-                      className="text-[9px] text-[#6B7280] dark:text-[#A1A1AA] mt-1 px-1"
-                      title={formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
-                    >
-                      {format(new Date(c.createdAt), 'd MMM yyyy, HH:mm')}
-                    </p>
-                  )}
+                  {read && <p className="text-[11px] text-[#9CA3AF] mt-1 px-1">{read}</p>}
                 </div>
               </div>
             )
@@ -1538,29 +1543,44 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded }) {
       </div>
 
       {canComment ? (
-        <form onSubmit={handleSubmit} className="flex items-end gap-2 p-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] flex-shrink-0">
-          <textarea
-            value={text}
-            onChange={(e) => onTyping(e.target.value)}
-            onBlur={stopTyping}
-            placeholder="Type a message…"
-            rows={1}
-            className="flex-1 px-4 py-2.5 rounded-full text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] resize-none outline-none focus:border-[#F95C4B] focus:ring-2 focus:ring-[#F95C4B]/20 text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 dark:placeholder:text-[#A1A1AA]/40 max-h-24"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e) }
-            }}
-          />
-          <button
-            type="submit"
-            disabled={mut.isPending || !text.trim()}
-            className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-50 transition-colors"
-          >
-            {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
-        </form>
+        <div className="px-5 pt-3 pb-4 border-t border-[#F1EFEC] dark:border-[#232323] flex-shrink-0 space-y-3">
+          {quickReplies.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-[#9CA3AF] mb-2">One-tap messages</p>
+              <div className="flex flex-wrap gap-2">
+                {quickReplies.map((q) => (
+                  <button key={q} type="button" onClick={() => sendQuick(q)} disabled={mut.isPending}
+                    className="mac-press px-3.5 py-2 rounded-full text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:border-[#E11D48]/50 hover:text-[#E11D48] disabled:opacity-50 transition-colors">
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="flex items-end gap-2.5">
+            <textarea
+              value={text}
+              onChange={(e) => onTyping(e.target.value)}
+              onBlur={stopTyping}
+              placeholder={placeholder}
+              rows={1}
+              className="flex-1 px-4 py-3 rounded-2xl text-[15px] bg-[#FAFAF9] dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#2A2A2A] resize-none outline-none focus:border-[#E11D48] focus:ring-2 focus:ring-[#E11D48]/15 text-[#111111] dark:text-white placeholder:text-[#9CA3AF] max-h-28"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e) }
+              }}
+            />
+            <button
+              type="submit"
+              disabled={mut.isPending || !text.trim()}
+              className="mac-press flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center text-white bg-[#E11D48] hover:bg-[#BE123C] disabled:opacity-50 transition-colors"
+            >
+              {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </form>
+        </div>
       ) : (
-        <div className="px-4 py-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] text-center flex-shrink-0">
-          <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA]">Only admin and the follow-up manager can post here</p>
+        <div className="px-5 py-3 border-t border-[#F1EFEC] dark:border-[#232323] text-center flex-shrink-0">
+          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Only admin and the follow-up manager can post here</p>
         </div>
       )}
     </div>

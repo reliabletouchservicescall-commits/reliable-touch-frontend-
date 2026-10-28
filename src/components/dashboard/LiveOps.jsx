@@ -436,7 +436,8 @@ function headlineOf(a) {
   return a.summary
 }
 
-export function LiveActivity({ scope = 'admin' }) {
+// fill: stretch to the height of the column it sits in (the dashboards) — the list scrolls inside
+export function LiveActivity({ scope = 'admin', fill = false }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [type, setType] = useState('')
@@ -457,7 +458,7 @@ export function LiveActivity({ scope = 'admin' }) {
   })
   const items = data?.items ?? []
   return (
-    <Card delay={200} className="overflow-hidden">
+    <Card delay={200} className={`overflow-hidden ${fill ? 'flex-1 flex flex-col min-h-[440px]' : ''}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-[#F1EFEC] dark:border-[#232323]">
         <h3 className="flex items-center gap-2.5 text-[15px] font-bold text-[#111111] dark:text-white">
           Live activity
@@ -477,7 +478,8 @@ export function LiveActivity({ scope = 'admin' }) {
           ))}
         </div>
       </div>
-      <ul className="thin-scroll max-h-[560px] overflow-y-auto divide-y divide-[#F5F5F4] dark:divide-[#202020]">
+      <div className={fill ? 'relative flex-1' : ''}>
+      <ul className={`thin-scroll overflow-y-auto divide-y divide-[#F5F5F4] dark:divide-[#202020] ${fill ? 'absolute inset-0' : 'max-h-[560px]'}`}>
         {isLoading && Array.from({ length: 7 }, (_, i) => <li key={i} className="px-5 py-3.5"><Skeleton className="h-11" /></li>)}
         {!isLoading && items.length === 0 && <li className="py-14 text-center text-sm text-[#9CA3AF]">Nothing yet — activity shows up here the moment it happens.</li>}
         {items.map((a, i) => {
@@ -510,6 +512,7 @@ export function LiveActivity({ scope = 'admin' }) {
           )
         })}
       </ul>
+      </div>
     </Card>
   )
 }

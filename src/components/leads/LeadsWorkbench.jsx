@@ -103,29 +103,6 @@ export function SmartViews({ insights, focus, onFocus }) {
   )
 }
 
-/* ─── Cards / List switch ───────────────────────────────────────────────── */
-
-export function useLeadsView() {
-  const [view, setView] = useState(() => { try { return localStorage.getItem('rt-leads-view') || 'cards' } catch { return 'cards' } })
-  const set = (v) => { setView(v); try { localStorage.setItem('rt-leads-view', v) } catch { /* private mode */ } }
-  return [view, set]
-}
-
-export function ViewToggle({ value, onChange }) {
-  return (
-    <div className="flex items-center p-1 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818]" role="group" aria-label="Layout">
-      {[['cards', LayoutGrid, 'Cards'], ['list', List, 'List']].map(([k, Icon, label]) => (
-        <button key={k} type="button" onClick={() => onChange(k)} aria-pressed={value === k} title={label}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 ${
-            value === k ? 'bg-[#111111] text-white dark:bg-white dark:text-[#111111] shadow-sm' : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'
-          }`}>
-          <Icon className="w-3.5 h-3.5" /> {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 /* ─── Selection ─────────────────────────────────────────────────────────── */
 
 export function SelectBox({ checked, partial, onChange, label = 'Select lead', className = '' }) {
@@ -394,16 +371,19 @@ function Chain({ lead }) {
   )
 }
 
+// The leads list every role sees. Tick boxes only where there are bulk actions (admin) —
+// leave `selected` / `onToggle` out and the column goes.
 export function LeadListTable({ leads, selected, onToggle, onToggleAll, onOpen, rowProps, refreshing }) {
-  const all = leads.length > 0 && leads.every((l) => selected.has(l._id))
-  const some = !all && leads.some((l) => selected.has(l._id))
+  const selectable = Boolean(selected && onToggle)
+  const all = selectable && leads.length > 0 && leads.every((l) => selected.has(l._id))
+  const some = selectable && !all && leads.some((l) => selected.has(l._id))
   return (
     <div className={`rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] overflow-hidden transition-opacity duration-300 ${refreshing ? 'opacity-60' : ''}`}>
       <div className="overflow-x-auto thin-scroll">
         <table className="w-full min-w-[1180px] text-left">
           <thead className="bg-[#FAFAF9] dark:bg-[#111111] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
             <tr className="text-[11px] font-semibold text-[#6B7280] dark:text-[#A1A1AA]">
-              <th className="pl-4 pr-2 py-3 w-10"><SelectBox checked={all} partial={some} onChange={onToggleAll} label="Select all shown" /></th>
+              {selectable ? <th className="pl-4 pr-2 py-3 w-10"><SelectBox checked={all} partial={some} onChange={onToggleAll} label="Select all shown" /></th> : <th className="w-2" />}
               <th className="px-3 py-3">Lead</th>
               <th className="px-3 py-3">Temperature &amp; callback</th>
               <th className="px-3 py-3">Stage</th>
@@ -414,7 +394,7 @@ export function LeadListTable({ leads, selected, onToggle, onToggleAll, onOpen, 
           </thead>
           <tbody className="divide-y divide-[#F5F5F4] dark:divide-[#202020]">
             {leads.map((l, i) => {
-              const on = selected.has(l._id)
+              const on = selectable && selected.has(l._id)
               const stage = stageOf(l)
               const next = nextStepOf(l)
               const due = l.followUpDate ? new Date(l.followUpDate) : null
@@ -425,7 +405,7 @@ export function LeadListTable({ leads, selected, onToggle, onToggleAll, onOpen, 
                 <tr key={l._id} {...rowProps(l._id)} onClick={() => onOpen(l._id)}
                   className={`mac-in cursor-pointer align-top transition-colors ${on ? 'bg-[#F95C4B]/[0.06]' : 'hover:bg-[#FAFAF9] dark:hover:bg-[#1C1C1C]'}`}
                   style={{ '--d': `${Math.min(i, 14) * 22}ms` }}>
-                  <td className="pl-4 pr-2 py-4"><SelectBox checked={on} onChange={() => onToggle(l._id)} /></td>
+                  {selectable ? <td className="pl-4 pr-2 py-4"><SelectBox checked={on} onChange={() => onToggle(l._id)} /></td> : <td className="w-2" />}
                   <td className="px-3 py-4 max-w-[260px]">
                     <p className="text-[13px] font-bold text-[#111111] dark:text-white uppercase tracking-tight truncate" title={l.landlordName}>{l.landlordName}</p>
                     <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">{l.contactId?.address ?? l.propertyAddress}</p>

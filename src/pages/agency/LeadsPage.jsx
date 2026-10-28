@@ -19,10 +19,11 @@ import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import SidePanel from '../../components/common/SidePanel'
 import { useAuthStore } from '../../store/authStore'
 import {
-  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, LeadsRail, Panel, useLeadInsights,
-  ActiveFilterChips, FetchBar, CardGridSkeleton, FOCUS_LABELS, LEAD_STATUS_TILES,
+  LeadsHeader, PrimaryButton, CountTiles, statusTileItems, Panel, useLeadInsights,
+  ActiveFilterChips, FetchBar, FOCUS_LABELS, LEAD_STATUS_TILES,
 } from '../../components/leads/LeadsHub'
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
+import { InsightStrip, SmartViews, LeadListTable } from '../../components/leads/LeadsWorkbench'
 import { AgencyLeadDetail } from './LeadDetailPage'
 
 const STATUS_META = {
@@ -53,79 +54,6 @@ function fmtDate(d) {
   return format(new Date(d), 'd MMM yyyy')
 }
 
-function LeadCard({ lead, onClick, currentUserId, rowProps }) {
-  return (
-    <button
-      {...rowProps}
-      onClick={onClick}
-      className="group w-full text-left bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40 hover:shadow-sm transition-all p-5"
-    >
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-bold text-[#111111] dark:text-white truncate">
-              {lead.landlordName ?? 'Unknown Landlord'}
-            </h3>
-            <StatusBadge status={lead.status} />
-          </div>
-          <div className="mt-1.5">
-            <LeadSourceBadge source={lead.source} />
-          </div>
-          {lead.propertyAddress && (
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] flex items-center gap-1 mt-1 truncate">
-              <MapPin className="w-3 h-3 flex-shrink-0" />
-              {lead.propertyAddress}
-            </p>
-          )}
-          <div className="mt-2">
-            <ListingBadge listingType={lead.listingType} priceMin={lead.priceMin} priceMax={lead.priceMax} />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-        {lead.phone && (
-          <div className="flex items-center gap-1.5">
-            <Phone className="w-3 h-3 text-[#6B7280] flex-shrink-0" />
-            <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">{lead.phone}</span>
-          </div>
-        )}
-        {lead.area && (
-          <div className="flex items-center gap-1.5">
-            <Home className="w-3 h-3 text-[#6B7280] flex-shrink-0" />
-            <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">
-              {typeof lead.area === 'object' ? lead.area.name : lead.area}
-            </span>
-          </div>
-        )}
-        {lead.createdBy && (
-          <div className="flex items-center gap-1.5">
-            <User className="w-3 h-3 text-[#6B7280] flex-shrink-0" />
-            <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA] truncate">
-              {typeof lead.createdBy === 'object'
-                ? `${lead.createdBy.firstName ?? ''} ${lead.createdBy.lastName ?? ''}`.trim()
-                : '—'}
-            </span>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5">
-          <Clock className="w-3 h-3 text-[#6B7280] flex-shrink-0" />
-          <span className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{fmtDate(lead.createdAt)}</span>
-        </div>
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <LastFollowUpCommentCell lead={lead} currentUserId={currentUserId} maxWidthClass="max-w-full" />
-      </div>
-
-      <div className="flex items-center justify-end mt-3 pt-3 border-t border-[#F5F5F4] dark:border-[#202020]">
-        <span className="flex items-center gap-1 text-[11px] font-semibold text-[#F95C4B] group-hover:gap-1.5 transition-all">
-          View details <ChevronRight className="w-3.5 h-3.5" />
-        </span>
-      </div>
-    </button>
-  )
-}
 
 /* ─── Quick-add contact (person not in the system yet) ──────────────────── */
 // Only what a lead needs: name + phone, plus the property details that the lead form
@@ -436,7 +364,10 @@ export default function AgencyLeadsPage() {
 
       <CountTiles items={statusTileItems(statsData)} value={status} onChange={setStatusR} />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+      <InsightStrip insights={insights} focus={focus} onFocus={setFocusR} />
+      <SmartViews insights={insights} focus={focus} onFocus={setFocusR} />
+
+      <div className="grid grid-cols-1 gap-5 items-start">
         <div className="space-y-4 min-w-0">
           <LeadSidePanel panel={leadPanel}>
             {(id) => (
@@ -512,7 +443,7 @@ export default function AgencyLeadsPage() {
           )}
 
           {isLoading ? (
-            <CardGridSkeleton count={6} />
+            <div className="space-y-2">{Array.from({ length: 8 }, (_, i) => <div key={i} className="shimmer h-[86px] rounded-2xl" />)}</div>
           ) : leads.length === 0 ? (
             <Panel className="flex flex-col items-center justify-center py-20 gap-3 text-center" delay={180}>
               <div className="w-14 h-14 rounded-2xl bg-[#F95C4B]/10 flex items-center justify-center">
@@ -527,13 +458,7 @@ export default function AgencyLeadsPage() {
             </Panel>
           ) : (
             <>
-              <div className={`grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 transition-opacity duration-300 ${refreshing ? 'opacity-60' : 'opacity-100'}`}>
-                {leads.map((lead, i) => (
-                  <div key={lead._id} className="mac-in" style={{ '--d': `${Math.min(i, 12) * 30}ms` }}>
-                    <LeadCard lead={lead} onClick={() => leadPanel.open(lead._id)} rowProps={leadRowProps(leadPanel, lead._id)} currentUserId={user?._id} />
-                  </div>
-                ))}
-              </div>
+              <LeadListTable leads={leads} onOpen={(id) => leadPanel.open(id)} rowProps={(id) => leadRowProps(leadPanel, id)} refreshing={refreshing} />
 
               <div className="flex items-center justify-between gap-3 pt-1">
                 <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">
@@ -563,7 +488,6 @@ export default function AgencyLeadsPage() {
           )}
         </div>
 
-        <LeadsRail role={isManager ? 'agency_manager' : 'agent'} insights={insights} focus={focus} onFocus={setFocusR} places="areas" place={place} onPlace={setPlaceR} />
       </div>
 
       {showNewLead && (

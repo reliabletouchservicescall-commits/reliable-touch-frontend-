@@ -5,7 +5,7 @@ import { format, isToday } from 'date-fns'
 import {
   Handshake, Search, X, ChevronDown, Bell, MessageSquare, MessagesSquare, PhoneCall, Sparkles, Flame, UserCheck,
   CalendarCheck, Home, KeyRound, Wallet, BadgePercent, TrendingUp, Building2, Table2, Workflow,
-  GitBranch, ExternalLink, Info, Loader2, AlertTriangle, Trophy,
+  GitBranch, ExternalLink, Info, Loader2, AlertTriangle, Trophy, Paperclip,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import axiosClient from '../../lib/axios'
@@ -13,6 +13,8 @@ import LiquidTabs from '../../components/common/LiquidTabs'
 import SidePanel from '../../components/common/SidePanel'
 import { LeadStatusBadge } from '../../components/leads/leadShared'
 import DealFlowCanvas from '../../components/deals/DealFlowCanvas'
+import DealDocuments from '../../components/deals/DealDocuments'
+import { DEAL_DOC_STAGES } from '../../lib/dealDocs'
 
 // Deal Tracker — every deal from the cold call that found it to the commission it earned:
 // a table like the team's old deal board (money, payments, splits, sums per group), the
@@ -87,6 +89,7 @@ const COLS = [
   { key: 'agent', label: 'Agent', w: 150 },
   { key: 'date', label: 'Date', w: 92 },
   { key: 'stage', label: 'Stage', w: 120 },
+  { key: 'docs', label: 'Documents', w: 150 },
   { key: 'client', label: 'Client', w: 130, pill: true },
   { key: 'landlord', label: 'Landlord', w: 130, pill: true },
   { key: 'split', label: 'Commission split', w: 130, pill: true },
@@ -130,6 +133,23 @@ function cell(r, key) {
     ) : '—'
     case 'date': return short(r.closedAt ?? r.createdAt)
     case 'stage': return <LeadStatusBadge status={r.status} />
+    case 'docs': {
+      const d = r.docSummary
+      if (!d) return '—'
+      const full = d.key > 0 && d.keyDone === d.key
+      return (
+        <span className="flex flex-col gap-1" title={DEAL_DOC_STAGES.map((s) => `${s.label}: ${d.byStage[s.key]?.files ?? 0} file(s)`).join('\n')}>
+          <span className={`inline-flex items-center gap-1 self-start px-2 py-0.5 rounded-md text-[11px] font-bold ${full ? 'bg-[#10B981] text-white' : d.files ? 'bg-[#10B981]/12 text-[#059669] dark:text-[#34D399]' : 'bg-[#F5F5F4] dark:bg-[#202020] text-[#9CA3AF]'}`}>
+            <Paperclip className="w-3 h-3" /> {d.keyDone}/{d.key} key{d.files ? ` · ${d.files}` : ''}
+          </span>
+          <span className="flex gap-1">
+            {DEAL_DOC_STAGES.filter((s) => s.key !== 'other').map((s) => (
+              <span key={s.key} className="w-4 h-1.5 rounded-full" style={{ backgroundColor: d.byStage[s.key]?.files ? s.color : 'rgb(156 163 175 / 0.25)' }} />
+            ))}
+          </span>
+        </span>
+      )
+    }
     case 'client': return <Pill value={r.deal.clientPayment} map={PAY} />
     case 'landlord': return <Pill value={r.deal.landlordPayment} map={PAY} />
     case 'split': return <SplitPill split={r.deal.split} />
@@ -237,7 +257,7 @@ const STEP_ICON = {
 }
 
 // Flow-editor style: the deals on the left, the chosen deal's workflow on a canvas
-function WorkflowList({ rows, onOpen }) {
+function WorkflowList({ rows, onOpen, docs }) {
   const [id, setId] = useState(null)
   const [limit, setLimit] = useState(60)
   const row = rows.find((r) => r.id === id) ?? rows[0]
@@ -281,6 +301,12 @@ function WorkflowList({ rows, onOpen }) {
           </button>
         </div>
         <DealFlowCanvas key={row.id} row={row} />
+        {docs.show && (
+          <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] p-5">
+            <p className="flex items-center gap-2 text-sm font-bold text-[#111111] dark:text-white mb-3"><Paperclip className="w-4 h-4 text-[#F95C4B]" /> Documents — pick a stage and upload</p>
+            <DealDocuments key={row.id} leadId={row.id} listingType={row.listingType} documents={row.deal.documents ?? []} canUpload={docs.canUpload} isAdmin={docs.isAdmin} currentUserId={docs.userId} />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -403,7 +429,8 @@ function PointsCard({ row }) {
   )
 }
 
-function DealDrawer({ row, onClose, leadBase, hide = [] }) {
+function DealDrawer({ row, onClose, leadBase, hide = [], docs }) {
+  const [documents, setDocuments] = useState(row.deal.documents ?? [])
   const navigate = useNavigate()
   const [only, setOnly] = useState('all')
   const touchesFor = (k) => row.touches.filter((t) => t.step === k && (only === 'all' || t.kind === only))
@@ -429,6 +456,14 @@ function DealDrawer({ row, onClose, leadBase, hide = [] }) {
         )}
 
         <PointsCard row={row} />
+        {docs.show ? (
+          <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
+            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF] mb-3"><Paperclip className="w-3.5 h-3.5" /> Documents</p>
+            <DealDocuments leadId={row.id} listingType={row.listingType} documents={documents} canUpload={docs.canUpload} isAdmin={docs.isAdmin} currentUserId={docs.userId} onChange={setDocuments} compact />
+          </div>
+        ) : row.docSummary?.files > 0 && (
+          <p className="flex items-center gap-1.5 text-xs text-[#059669] dark:text-[#34D399]"><Paperclip className="w-3.5 h-3.5" /> {row.docSummary.keyDone} of {row.docSummary.key} key documents uploaded</p>
+        )}
         {!hide.includes('split') ? <MoneySplit r={row} hide={hide} /> : row.money.monthlyRental != null && (
           <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Monthly rental <b className="text-[#111111] dark:text-white">{R(row.money.monthlyRental)}</b></p>
         )}
@@ -526,6 +561,9 @@ export default function DealTrackerPage({ role = 'admin' }) {
   const hide = useMemo(() => data?.viewer?.hide ?? [], [data])
   const mine = Boolean(data?.points) // a cold caller or an agent: their own deals and points
   const cols = useMemo(() => COLS.filter((c) => !hide.includes(c.key) && (!c.mine || mine)), [hide, mine])
+  // Documents: admin and the company (managers, agents) see and upload them; cold callers see the count
+  const kind = data?.viewer?.kind
+  const docs = { show: ['admin', 'manager', 'agent'].includes(kind), canUpload: ['admin', 'manager', 'agent'].includes(kind), isAdmin: kind === 'admin', userId }
   const pts = data?.points
   const kpis = mine ? [
     { label: 'Open deals', value: pts.openDeals, color: '#579BFC' },
@@ -563,7 +601,7 @@ export default function DealTrackerPage({ role = 'admin' }) {
               <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">
                 {role === 'cold_caller' ? 'The deals that grew from the leads you found — every step, and the points each one earns you.'
                   : mine ? 'Your deals, from the first call to the commission — every step, and the points each one earns you.'
-                    : 'From the first cold call to the commission — every step, payment, split and message. Read-only.'}
+                    : 'From the first cold call to the commission — every step, payment, split, message and document.'}
               </p>
             </div>
           </div>
@@ -637,13 +675,13 @@ export default function DealTrackerPage({ role = 'admin' }) {
         ) : (
           <div key={view} className="relative">
             {view === 'table' && <DealTable rows={rows} groups={data.groups} onOpen={setOpen} cols={cols} />}
-            {view === 'workflow' && <WorkflowList rows={rows} onOpen={setOpen} />}
+            {view === 'workflow' && <WorkflowList rows={rows} onOpen={setOpen} docs={docs} />}
             {view === 'map' && <PipelineMap flow={data.flow} rows={rows} />}
           </div>
         )}
       </div>
 
-      {open && <DealDrawer row={open} onClose={() => setOpen(null)} leadBase={leadBase} hide={hide} />}
+      {open && <DealDrawer key={open.id} row={open} onClose={() => setOpen(null)} leadBase={leadBase} hide={hide} docs={docs} />}
     </div>
   )
 }
