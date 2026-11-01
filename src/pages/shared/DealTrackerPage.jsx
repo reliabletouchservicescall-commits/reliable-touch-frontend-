@@ -14,7 +14,9 @@ import SidePanel from '../../components/common/SidePanel'
 import { LeadStatusBadge } from '../../components/leads/leadShared'
 import DealFlowCanvas from '../../components/deals/DealFlowCanvas'
 import DealDocuments from '../../components/deals/DealDocuments'
+import { TenantApplicationsPanel, TenantProgressChip } from '../../components/tenants/TenantApplications'
 import { DEAL_DOC_STAGES } from '../../lib/dealDocs'
+import { CORAL } from '../../lib/brand'
 
 // Deal Tracker — every deal from the cold call that found it to the commission it earned:
 // a table like the team's old deal board (money, payments, splits, sums per group), the
@@ -89,6 +91,7 @@ const COLS = [
   { key: 'agent', label: 'Agent', w: 150 },
   { key: 'date', label: 'Date', w: 92 },
   { key: 'stage', label: 'Stage', w: 120 },
+  { key: 'tenants', label: 'Tenants', w: 170 },
   { key: 'docs', label: 'Documents', w: 150 },
   { key: 'client', label: 'Client', w: 130, pill: true },
   { key: 'landlord', label: 'Landlord', w: 130, pill: true },
@@ -133,6 +136,7 @@ function cell(r, key) {
     ) : '—'
     case 'date': return short(r.closedAt ?? r.createdAt)
     case 'stage': return <LeadStatusBadge status={r.status} />
+    case 'tenants': return r.listingType === 'sale' && !r.tenants ? '—' : <TenantProgressChip t={r.tenants} />
     case 'docs': {
       const d = r.docSummary
       if (!d) return '—'
@@ -273,7 +277,7 @@ function WorkflowList({ rows, onOpen, docs }) {
               <li key={r.id}>
                 <button type="button" onClick={() => setId(r.id)}
                   className={`w-full text-left px-4 py-3 transition-colors ${on ? 'bg-[#F95C4B]/[0.07]' : 'hover:bg-[#FAFAF9] dark:hover:bg-[#1C1C1C]'}`}
-                  style={{ boxShadow: on ? 'inset 3px 0 0 #F95C4B' : `inset 3px 0 0 ${GROUPS[r.group].color}40` }}>
+                  style={{ boxShadow: on ? `inset 3px 0 0 ${CORAL}` : `inset 3px 0 0 ${GROUPS[r.group].color}40` }}>
                   <span className="flex items-center gap-2">
                     <span className={`flex-1 min-w-0 text-[13px] font-semibold truncate uppercase tracking-tight ${on ? 'text-[#F95C4B]' : 'text-[#111111] dark:text-white'}`}>{r.landlordName}</span>
                     <LeadStatusBadge status={r.status} />
@@ -337,7 +341,7 @@ function PipelineMap({ flow, rows }) {
       <div className="overflow-x-auto thin-scroll">
         <svg width={width} height={H + 90} className="block">
           <defs>
-            <linearGradient id="dt-band" x1="0" x2="1"><stop offset="0" stopColor="#F95C4B" stopOpacity="0.28" /><stop offset="1" stopColor="#F95C4B" stopOpacity="0.12" /></linearGradient>
+            <linearGradient id="dt-band" x1="0" x2="1"><stop offset="0" stopColor={CORAL} stopOpacity="0.28" /><stop offset="1" stopColor={CORAL} stopOpacity="0.12" /></linearGradient>
           </defs>
           {steps.map((f, i) => {
             if (i === 0) return null
@@ -353,7 +357,7 @@ function PipelineMap({ flow, rows }) {
             return (
               <g key={f.key} className="mac-in" style={{ '--d': `${i * 60}ms` }}>
                 {f.predicted ? <rect x={x} y={y(f.count + f.predicted)} width={W} height={y(f.count) - y(f.count + f.predicted) + Math.max(4, H - y(f.count))} rx="10" fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="6 5" /> : null}
-                <rect x={x} y={y(f.count)} width={W} height={Math.max(4, H - y(f.count))} rx="10" fill="#F95C4B" />
+                <rect x={x} y={y(f.count)} width={W} height={Math.max(4, H - y(f.count))} rx="10" fill={CORAL} />
                 <text x={x + W / 2} y={y(f.count) - 8} textAnchor="middle" className="fill-[#111111] dark:fill-white" fontSize="16" fontWeight="700">{f.count}</text>
                 {f.predicted ? <text x={x + W / 2} y={y(f.count + f.predicted) - 8} textAnchor="middle" fill="#F59E0B" fontSize="11" fontWeight="600">+{Math.round(f.predicted)} expected</text> : null}
                 <foreignObject x={x} y={H + 10} width={W} height="70">
@@ -376,7 +380,7 @@ function PipelineMap({ flow, rows }) {
 /* ─── Deal drawer ───────────────────────────────────────────────────────── */
 
 const TOUCH = {
-  notification: { icon: Bell, color: '#F95C4B', label: 'Notification' },
+  notification: { icon: Bell, color: CORAL, label: 'Notification' },
   comment: { icon: MessageSquare, color: '#8B5CF6', label: 'Follow-up message' },
   chat: { icon: MessagesSquare, color: '#3B82F6', label: 'Chat message' },
 }
@@ -384,7 +388,7 @@ const TOUCH = {
 function MoneySplit({ r, hide = [] }) {
   const m = r.money
   const parts = [
-    ['Agent', m.agentShare, '#F95C4B'], [r.deal.split?.sharedAgent ?? 'Shared agent', m.sharedAgentShare, '#A25DDC'],
+    ['Agent', m.agentShare, CORAL], [r.deal.split?.sharedAgent ?? 'Shared agent', m.sharedAgentShare, '#A25DDC'],
     ['Company', m.agencyShare, '#579BFC'], ['Reliable Touch', m.reliableShare, '#00C875'],
   ].filter(([, v]) => v)
   const total = parts.reduce((s, [, v]) => s + v, 0)
@@ -456,6 +460,11 @@ function DealDrawer({ row, onClose, leadBase, hide = [], docs }) {
         )}
 
         <PointsCard row={row} />
+        {row.listingType === 'rental' && ['listed', 'rented_out'].includes(row.status) && (
+          <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
+            <TenantApplicationsPanel leadId={row.id} embedded />
+          </div>
+        )}
         {docs.show ? (
           <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
             <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF] mb-3"><Paperclip className="w-3.5 h-3.5" /> Documents</p>
@@ -578,7 +587,7 @@ export default function DealTrackerPage({ role = 'admin' }) {
     { label: 'Active deals', value: all.filter((r) => r.group === 'active').length, color: '#579BFC' },
     { label: 'Closed (rented / sold)', value: won.length, color: '#00C875' },
     { label: 'Deal revenue', value: R(sum(all, 'totalRevenue')), color: '#111111' },
-    { label: 'Reliable Touch share', value: R(sum(all, 'reliableShare')), color: '#F95C4B' },
+    { label: 'Reliable Touch share', value: R(sum(all, 'reliableShare')), color: CORAL },
     { label: 'Agent payouts', value: R(sum(all, 'agentShare') + sum(all, 'sharedAgentShare')), color: '#A25DDC' },
     { label: 'Expected from open deals', value: R(all.reduce((s, r) => s + (r.prediction?.weightedValue ?? 0), 0)), color: '#FDAB3D', hint: 'Each open deal’s value × its chance of closing' },
   ] : []

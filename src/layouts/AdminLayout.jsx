@@ -30,11 +30,13 @@ import {
   BarChart2,
   ShieldCheck,
   Trash2,
+  KeyRound,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuthStore } from '../store/authStore'
 import { authApi } from '../services/authApi'
 import NotificationBell from '../components/notifications/NotificationBell'
+import OnboardingTour, { TourButton } from '../components/onboarding/OnboardingTour'
 import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
 import { useSocket } from '../context/SocketContext'
 
@@ -49,6 +51,7 @@ const NAV = [
       { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
       { label: 'Reports', icon: BarChart2, to: '/admin/reports' },
       { label: 'Deal Tracker', icon: Handshake, to: '/admin/deal-tracker' },
+      { label: 'Tenants', icon: KeyRound, to: '/admin/tenants' },
     ],
   },
   {
@@ -323,6 +326,7 @@ export default function AdminLayout() {
             Admin Portal
           </span>
 
+          <TourButton />
           <NotificationBell />
         </header>
 
@@ -331,6 +335,7 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      <OnboardingTour />
     </div>
   )
 }

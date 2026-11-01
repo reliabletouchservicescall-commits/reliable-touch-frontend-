@@ -13,6 +13,7 @@ import { useAuthStore } from '../../store/authStore'
 // never see each other's board)
 const useUid = () => useAuthStore((st) => st.user?._id ?? 'anon')
 import { Card, Skeleton, CardTitle, LinkButton } from './DashboardKit'
+import { CORAL, CORAL_2 } from '../../lib/brand'
 
 // The admin dashboard's live operations board — who is working right now and what they're
 // doing, what needs the admin today, and everything happening across the system as it
@@ -24,7 +25,7 @@ import { Card, Skeleton, CardTitle, LinkButton } from './DashboardKit'
 // Where things link to on each board
 export const SCOPES = {
   admin: { leads: '/admin/leads', person: (id) => `/admin/users/${id}`, team: '/admin/performance', ranking: '/admin/performance', newLead: '/admin/leads?new=1' },
-  agency: { leads: '/agency/leads', person: (id) => `/agency/agents/${id}`, team: '/agency/team', ranking: '/agency/leaderboard', newLead: '/agency/leads' },
+  agency: { leads: '/agency/leads', person: (id) => `/agency/agents/${id}`, team: '/agency/team', ranking: '/agency/leaderboard', newLead: '/agency/leads?new=1' },
 }
 
 const ROLE_LABEL = { cold_caller: 'Cold caller', follow_up_manager: 'Follow-up manager', agency: 'Agent', admin: 'Admin' }
@@ -375,7 +376,7 @@ export function OnTheFloor({ floor, loading, now, scope = 'admin' }) {
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-[#111111] dark:text-white truncate">{p.name}</span>
                 <span className="block text-[11px] text-[#9CA3AF] truncate">
-                  {scope === 'agency' ? (p.isAgencyManager ? 'Manager' : 'Agent') : (ROLE_LABEL[p.role] ?? p.role)}{p.place ? ` · ${p.place}` : ''}
+                  {scope === 'agency' ? (p.isAgencyAdmin ? 'Agency Admin' : p.isAgencyManager ? 'Manager' : 'Agent') : (ROLE_LABEL[p.role] ?? p.role)}{p.place ? ` · ${p.place}` : ''}
                   {s.sub ? <span className="text-[#6B7280] dark:text-[#A1A1AA]"> · {s.sub}</span> : null}
                 </span>
               </span>
@@ -597,7 +598,7 @@ const SOURCE_STEPS = [
   ['listed', 'Listed / negotiating'], ['won', 'Rented / sold'], ['paid', 'Paid'],
 ]
 const SOURCE_STATUS = [
-  ['cold', 'Cold', '#60A5FA'], ['warm', 'Warm', '#FBBF24'], ['hot', 'Hot', '#F87171'], ['still_negotiating', 'Negotiating', '#FF8C7A'],
+  ['cold', 'Cold', '#60A5FA'], ['warm', 'Warm', '#FBBF24'], ['hot', 'Hot', '#F87171'], ['still_negotiating', 'Negotiating', CORAL_2],
   ['listed', 'Listed', '#A78BFA'], ['rented_out', 'Rented', '#34D399'], ['sold', 'Sold', '#10B981'], ['lost', 'Lost', '#9CA3AF'],
 ]
 
@@ -653,7 +654,7 @@ export function SourcesReport({ sources }) {
     <Card delay={300} className="p-5">
       <CardTitle title="What happens to your leads" subtitle="Leads Reliable Touch handed to you against the ones your team found — from arrival to a paid deal" />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SourceColumn title="From Reliable Touch" sub="Handed to your company" color="#F95C4B" d={sources.reliableTouch} to="/agency/leads?source=reliable_touch" delay={340} />
+        <SourceColumn title="From Reliable Touch" sub="Handed to your company" color={CORAL} d={sources.reliableTouch} to="/agency/leads?source=reliable_touch" delay={340} />
         <SourceColumn title="Your own leads" sub="Your team found these themselves" color="#8B5CF6" d={sources.own} to="/agency/leads?source=agency_self_sourced" delay={400} />
       </div>
     </Card>

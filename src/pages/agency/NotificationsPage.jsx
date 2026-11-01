@@ -9,9 +9,10 @@ import {
 } from 'lucide-react'
 import { notificationsApi } from '../../services/notificationsApi'
 import { NotificationOpenButton } from '../../components/notifications/notificationLink'
+import { CORAL } from '../../lib/brand'
 
 const EVENT_META = {
-  new_lead:             { label: 'New Lead',        icon: FileText,     color: '#F95C4B' },
+  new_lead:             { label: 'New Lead',        icon: FileText,     color: CORAL },
   hot_lead:             { label: 'Hot Lead',         icon: Flame,        color: '#EF4444' },
   lead_status_updated:  { label: 'Status Updated',   icon: RefreshCw,    color: '#3B82F6' },
   appointment_booked:   { label: 'Appointment',      icon: CalendarClock,color: '#3B82F6' },
@@ -25,7 +26,7 @@ const EVENT_META = {
   commission_due:       { label: 'Commission Due',   icon: Wallet,       color: '#8B5CF6' },
   renewal_due:          { label: 'Renewal Due',      icon: Banknote,     color: '#8B5CF6' },
   lead_negotiation_reminder: { label: 'Negotiation Update Needed', icon: Handshake, color: '#F59E0B' },
-  campaign_daily_reminder: { label: 'Campaign Reminder', icon: Megaphone, color: '#F95C4B' },
+  campaign_daily_reminder: { label: 'Campaign Reminder', icon: Megaphone, color: CORAL },
   block_request:           { label: 'Block Request',   icon: Inbox,     color: '#F59E0B' },
   block_request_resolved:  { label: 'Block Resolved',   icon: PhoneOff,  color: '#EF4444' },
 }

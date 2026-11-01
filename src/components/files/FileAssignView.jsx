@@ -15,6 +15,7 @@ import LiquidTabs from '../common/LiquidTabs'
 import ExcelFilesBoard, {
   AssignSheet, FileDetails, FileContactsPanel, DeleteFileDialog, holderOf, initials, areaColor,
 } from './ExcelFilesBoard'
+import { CORAL } from '../../lib/brand'
 
 // Admin's quickest way to hand out contacts: pick a spreadsheet, pick a cold caller,
 // confirm. Callers are ranked for each file (who asked for contacts, who already works
@@ -294,7 +295,7 @@ function FileRow({ file, index, checked, onCheck, onOpen, onAssign, assignLabel,
           <span className="font-bold text-[#111111] dark:text-white">{pct}%</span>
         </div>
         <span className="block h-1.5 rounded-full bg-[#F5F5F4] dark:bg-[#2A2A2A] overflow-hidden">
-          <span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, backgroundColor: pct >= 100 ? '#10B981' : '#F95C4B', transitionTimingFunction: 'var(--ease-mac)' }} />
+          <span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, backgroundColor: pct >= 100 ? '#10B981' : CORAL, transitionTimingFunction: 'var(--ease-mac)' }} />
         </span>
       </div>
 

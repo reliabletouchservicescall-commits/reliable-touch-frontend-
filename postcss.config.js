@@ -1,6 +1,9 @@
+import brandVars from './postcss-brand-vars.js'
+
 export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
+  plugins: [
+    (await import('tailwindcss')).default,
+    (await import('autoprefixer')).default,
+    brandVars(),
+  ],
 }

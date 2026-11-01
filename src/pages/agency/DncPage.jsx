@@ -13,6 +13,7 @@ import { contactsApi } from '../../services/contactsApi'
 import { useAuthStore } from '../../store/authStore'
 import SidePanel from '../../components/common/SidePanel'
 import { Field, inputCls, getApiErrorMessage } from '../../components/leads/leadShared'
+import { CORAL } from '../../lib/brand'
 
 const REQUEST_STATUS_META = {
   pending:   { label: 'Pending Review', color: '#F59E0B', Icon: Clock },
@@ -68,13 +69,13 @@ function PhoneChecker() {
             value={phone}
             onChange={(e) => { setPhone(e.target.value); setResult(null) }}
             placeholder="+27831234567"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm bg-[#F5F5F4] dark:bg-[#202020] border border-transparent focus:border-[#EF4444] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 outline-none"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm bg-[#F5F5F4] dark:bg-[#202020] border border-transparent focus:border-[#F95C4B] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 outline-none"
           />
         </div>
         <button
           type="submit"
           disabled={!phone.trim() || checking}
-          className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] disabled:opacity-50 flex items-center gap-2"
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-50 flex items-center gap-2"
         >
           {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
         </button>
@@ -135,7 +136,7 @@ function RequestBlockPanel({ onClose, onSaved }) {
     <SidePanel
       onClose={onClose}
       icon={PhoneOff}
-      iconColor="#EF4444"
+      iconColor={CORAL}
       title="Request a Block"
       subtitle="Your company manager (or admin) reviews it before it takes effect"
       widthClass="sm:max-w-sm"
@@ -148,7 +149,7 @@ function RequestBlockPanel({ onClose, onSaved }) {
             type="submit"
             form="agency-request-block-form"
             disabled={mut.isPending}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] disabled:opacity-60 flex items-center justify-center gap-2"
+            className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Send Request
@@ -267,7 +268,7 @@ function AddDncDrawer({ onClose, onSaved }) {
     <SidePanel
       onClose={onClose}
       icon={PhoneOff}
-      iconColor="#EF4444"
+      iconColor={CORAL}
       title="Add to Do Not Call"
       subtitle="Block a phone number from being contacted"
       widthClass="sm:max-w-sm"
@@ -280,7 +281,7 @@ function AddDncDrawer({ onClose, onSaved }) {
             type="submit"
             form="agency-add-dnc-form"
             disabled={mut.isPending}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] disabled:opacity-60 flex items-center justify-center gap-2"
+            className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             <PhoneOff className="w-4 h-4" /> Block Number
@@ -368,7 +369,7 @@ function BlockRequestCard({ request, onResolve, isPending }) {
         <button
           onClick={() => onResolve(request._id, 'approve', note)}
           disabled={isPending}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] disabled:opacity-60"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] disabled:opacity-60"
         >
           {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
           Approve & Block
@@ -475,8 +476,8 @@ function DncCard({ entry }) {
   return (
     <div className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
       <div className="flex items-center gap-3">
-        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[#EF4444]/10 flex items-center justify-center">
-          <PhoneOff className="w-4 h-4 text-[#EF4444]" strokeWidth={1.75} />
+        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[#F95C4B]/10 flex items-center justify-center">
+          <PhoneOff className="w-4 h-4 text-[#F95C4B]" strokeWidth={1.75} />
         </div>
         <p className="text-sm font-bold text-[#111111] dark:text-white font-mono truncate">{entry.phone}</p>
       </div>
@@ -519,7 +520,7 @@ function EmptyState({ hasFilters, onRequest }) {
         {hasFilters ? 'Try a different search term.' : 'Numbers blocked here are removed from every caller\'s contact list, system-wide.'}
       </p>
       {!hasFilters && (
-        <button onClick={onRequest} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626]">
+        <button onClick={onRequest} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A]">
           <Send className="w-4 h-4" /> Request a Block
         </button>
       )}
@@ -555,7 +556,7 @@ export default function DncPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div>
             <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight flex items-center gap-2.5">
-              <PhoneOff className="w-5 h-5 text-[#EF4444]" strokeWidth={1.75} />
+              <PhoneOff className="w-5 h-5 text-[#F95C4B]" strokeWidth={1.75} />
               Do Not Call List
             </h1>
             <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
@@ -566,14 +567,14 @@ export default function DncPage() {
             {isManager && (
               <button
                 onClick={() => setShowAdd(true)}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-[#EF4444] border border-[#EF4444]/30 hover:bg-[#EF4444]/5 transition-all"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-[#F95C4B] border border-[#F95C4B]/30 hover:bg-[#F95C4B]/5 transition-all"
               >
                 <Plus className="w-4 h-4" /> Block Number
               </button>
             )}
             <button
               onClick={() => setShowRequest(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#EF4444] hover:bg-[#DC2626] shadow-sm hover:shadow-md active:scale-[0.98] transition-all"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-sm hover:shadow-md active:scale-[0.98] transition-all"
             >
               <Send className="w-4 h-4" /> Request a Block
             </button>
@@ -592,7 +593,7 @@ export default function DncPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search phone or reason…"
-            className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 focus:border-[#EF4444] focus:ring-2 focus:ring-[#EF4444]/15 outline-none"
+            className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#6B7280]/50 focus:border-[#F95C4B] focus:ring-2 focus:ring-[#F95C4B]/15 outline-none"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111] dark:hover:text-white">

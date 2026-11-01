@@ -9,6 +9,7 @@ import {
 import { areasApi } from '../../services/areasApi'
 import { useAuthStore } from '../../store/authStore'
 import { getApiErrorMessage } from '../../components/leads/leadShared'
+import { CORAL } from '../../lib/brand'
 
 const SA_PROVINCES = [
   'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo',
@@ -16,7 +17,7 @@ const SA_PROVINCES = [
 ]
 
 const REGION_COLORS = {
-  'Gauteng': '#F95C4B', 'Western Cape': '#3B82F6', 'KwaZulu-Natal': '#10B981',
+  'Gauteng': CORAL, 'Western Cape': '#3B82F6', 'KwaZulu-Natal': '#10B981',
   'Eastern Cape': '#8B5CF6', 'Limpopo': '#F59E0B', 'Mpumalanga': '#EC4899',
   'North West': '#06B6D4', 'Free State': '#84CC16', 'Northern Cape': '#EF4444',
 }
@@ -317,7 +318,7 @@ export default function AreasPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <StatCard icon={MapPin} label="Total Areas" value={allAreas.length || total} color="#F95C4B" loading={isLoading} />
+        <StatCard icon={MapPin} label="Total Areas" value={allAreas.length || total} color={CORAL} loading={isLoading} />
         <StatCard icon={CheckCircle2} label="Active" value={activeCount} color="#10B981" loading={isLoading} />
         <StatCard icon={XCircle} label="Inactive" value={inactiveCount} color="#6B7280" loading={isLoading} />
       </div>

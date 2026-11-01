@@ -8,6 +8,7 @@ import {
   TrendingUp, BookUser, PhoneCall, Users, CalendarCheck,
 } from 'lucide-react'
 import { binApi } from '../../services/binApi'
+import { CORAL } from '../../lib/brand'
 
 const TOKEN_KEY = 'bin_access_token'
 const EXP_KEY = 'bin_access_expires'
@@ -18,7 +19,7 @@ const TYPE_META = {
   Contact:     { label: 'Contacts',     icon: BookUser,      color: '#3B82F6' },
   CallLog:     { label: 'Call Logs',    icon: PhoneCall,     color: '#8B5CF6' },
   User:        { label: 'Users',        icon: Users,         color: '#10B981' },
-  Appointment: { label: 'Appointments', icon: CalendarCheck, color: '#F95C4B' },
+  Appointment: { label: 'Appointments', icon: CalendarCheck, color: CORAL },
 }
 const TYPES = Object.keys(TYPE_META)
 

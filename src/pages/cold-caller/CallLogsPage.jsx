@@ -21,6 +21,7 @@ import {
 import { callLogsApi } from '../../services/callLogsApi'
 import { contactsApi } from '../../services/contactsApi'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
+import { CORAL } from '../../lib/brand'
 
 const OUTCOMES = [
   { value: '',                   label: 'All Outcomes' },
@@ -150,7 +151,7 @@ export default function ColdCallerCallLogsPage() {
           {[
             { label: 'Total Calls', value: total, color: '#3B82F6' },
             { label: 'Today', value: todayCount, color: '#10B981' },
-            { label: 'Interested', value: interestedCount, color: '#F95C4B' },
+            { label: 'Interested', value: interestedCount, color: CORAL },
           ].map(({ label, value, color }) => (
             <div
               key={label}

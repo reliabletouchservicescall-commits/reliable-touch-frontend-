@@ -25,6 +25,8 @@ import {
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
 import { InsightStrip, SmartViews, LeadListTable } from '../../components/leads/LeadsWorkbench'
 import { AgencyLeadDetail } from './LeadDetailPage'
+import AgentLeadsTop from '../../components/leads/AgentLeadsTop'
+import { CORAL } from '../../lib/brand'
 
 const STATUS_META = {
   cold:              { label: 'Cold',              color: '#6B7280', bg: '#6B728018' },
@@ -33,7 +35,7 @@ const STATUS_META = {
   still_negotiating: { label: 'Still Negotiating',  color: '#F59E0B', bg: '#F59E0B18' },
   listed:            { label: 'Listed',              color: '#8B5CF6', bg: '#8B5CF618' },
   rented_out:        { label: 'Rented Out',          color: '#10B981', bg: '#10B98118' },
-  sold:              { label: 'Sold',                color: '#F95C4B', bg: '#F95C4B18' },
+  sold:              { label: 'Sold',                color: CORAL, bg: `${CORAL}18` },
   lost:              { label: 'Lost',                color: '#9CA3AF', bg: '#9CA3AF18' },
 }
 
@@ -186,7 +188,7 @@ function NewLeadFlow({ team, isManager, currentUserId, onClose, onCreated }) {
     <SidePanel
       onClose={onClose}
       icon={adding !== null ? UserPlus : TrendingUp}
-      iconColor="#F95C4B"
+      iconColor={CORAL}
       title={adding !== null ? 'New Contact' : 'New Lead'}
       subtitle={adding !== null ? 'Add the person, then carry on with the lead' : 'Pick which contact this lead is for'}
       widthClass="sm:max-w-sm"
@@ -253,7 +255,7 @@ export default function AgencyLeadsPage() {
     return province ? { kind: 'province', value: province, label: province } : null
   })
   const [page, setPage] = useState(1)
-  const [showNewLead, setShowNewLead] = useState(false)
+  const [showNewLead, setShowNewLead] = useState(() => searchParams.get('new') === '1') // ?new=1 opens it (guided tour, dashboard)
   const isManager = Boolean(user?.isAgencyManager)
   const agentFilter = isManager ? (searchParams.get('agent') ?? '') : ''
   const debouncedSearch = useDebounce(search.trim())
@@ -261,7 +263,7 @@ export default function AgencyLeadsPage() {
   const { data: teamData } = useQuery({
     queryKey: ['agency-team', user?.agencyId],
     queryFn: () => agenciesApi.myTeam().then((r) => r.data.data.team),
-    enabled: isManager,
+    enabled: Boolean(user?.agencyId),
     staleTime: 60_000,
   })
   const team = teamData ?? []
@@ -310,6 +312,15 @@ export default function AgencyLeadsPage() {
     staleTime: 30_000,
   })
 
+  // An agent's header: every count on it in one call
+  const { data: myCounts } = useQuery({
+    queryKey: ['agent-lead-counts'],
+    queryFn: () => leadsApi.myCounts().then((r) => r.data.data),
+    enabled: !isManager,
+    staleTime: 30_000,
+  })
+  const managerName = team.filter((m) => m.isAgencyManager && m._id !== user?._id).map((m) => m.firstName.charAt(0) + m.firstName.slice(1).toLowerCase())[0] ?? ''
+
   // Report for the right rail: the whole company (or the one agent a manager picked).
   const { data: insights } = useLeadInsights(agentFilter && agentFilter !== 'unassigned' ? { assignedAgent: agentFilter } : {})
 
@@ -341,6 +352,20 @@ export default function AgencyLeadsPage() {
 
   return (
     <div className="min-h-full bg-[#FAFAF9] dark:bg-[#0B0B0B] p-4 sm:p-6 xl:p-8 space-y-5">
+      {!isManager ? (
+        <AgentLeadsTop
+          counts={myCounts} status={status} onStatus={setStatusR}
+          source={sourceFilter} onSource={(v) => { setSourceFilter(v); setPage(1) }}
+          focus={focus} onFocus={setFocusR}
+          search={search} onSearch={(v) => { setSearch(v); setPage(1) }}
+          onAdd={() => setShowNewLead(true)} managerName={managerName}
+          moreFilters={<>
+            <ListingTypeFilter value={listingTypeFilter} onChange={reset(setListingTypeFilter)} />
+            <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={reset(({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) })} />
+            <FollowUpActivityFilters hasFollowUp={hasFollowUpFilter} onHasFollowUpChange={reset(setHasFollowUpFilter)} hasComment={hasCommentFilter} onHasCommentChange={reset(setHasCommentFilter)} />
+          </>}
+        />
+      ) : (<>
       <LeadsHeader
         icon={TrendingUp}
         title={isManager ? 'Company leads' : 'My Leads'}
@@ -366,6 +391,7 @@ export default function AgencyLeadsPage() {
 
       <InsightStrip insights={insights} focus={focus} onFocus={setFocusR} />
       <SmartViews insights={insights} focus={focus} onFocus={setFocusR} />
+      </>)}
 
       <div className="grid grid-cols-1 gap-5 items-start">
         <div className="space-y-4 min-w-0">
@@ -388,7 +414,7 @@ export default function AgencyLeadsPage() {
           <ActiveFilterChips chips={chips} count={chips.length ? total : null} onClearAll={clearAllFilters} />
           <FetchBar active={refreshing} />
 
-          <Panel className="p-4 space-y-3" delay={140}>
+          {isManager && <Panel className="p-4 space-y-3" delay={140}>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
               <div className="relative flex-1 min-w-[240px]">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
@@ -404,8 +430,8 @@ export default function AgencyLeadsPage() {
                   </button>
                 )}
               </div>
-              <ListingTypeFilter value={listingTypeFilter} onChange={reset(setListingTypeFilter)} accent="#F95C4B" />
-              <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={reset(({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) })} accent="#F95C4B" />
+              <ListingTypeFilter value={listingTypeFilter} onChange={reset(setListingTypeFilter)} />
+              <CreatedDateRangeFilter from={createdFrom} to={createdTo} onChange={reset(({ from, to }) => { setCreatedFrom(from); setCreatedTo(to) })} />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <FollowUpActivityFilters
@@ -433,7 +459,7 @@ export default function AgencyLeadsPage() {
                 </button>
               ))}
             </div>
-          </Panel>
+          </Panel>}
 
           {isError && (
             <div className="flex items-center gap-2.5 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444]">

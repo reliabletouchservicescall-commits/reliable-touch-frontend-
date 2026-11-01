@@ -13,8 +13,9 @@ import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
 import DailyScoresChart from '../../components/performance/DailyScoresChart'
 import AgencyLeadsTable from '../../components/performance/AgencyLeadsTable'
+import { CORAL, CORAL_2 } from '../../lib/brand'
 
-const BRAND = '#F95C4B'
+const BRAND = CORAL
 const DAILY_ENDPOINT = '/performance/agency/daily-scores'
 const SERIES_DAYS = 30
 
@@ -173,7 +174,7 @@ function PositionHero({ me, myRank, total, board, user }) {
         <div className="h-2 rounded-full bg-white/10 overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${myRank === 1 ? 100 : toLeader}%`, background: 'linear-gradient(90deg, #F95C4B, #FF8C7A)' }}
+            style={{ width: `${myRank === 1 ? 100 : toLeader}%`, background: `linear-gradient(90deg, ${CORAL}, ${CORAL_2})` }}
           />
         </div>
         <p className="text-[10px] text-white/40">
@@ -352,7 +353,7 @@ function TodayRanking({ today, userId, isLoading }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} allowDecimals={false} />
             <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: '#6B7280' }} axisLine={false} tickLine={false} width={110} />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F95C4B0D' }} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: `${CORAL}0D` }} />
             <Bar dataKey="score" name="Points" radius={[0, 6, 6, 0]} label={{ position: 'right', fontSize: 10, fill: '#6B7280' }}>
               {data.map((d) => (
                 <Cell key={d.userId} fill={d.userId === userId ? BRAND : '#D4D4D8'} />
@@ -566,7 +567,7 @@ export default function AgencyLeaderboardPage() {
           <CardHeader
             icon={TrendingUp}
             title="Score trend by agent — last 30 days"
-            subtitle="Your line is highlighted in coral. Click a name below the chart to hide or show it."
+            subtitle="Your line is highlighted. Click a name below the chart to hide or show it."
           />
           <DailyScoresChart
             days={SERIES_DAYS}

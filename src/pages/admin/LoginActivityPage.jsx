@@ -10,11 +10,12 @@ import {
 } from 'lucide-react'
 import { usersApi } from '../../services/usersApi'
 import axiosClient from '../../lib/axios'
+import { CORAL } from '../../lib/brand'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ROLE_META = {
-  admin:       { label: 'Admin',       color: '#F95C4B', bg: '#F95C4B18' },
+  admin:       { label: 'Admin',       color: CORAL, bg: `${CORAL}18` },
   cold_caller: { label: 'Cold Caller', color: '#3B82F6', bg: '#3B82F618' },
   agency:      { label: 'Agency',      color: '#10B981', bg: '#10B98118' },
 }
@@ -396,7 +397,7 @@ export default function LoginActivityPage() {
         {[
           { icon: Users,       label: 'Total Accounts',   value: isLoading ? '…' : totalUsers,    color: '#8B5CF6' },
           { icon: Wifi,        label: 'Active Sessions',   value: isLoading ? '…' : activeNow,     color: '#10B981' },
-          { icon: CalendarClock, label: 'Logins Today',   value: isLoading ? '…' : todayLogins,   color: '#F95C4B' },
+          { icon: CalendarClock, label: 'Logins Today',   value: isLoading ? '…' : todayLogins,   color: CORAL },
           { icon: XCircle,     label: 'Never Logged In',  value: isLoading ? '…' : neverLoggedIn, color: '#F59E0B' },
         ].map(({ icon: Icon, label, value, color }) => (
           <div key={label} className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex items-center gap-3">

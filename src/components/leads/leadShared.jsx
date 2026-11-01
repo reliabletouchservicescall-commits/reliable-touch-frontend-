@@ -12,6 +12,7 @@ import { contactsApi } from '../../services/contactsApi'
 import { leadsApi } from '../../services/leadsApi'
 import { DateField } from '../common/DateTimeFields'
 import { watchLead, unwatchLead, sendTyping, onLeadEvent } from '../../lib/livePresence'
+import { CORAL } from '../../lib/brand'
 
 function useDebounce(value, delay = 300) {
   const [debounced, setDebounced] = useState(value)
@@ -36,7 +37,7 @@ export const LEAD_STATUS_META = {
   still_negotiating: { label: 'Still Negotiating',  color: '#F59E0B', bg: '#F59E0B18' },
   listed:            { label: 'Listed',              color: '#8B5CF6', bg: '#8B5CF618' },
   rented_out:        { label: 'Rented Out',          color: '#10B981', bg: '#10B98118' },
-  sold:              { label: 'Sold',                color: '#F95C4B', bg: '#F95C4B18' },
+  sold:              { label: 'Sold',                color: CORAL, bg: `${CORAL}18` },
   lost:              { label: 'Lost',                color: '#9CA3AF', bg: '#9CA3AF18' },
 }
 
@@ -48,7 +49,7 @@ export const AGENCY_STATUS_OPTIONS = [
   { value: 'still_negotiating', label: 'Still Negotiating', hint: 'Deal is progressing — no outcome yet', icon: Handshake, color: '#F59E0B' },
   { value: 'listed',            label: 'Listing Signed',    hint: 'Landlord signed the listing mandate',  icon: FileCheck2, color: '#8B5CF6' },
   { value: 'rented_out',        label: 'Rented Out',        hint: 'Property has been rented out',         icon: Key,        color: '#10B981' },
-  { value: 'sold',              label: 'Sold',               hint: 'Property has been sold',               icon: Banknote,   color: '#F95C4B' },
+  { value: 'sold',              label: 'Sold',               hint: 'Property has been sold',               icon: Banknote,   color: CORAL },
 ]
 
 // Statuses a cold caller may pick when logging a new lead — matches the backend's
@@ -315,7 +316,7 @@ export function ListingBadge({ listingType, priceMin, priceMax, size }) {
  * LISTING_TYPE_META are deliberately NOT used here — this is a page-level filter
  * control, not a badge, so it should read as "this page's accent," not "sale=purple."
  */
-export function ListingTypeFilter({ value, onChange, accent = '#F95C4B' }) {
+export function ListingTypeFilter({ value, onChange, accent = 'rgb(var(--brand-rgb))' }) { // brand colour (a company's own, for its people)
   const options = [
     { key: '', label: 'All' },
     { key: 'sale', label: 'For Sale' },
@@ -375,7 +376,7 @@ export function AgentOrAgencyPicker({ assignedAgent, agencyId, onChange, classNa
         <option value="">-- Unassigned --</option>
         {teamMembers.map((m) => (
           <option key={m._id} value={`agent:${m._id}`}>
-            {m.firstName} {m.lastName}{m.isAgencyManager ? ' (manager)' : ''}
+            {m.firstName} {m.lastName}{m.isAgencyAdmin ? ' (Agency Admin)' : m.isAgencyManager ? ' (manager)' : ''}
           </option>
         ))}
       </select>
@@ -1136,7 +1137,7 @@ export function LeadStatusBadge({ status, size }) {
 // should make the distinction visible at a glance.
 export const LEAD_SOURCE_META = {
   agency_self_sourced: { label: 'Self-Sourced', icon: Building2, color: '#8B5CF6', bg: '#8B5CF618' },
-  reliable_touch:       { label: 'From Reliable Touch', icon: UserCheck, color: '#F95C4B', bg: '#F95C4B18' },
+  reliable_touch:       { label: 'From Reliable Touch', icon: UserCheck, color: CORAL, bg: `${CORAL}18` },
 }
 
 export function LeadSourceBadge({ source, size }) {
@@ -1305,7 +1306,7 @@ export function FollowUpActivityFilters({ hasFollowUp, onHasFollowUpChange, hasC
 }
 
 export const COMMENT_AUTHOR_META = {
-  admin:             { label: 'Admin',              color: '#F95C4B' },
+  admin:             { label: 'Admin',              color: CORAL },
   cold_caller:       { label: 'Cold Caller',         color: '#3B82F6' },
   follow_up_manager: { label: 'Follow Up Manager',   color: '#8B5CF6' },
   agency:            { label: 'Agency',              color: '#10B981' },

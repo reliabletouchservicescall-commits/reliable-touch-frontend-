@@ -47,6 +47,7 @@ import MyProgressPage from '../pages/cold-caller/MyProgressPage'
 import AgencyDashboard from '../pages/agency/DashboardPage'
 import AgencyAppointmentsPage from '../pages/agency/AppointmentsPage'
 import AgencyLeaderboardPage from '../pages/agency/LeaderboardPage'
+import AgencyMyProgressPage from '../pages/agency/MyProgressPage'
 import AgencyLeadsPage from '../pages/agency/LeadsPage'
 import AgencyLeadDetailPage from '../pages/agency/LeadDetailPage'
 import AgencyNotificationsPage from '../pages/agency/NotificationsPage'
@@ -81,6 +82,9 @@ import BinPage from '../pages/admin/BinPage'
 import ColdCallerChatPage from '../pages/cold-caller/ChatPage'
 import AgencyChatPage from '../pages/agency/ChatPage'
 import AgencyTeamPage from '../pages/agency/TeamPage'
+import CompanyProfilePage from '../pages/agency/CompanyProfilePage'
+import TenantApplicationsPage from '../pages/shared/TenantApplicationsPage'
+import ApplyPage from '../pages/public/ApplyPage'
 import AgencyDetailPage from '../pages/admin/AgencyDetailPage'
 import FollowUpManagerChatPage from '../pages/follow-up-manager/ChatPage'
 import ProtectedRoute from './ProtectedRoute'
@@ -110,6 +114,9 @@ export default function AppRouter() {
         <Route path="/forgot-password" element={<Stub label="Forgot Password" />} />
         <Route path="/reset-password/:token" element={<Stub label="Reset Password" />} />
 
+        {/* A tenant's application — the private link they're sent; no sign-in */}
+        <Route path="/apply/:token" element={<ApplyPage />} />
+
         {/* ── Admin ────────────────────────────────────────────────── */}
         <Route
           path="/admin"
@@ -127,6 +134,7 @@ export default function AppRouter() {
           <Route path="leads" element={<LeadsPage />} />
           <Route path="leads/:id" element={<AdminLeadDetailPage />} />
           <Route path="deal-tracker" element={<DealTrackerPage role="admin" />} />
+          <Route path="tenants" element={<TenantApplicationsPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="call-logs" element={<AdminCallLogsPage />} />
           <Route path="dnc" element={<DncPage />} />
@@ -161,6 +169,7 @@ export default function AppRouter() {
           <Route path="call-mode" element={<CallModePage />} />
           <Route path="callbacks" element={<CallModePage mode="callbacks" key="callbacks" />} />
           <Route path="deal-tracker" element={<DealTrackerPage role="cold_caller" />} />
+          <Route path="tenants" element={<TenantApplicationsPage />} />
           <Route path="leads" element={<ColdCallerLeadsPage />} />
           <Route path="leads/new/:contactId" element={<ColdCallerLeadsPage />} />
           <Route path="leads/:id" element={<ColdCallerLeadDetailPage />} />
@@ -196,9 +205,12 @@ export default function AppRouter() {
           <Route path="leads" element={<AgencyLeadsPage />} />
           <Route path="leads/:id" element={<AgencyLeadDetailPage />} />
           <Route path="deal-tracker" element={<DealTrackerPage role="agency" />} />
+          <Route path="tenants" element={<TenantApplicationsPage />} />
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
+          <Route path="progress" element={<AgencyMyProgressPage />} />
           <Route path="notifications" element={<AgencyNotificationsPage />} />
           <Route path="team" element={<AgencyTeamPage />} />
+          <Route path="company-profile" element={<CompanyProfilePage />} />
           <Route path="login-activity" element={<AgencyLoginActivityPage />} />
           <Route path="agents/:id" element={<AgentDetailPage />} />
           <Route path="chat" element={<AgencyChatPage />} />
@@ -216,6 +228,7 @@ export default function AppRouter() {
           <Route index element={<FollowUpManagerDashboard />} />
           <Route path="leads" element={<FollowUpManagerLeadsPage />} />
           <Route path="leads/:id" element={<FollowUpManagerLeadDetailPage />} />
+          <Route path="tenants" element={<TenantApplicationsPage />} />
           <Route path="appointments" element={<FollowUpManagerAppointmentsPage />} />
           <Route path="campaigns" element={<ColdCallerCampaignsPage />} />
           <Route path="notifications" element={<FollowUpManagerNotificationsPage />} />

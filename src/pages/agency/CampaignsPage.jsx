@@ -10,6 +10,7 @@ import {
 import { campaignsApi } from '../../services/campaignsApi'
 import { useAuthStore } from '../../store/authStore'
 import { getApiErrorMessage } from '../../components/leads/leadShared'
+import { CORAL, CORAL_2 } from '../../lib/brand'
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -49,7 +50,7 @@ function getTimeline(campaign) {
   const end = endDate ? new Date(endDate) : null
 
   if (start && isFuture(start)) {
-    return { label: `Starts in ${differenceInDays(start, now)}d`, color: '#F95C4B', bg: '#F95C4B18', Icon: Clock, progress: null }
+    return { label: `Starts in ${differenceInDays(start, now)}d`, color: CORAL, bg: `${CORAL}18`, Icon: Clock, progress: null }
   }
   if (start && end) {
     if (isPast(end)) return { label: 'Ended', color: '#9CA3AF', bg: '#9CA3AF18', Icon: CheckCircle2, progress: 100 }
@@ -610,10 +611,10 @@ export default function CampaignsPage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Total" value={total} icon={Megaphone} color="#F95C4B" isLoading={isLoading} />
+        <StatCard label="Total" value={total} icon={Megaphone} color={CORAL} isLoading={isLoading} />
         <StatCard label="Active" value={activeCount} icon={CheckCircle2} color="#10B981" isLoading={isLoading} />
         <StatCard label="Inactive" value={inactiveCount} icon={XCircle} color="#6B7280" isLoading={isLoading} />
-        <StatCard label="Your Company's" value={ownCount} icon={Building2} color="#FF8C7A" isLoading={isLoading} />
+        <StatCard label="Your Company's" value={ownCount} icon={Building2} color={CORAL_2} isLoading={isLoading} />
       </div>
 
       <div className="flex gap-1">

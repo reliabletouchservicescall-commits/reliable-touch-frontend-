@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { Loader2, RotateCcw } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import axiosClient from '../../lib/axios'
+import { CORAL } from '../../lib/brand'
 
 // Distinct, high-contrast colors for up to a dozen-plus callers — the current viewer's
 // own line always overrides to brand orange regardless of index, so "which one is me"
@@ -183,7 +184,7 @@ export default function DailyScoresChart({
           <Tooltip content={<CustomTooltip />} />
           {callers.map((c, idx) => {
             const isMe = c.userId === currentUserId
-            const color = isMe ? '#F95C4B' : PALETTE[idx % PALETTE.length]
+            const color = isMe ? CORAL : PALETTE[idx % PALETTE.length]
             const isHidden = hidden.has(c.userId)
             return (
               <Line
@@ -207,7 +208,7 @@ export default function DailyScoresChart({
       <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 px-1 max-h-24 overflow-y-auto">
         {callers.map((c, idx) => {
           const isMe = c.userId === currentUserId
-          const color = isMe ? '#F95C4B' : PALETTE[idx % PALETTE.length]
+          const color = isMe ? CORAL : PALETTE[idx % PALETTE.length]
           const isHidden = hidden.has(c.userId)
           return (
             <button

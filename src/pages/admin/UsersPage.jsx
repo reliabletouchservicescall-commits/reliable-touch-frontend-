@@ -9,6 +9,7 @@ import {
   ToggleLeft, ToggleRight, SlidersHorizontal, KeyRound,
 } from 'lucide-react'
 import { usersApi } from '../../services/usersApi'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
@@ -21,7 +22,7 @@ const ROLE_TABS = [
 ]
 
 const ROLE_META = {
-  admin:             { label: 'Admin',             color: '#F95C4B', bg: '#F95C4B18' },
+  admin:             { label: 'Admin',             color: CORAL, bg: `${CORAL}18` },
   cold_caller:       { label: 'Cold Caller',       color: '#3B82F6', bg: '#3B82F618' },
   agency:            { label: 'Agency',            color: '#10B981', bg: '#10B98118' },
   follow_up_manager: { label: 'Follow Up Manager', color: '#8B5CF6', bg: '#8B5CF618' },
@@ -64,7 +65,7 @@ function inputCls(hasError) {
   ].join(' ')
 }
 
-const AVATAR_COLORS = ['#F95C4B', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4']
+const AVATAR_COLORS = [CORAL, '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4']
 
 function Avatar({ name }) {
   const initials = (name ?? '?').split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()

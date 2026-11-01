@@ -8,6 +8,7 @@ import {
   Activity, Users, CalendarClock, Wifi, Crown, Loader2,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
+import { CORAL } from '../../lib/brand'
 
 function initials(name = '') {
   return name.split(' ').map((w) => w[0] ?? '').join('').toUpperCase().slice(0, 2)
@@ -225,7 +226,7 @@ export default function AgencyLoginActivityPage() {
         {[
           { icon: Users,         label: 'Team Members', value: isLoading ? '…' : totalTeam,     color: '#8B5CF6' },
           { icon: Wifi,          label: 'Active Now',    value: isLoading ? '…' : activeNow,      color: '#10B981' },
-          { icon: CalendarClock, label: 'Logins Today',  value: isLoading ? '…' : todayLogins,    color: '#F95C4B' },
+          { icon: CalendarClock, label: 'Logins Today',  value: isLoading ? '…' : todayLogins,    color: CORAL },
           { icon: Clock,         label: 'Never Logged In', value: isLoading ? '…' : neverLoggedIn, color: '#F59E0B' },
         ].map(({ icon: Icon, label, value, color }) => (
           <div key={label} className="bg-white dark:bg-[#181818] rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-5 flex items-center gap-3">

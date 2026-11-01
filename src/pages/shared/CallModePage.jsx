@@ -12,6 +12,7 @@ import { leadsApi } from '../../services/leadsApi'
 import { useCallFlow, telHref } from '../../lib/useCallFlow'
 import { useCallMode } from '../../lib/useCallMode'
 import { useAuthStore } from '../../store/authStore'
+import CallOutcomeSheet from '../../components/contacts/CallOutcomeSheet'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import { getApiErrorMessage } from '../../components/leads/leadShared'
 
@@ -317,6 +318,17 @@ export default function CallModePage({ mode = 'all' }) {
     }
   }
 
+  // The outcome sheet (same as on Contacts) saved: count it, finish any lead, move on
+  function sheetSaved(meta, logId, { callbackAt }) {
+    const contact = callFlow.activeCall?.contact ?? current
+    bump('calls')
+    callFlow.finish()
+    if (meta?.requiresLead) setLeadDrawer({ contact, logId })
+    if (meta?.value === 'callback_requested' && callbackAt) toast.success(`Callback set for ${whenText(callbackAt)}`)
+    if (callbacksOnly && meta?.value === 'callback_requested' && callbackAt) { setPickedId(null); reset(); refile(contact._id, callbackAt) }
+    else { next(contact._id); qc.invalidateQueries({ queryKey: ['call-mode'] }) }
+  }
+
   function skip() {
     if (!current) return
     if (onCall) { callFlow.skip(); bump('calls') } // the dialled call still counts (as no answer)
@@ -569,6 +581,17 @@ export default function CallModePage({ mode = 'all' }) {
         </div>
       </div>
 
+      {/* Opens with the call, so it's waiting when you come back from the phone app */}
+      {callFlow.activeCall && (
+        <CallOutcomeSheet
+          key={callFlow.activeCall.startedAt}
+          contact={callFlow.activeCall.contact}
+          onSubmit={callFlow.saveOutcome}
+          onClose={callFlow.skip}
+          onSaved={sheetSaved}
+          requireCallbackTime
+        />
+      )}
       {leadDrawer && (
         <CreateLeadDrawer
           contact={leadDrawer.contact}

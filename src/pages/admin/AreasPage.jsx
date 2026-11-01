@@ -11,6 +11,7 @@ import {
 import { areasApi } from '../../services/areasApi'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
+import { CORAL } from '../../lib/brand'
 
 /* ─── SA Province options ─────────────────────────────────────────────────── */
 
@@ -29,7 +30,7 @@ const SA_PROVINCES = [
 /* ─── Colour palette per region ──────────────────────────────────────────── */
 
 const REGION_COLORS = {
-  'Gauteng':        '#F95C4B',
+  'Gauteng':        CORAL,
   'Western Cape':   '#3B82F6',
   'KwaZulu-Natal':  '#10B981',
   'Eastern Cape':   '#8B5CF6',
@@ -683,7 +684,7 @@ export default function AreasPage() {
           icon={Map}
           label="Total Areas"
           value={isLoading ? '—' : allAreas.length || total}
-          color="#F95C4B"
+          color={CORAL}
           loading={isLoading}
         />
         <StatCard
@@ -824,8 +825,8 @@ export default function AreasPage() {
           title="New Area"
           subtitle="Add a geographic area to the system"
           Icon={MapPin}
-          iconBg="#F95C4B18"
-          iconColor="#F95C4B"
+          iconBg={`${CORAL}18`}
+          iconColor={CORAL}
           formId="create-area"
           submitLabel="Create Area"
           isPending={createMut.isPending}

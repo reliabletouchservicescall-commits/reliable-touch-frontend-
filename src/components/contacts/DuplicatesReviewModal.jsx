@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { AlertTriangle, Layers, Loader2, X } from 'lucide-react'
 import { contactsApi } from '../../services/contactsApi'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Duplicates Review Modal ─────────────────────────────────────────── */
 
@@ -62,7 +63,7 @@ export default function DuplicatesReviewModal({ duplicates, onClose, onDone }) {
   const ACTION_META = {
     skip:   { label: 'Skip',            color: '#6B7280' },
     update: { label: 'Update Existing', color: '#3B82F6' },
-    create: { label: 'Create Separate', color: '#F95C4B' },
+    create: { label: 'Create Separate', color: CORAL },
   }
 
   return (

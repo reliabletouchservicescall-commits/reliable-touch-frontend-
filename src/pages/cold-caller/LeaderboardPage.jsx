@@ -8,6 +8,7 @@ import {
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
 import DailyScoresChart from '../../components/performance/DailyScoresChart'
+import { CORAL, CORAL_2 } from '../../lib/brand'
 
 const LEAD_STATUS_STAT = [
   { key: 'coldCount',      label: 'Cold',       icon: ThermometerSnowflake, color: '#6B7280', weight: '×1' },
@@ -15,7 +16,7 @@ const LEAD_STATUS_STAT = [
   { key: 'hotCount',       label: 'Hot',        icon: Flame,                color: '#EF4444', weight: '×10' },
   { key: 'listedCount',    label: 'Listed',     icon: Sparkles,             color: '#8B5CF6', weight: '×15' },
   { key: 'rentedOutCount', label: 'Rented Out', icon: Sparkles,             color: '#10B981', weight: '×25' },
-  { key: 'soldCount',      label: 'Sold',       icon: Sparkles,             color: '#F95C4B', weight: '×25' },
+  { key: 'soldCount',      label: 'Sold',       icon: Sparkles,             color: CORAL, weight: '×25' },
 ]
 
 /* ─── API ─────────────────────────────────────────────────────────── */
@@ -52,7 +53,7 @@ function Avatar({ name, rank, isSelf, size = 'md' }) {
   const ini   = `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase()
   const medal = MEDAL[rank]
   const sz    = size === 'lg' ? 'w-16 h-16 text-lg' : 'w-9 h-9 text-xs'
-  const bg    = isSelf ? '#F95C4B' : (medal?.color ?? '#6B7280')
+  const bg    = isSelf ? CORAL : (medal?.color ?? '#6B7280')
   const textC = isSelf ? 'text-white' : 'text-white'
   return (
     <div
@@ -60,7 +61,7 @@ function Avatar({ name, rank, isSelf, size = 'md' }) {
       style={{
         backgroundColor: bg,
         ringColor: bg,
-        boxShadow: isSelf ? `0 0 0 2px #F95C4B` : medal ? `0 0 0 2px ${medal.color}` : undefined,
+        boxShadow: isSelf ? `0 0 0 2px ${CORAL}` : medal ? `0 0 0 2px ${medal.color}` : undefined,
       }}
     >
       <span className={textC}>{ini || '?'}</span>
@@ -90,7 +91,7 @@ function MyStatCard({ icon: Icon, label, value, color, loading }) {
 function RankBadge({ rank, total }) {
   const pct = total > 0 ? Math.round((rank / total) * 100) : 0
   const isTop = rank <= 3
-  const color = isTop ? (MEDAL[rank]?.color ?? '#F95C4B') : '#F95C4B'
+  const color = isTop ? (MEDAL[rank]?.color ?? CORAL) : CORAL
   return (
     <div
       className="flex items-center gap-2.5 px-4 py-3 rounded-xl border"
@@ -211,7 +212,7 @@ export default function LeaderboardPage() {
             icon={Star}
             label="My Score"
             value={myStats?.score}
-            color="#F95C4B"
+            color={CORAL}
             loading={loading}
           />
         </div>
@@ -314,7 +315,7 @@ export default function LeaderboardPage() {
                             style={{
                               width: `${pct}%`,
                               background: isSelf
-                                ? 'linear-gradient(90deg, #F95C4B, #FF8C7A)'
+                                ? `linear-gradient(90deg, ${CORAL}, ${CORAL_2})`
                                 : medal
                                 ? `linear-gradient(90deg, ${medal.color}, ${medal.color}99)`
                                 : '#9CA3AF',

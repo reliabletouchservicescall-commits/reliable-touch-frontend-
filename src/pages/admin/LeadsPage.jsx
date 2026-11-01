@@ -28,6 +28,7 @@ import { AdminLeadDetail } from './LeadDetailPage'
 import {
   InsightStrip, SmartViews, SelectBox, BulkBar, BulkDialog, LeadListTable,
 } from '../../components/leads/LeadsWorkbench'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
@@ -38,7 +39,7 @@ const LEAD_STATUS_META = {
   still_negotiating: { label: 'Still Negotiating',  color: '#F59E0B', bg: '#F59E0B18' },
   listed:            { label: 'Listed',              color: '#8B5CF6', bg: '#8B5CF618' },
   rented_out:        { label: 'Rented Out',          color: '#10B981', bg: '#10B98118' },
-  sold:              { label: 'Sold',                color: '#F95C4B', bg: '#F95C4B18' },
+  sold:              { label: 'Sold',                color: CORAL, bg: `${CORAL}18` },
   lost:              { label: 'Lost',                color: '#9CA3AF', bg: '#9CA3AF18' },
 }
 
@@ -883,7 +884,7 @@ export default function LeadsPage() {
 
           <AgencyFilter params={agencyCountParams} agency={agency} onAgency={setAgency} />
 
-          <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
+          <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent={CORAL} />
 
           <div className={[
             'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors',

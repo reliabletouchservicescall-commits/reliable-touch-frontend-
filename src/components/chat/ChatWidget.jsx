@@ -430,7 +430,7 @@ export default function ChatWidget() {
   const canSend = !isSending && (input.trim().length > 0 || pendingFiles.length > 0)
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
+    <div className="chat-fab fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
       {/* Chat panel */}
       {isOpen && (
         <div

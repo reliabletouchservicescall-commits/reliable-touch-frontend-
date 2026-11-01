@@ -11,6 +11,10 @@ export const authApi = {
   getMe: () =>
     axiosClient.get('/auth/me'),
 
+  // First-login tour: 'completed' | 'skipped' | 'reset'
+  setOnboarding: (status, version) =>
+    axiosClient.patch('/auth/me/onboarding', { status, version }),
+
   refresh: (refreshToken) =>
     axiosClient.post('/auth/refresh', { refreshToken }),
 

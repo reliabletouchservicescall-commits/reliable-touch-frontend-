@@ -8,6 +8,7 @@ import { leadsApi } from '../../services/leadsApi'
 import { onLeadEvent } from '../../lib/livePresence'
 import LiquidTabs from '../common/LiquidTabs'
 import { LeadStatusBadge, LEAD_STATUS_META, COMMENT_AUTHOR_META } from './leadShared'
+import { CORAL } from '../../lib/brand'
 
 // A lead's full audit trail (GET /leads/:id/history): the temperature journey at the top,
 // then everything that happened, newest first, grouped by day — who changed the status
@@ -15,7 +16,7 @@ import { LeadStatusBadge, LEAD_STATUS_META, COMMENT_AUTHOR_META } from './leadSh
 // calls and comments. Refreshes live when anyone touches the lead.
 
 const TYPE_META = {
-  status:   { icon: Repeat,        color: '#F95C4B', label: 'Status' },
+  status:   { icon: Repeat,        color: CORAL, label: 'Status' },
   updated:  { icon: PencilLine,    color: '#3B82F6', label: 'Edit' },
   assigned: { icon: UserCheck,     color: '#10B981', label: 'Assigned' },
   call:     { icon: PhoneCall,     color: '#111111', label: 'Call' },

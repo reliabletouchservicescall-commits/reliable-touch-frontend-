@@ -9,9 +9,10 @@ import {
 } from 'lucide-react'
 import { notificationsApi } from '../../services/notificationsApi'
 import { NotificationOpenButton } from '../../components/notifications/notificationLink'
+import { CORAL } from '../../lib/brand'
 
 const EVENT_META = {
-  new_lead:                { label: 'New Lead',        icon: FileText,      color: '#F95C4B' },
+  new_lead:                { label: 'New Lead',        icon: FileText,      color: CORAL },
   hot_lead:                { label: 'Hot Lead',         icon: Flame,         color: '#EF4444' },
   lead_status_updated:     { label: 'Status Updated',   icon: RefreshCw,     color: '#3B82F6' },
   lead_status_escalated:   { label: 'Lead Heating Up',  icon: ThermometerSun,color: '#F59E0B' },

@@ -18,6 +18,7 @@ import PeriodPicker from '../../components/performance/PeriodPicker'
 import DailyScoresChart from '../../components/performance/DailyScoresChart'
 import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
 import { Card, CardTitle, Skeleton, ChartTooltip, axisTick, CORAL, ErrorBanner } from '../../components/dashboard/DashboardKit'
+import { CORAL_2, CORAL_3, CORAL_DEEP } from '../../lib/brand'
 
 // One screen for everyone Reliable Touch rates — cold callers, follow-up managers (who
 // often also cold call on a second login), company agents and the companies themselves.
@@ -222,7 +223,7 @@ function ScoringCard({ items, note }) {
 /* ─── Overview ───────────────────────────────────────────────────────────── */
 
 const TREND_SERIES = [
-  { key: 'calls', label: 'Calls', color: '#FDBAAE', type: 'bar' },
+  { key: 'calls', label: 'Calls', color: CORAL_3, type: 'bar' },
   { key: 'leads', label: 'Leads created', color: CORAL, type: 'line' },
   { key: 'followUps', label: 'Follow-ups', color: '#8B5CF6', type: 'line' },
   { key: 'agentWork', label: 'Agent updates', color: '#0EA5E9', type: 'line' },
@@ -262,7 +263,7 @@ function TrendCard({ trend, isDark }) {
             <YAxis yAxisId="left" tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
             <YAxis yAxisId="right" orientation="right" tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
             <Tooltip content={<ChartTooltip labelFormat={fmtKey} />} cursor={{ fill: isDark ? '#ffffff08' : '#11111106' }} />
-            {!hidden.has('calls') && <Bar yAxisId="right" dataKey="calls" name="Calls" fill="#FDBAAE" radius={[6, 6, 0, 0]} maxBarSize={22} animationDuration={900} />}
+            {!hidden.has('calls') && <Bar yAxisId="right" dataKey="calls" name="Calls" fill={CORAL_3} radius={[6, 6, 0, 0]} maxBarSize={22} animationDuration={900} />}
             {!hidden.has('closed') && <Area yAxisId="left" type="monotone" dataKey="closed" name="Closed" stroke="#10B981" strokeWidth={2} fill="url(#perfClosed)" animationDuration={900} />}
             {TREND_SERIES.filter((s) => s.type === 'line' && !hidden.has(s.key)).map((s) => (
               <Line key={s.key} yAxisId="left" type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2.2} dot={false} activeDot={{ r: 4 }} animationDuration={900} />
@@ -277,7 +278,7 @@ function TrendCard({ trend, isDark }) {
 // Calls → leads → hot → with agents → closed, with the step-to-step conversion
 function Funnel({ steps }) {
   const max = Math.max(...steps.map((s) => s.value), 1)
-  const tones = ['#FDBAAE', '#FF8C7A', CORAL, '#C93A2B', '#10B981']
+  const tones = [CORAL_3, CORAL_2, CORAL, CORAL_DEEP, '#10B981']
   return (
     <SpotCard className="p-5" delay={160}>
       <CardTitle title="Pipeline funnel" subtitle="How this period's work turned into deals" />
@@ -384,7 +385,7 @@ function CallerBreakdownChart({ rows, weights, isDark }) {
             <YAxis type="category" dataKey="name" tick={{ ...axisTick, fontSize: 11 }} width={70} axisLine={false} tickLine={false} />
             <Tooltip content={<ChartTooltip />} cursor={{ fill: isDark ? '#ffffff08' : '#11111106' }} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Calls" stackId="a" fill="#FDBAAE" animationDuration={900} />
+            <Bar dataKey="Calls" stackId="a" fill={CORAL_3} animationDuration={900} />
             <Bar dataKey="Lead quality" stackId="a" fill={CORAL} animationDuration={900} />
             <Bar dataKey="Closed" stackId="a" fill="#10B981" animationDuration={900} />
             <Bar dataKey="Appointments" stackId="a" fill="#8B5CF6" radius={[0, 6, 6, 0]} animationDuration={900} />

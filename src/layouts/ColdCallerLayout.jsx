@@ -22,12 +22,14 @@ import {
   AlarmClock,
   Handshake,
   Award,
+  KeyRound,
 } from 'lucide-react'
 import logo from '../assets/logo-reliable-touch.png'
 import { useTheme } from '../context/ThemeContext'
 import { useAuthStore } from '../store/authStore'
 import { authApi } from '../services/authApi'
 import NotificationBell from '../components/notifications/NotificationBell'
+import OnboardingTour, { TourButton } from '../components/onboarding/OnboardingTour'
 import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
 import ChatWidget from '../components/chat/ChatWidget'
 import { useSocket } from '../context/SocketContext'
@@ -40,6 +42,7 @@ const NAV = [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/cold-caller', end: true },
       { label: 'My Leads', icon: FileText, to: '/cold-caller/leads' },
       { label: 'Deal Tracker', icon: Handshake, to: '/cold-caller/deal-tracker' },
+      { label: 'Tenants', icon: KeyRound, to: '/cold-caller/tenants' },
     ],
   },
   {
@@ -313,6 +316,7 @@ export default function ColdCallerLayout() {
             Cold Caller Portal
           </span>
 
+          <TourButton />
           <NotificationBell />
 
           <button
@@ -332,6 +336,7 @@ export default function ColdCallerLayout() {
       </div>
 
       {!onMessagesPage && <ChatWidget />}
+      <OnboardingTour />
     </div>
   )
 }

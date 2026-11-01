@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { CORAL } from '../../lib/brand'
 
 // Brand palette only — no new colors introduced for the celebration burst.
-const COLORS = ['#F95C4B', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6']
-const BURSTS = 3
+const COLORS = [CORAL, '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6']
+const BURSTS = 8 // spread over the 5 seconds
 const PARTICLES_PER_BURST = 18
 
 function randomBetween(min, max) {
@@ -12,7 +13,7 @@ function randomBetween(min, max) {
 function buildBurst(burstIndex) {
   const originX = randomBetween(20, 80)
   const originY = randomBetween(15, 45)
-  const delay = burstIndex * 0.35
+  const delay = burstIndex * 0.5
 
   return Array.from({ length: PARTICLES_PER_BURST }).map((_, i) => {
     const angle = (i / PARTICLES_PER_BURST) * Math.PI * 2
@@ -33,8 +34,8 @@ function buildBurst(burstIndex) {
 
 /**
  * Full-screen celebratory burst shown when the current user becomes the #1 cold
- * caller. Pure CSS/JS — no canvas or external confetti library — colors are drawn
- * only from the app's existing palette. Auto-dismisses after ~3.2s.
+ * caller or the company's #1 agent. Pure CSS/JS — no canvas or external confetti library —
+ * colors are drawn from the app's palette (the brand colour follows the company). Runs for 5s.
  */
 export default function Fireworks({ onDone }) {
   const [visible, setVisible] = useState(true)
@@ -44,7 +45,7 @@ export default function Fireworks({ onDone }) {
     const t = setTimeout(() => {
       setVisible(false)
       onDone?.()
-    }, 3200)
+    }, 5000)
     return () => clearTimeout(t)
   }, [onDone])
 

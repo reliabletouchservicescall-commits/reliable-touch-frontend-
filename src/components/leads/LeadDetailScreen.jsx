@@ -7,6 +7,7 @@ import {
   ArrowLeft, Trash2, Repeat, ArrowRight, Phone, Mail, User, Building2,
   History, FileText, Loader2, ShieldCheck, AlertTriangle, MapPin, PhoneCall, Calendar, Check,
   MessageCircle, Key, ChevronUp, ChevronDown, Maximize2, X, CalendarCheck, CalendarClock, Clock, MessagesSquare,
+  UsersRound,
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { chatApi } from '../../services/chatApi'
@@ -15,6 +16,7 @@ import LeadCallButton from './LeadCallButton'
 import LeadAppointments from '../appointments/LeadAppointments'
 import LeadHistory from './LeadHistory'
 import LeadDealCard from './LeadDealCard'
+import { TenantApplicationsPanel } from '../tenants/TenantApplications'
 import { LeadHero, QuickActions, ActivityFeed, FirstCallCard, useLeadActivity, QUICK_REPLIES } from './LeadLive'
 import { useLeadPresence, reportActivity, onLeadEvent } from '../../lib/livePresence'
 import {
@@ -354,7 +356,7 @@ function AssignedAgentDetails({ agent, agency, assignedBy, assignedAt }) {
           <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{agent.firstName} {agent.lastName}</p>
           <p className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] truncate flex items-center gap-1">
             <Building2 className="w-3 h-3 flex-shrink-0" />
-            {agency ? agency.name : 'Reliable Touch'} · {agent.isAgencyManager ? 'Company manager' : 'Agent'}
+            {agency ? agency.name : 'Reliable Touch'} · {agent.isAgencyAdmin ? 'Agency Admin' : agent.isAgencyManager ? 'Company manager' : 'Agent'}
           </p>
         </div>
       </div>
@@ -614,7 +616,9 @@ export default function LeadDetailScreen({
 
   const showDeal = ['admin', 'agency'].includes(currentUserRole)
     && (lead.assignedAgent || lead.agencyId || ['still_negotiating', 'listed', 'rented_out', 'sold'].includes(lead.status) || lead.deal?.updatedAt)
+  const rentalListed = lead.listingType === 'rental' && ['listed', 'rented_out'].includes(lead.status)
   const MORE = [
+    rentalListed && { key: 'tenants', label: 'Tenant applications', sub: 'Add a tenant, send their link, track and review', icon: UsersRound },
     { key: 'details', label: 'Lead details', sub: canEdit ? 'Landlord, listing, dates — edit and save' : 'Landlord, listing and dates', icon: FileText },
     { key: 'appointments', label: 'Appointments', sub: lead.appointmentDate ? `Next: ${format(new Date(lead.appointmentDate), 'd MMM')}${lead.appointmentTime ? `, ${lead.appointmentTime}` : ''}` : 'None booked yet', icon: CalendarCheck },
     showDeal && { key: 'deal', label: 'Deal', sub: 'Tenant, rent, fees and payments', icon: Key },
@@ -915,6 +919,7 @@ export default function LeadDetailScreen({
                         </div>
                       )}
                       {m.key === 'appointments' && appointmentsEl}
+                      {m.key === 'tenants' && <TenantApplicationsPanel leadId={lead._id} embedded />}
                       {m.key === 'deal' && <LeadDealCard lead={lead} isAdmin={currentUserRole === 'admin'} onSaved={setLead} />}
                       {m.key === 'calls' && (contact ? <ContactCallHistory contactId={contact._id} /> : <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA] text-center py-6">No contact linked to this lead.</p>)}
                       {m.key === 'history' && <LeadHistory leadId={lead._id} />}

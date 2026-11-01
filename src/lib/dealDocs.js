@@ -1,3 +1,4 @@
+import { CORAL } from './brand'
 // The paperwork a deal needs, stage by stage — same list as the backend's
 // modules/deals/dealDocs.js (keep the two in step). `key: true` = can't close without it;
 // `only` = rentals or sales only.
@@ -43,7 +44,7 @@ export const DEAL_DOC_STAGES = [
     ],
   },
   {
-    key: 'commission', label: 'Commission', short: 'Commission', color: '#F95C4B',
+    key: 'commission', label: 'Commission', short: 'Commission', color: CORAL,
     docs: [
       { type: 'commission_invoice', label: 'Commission invoice', key: true },
       { type: 'commission_pop', label: 'Commission proof of payment', key: true },

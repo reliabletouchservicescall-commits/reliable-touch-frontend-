@@ -14,19 +14,20 @@ import {
 import { usersApi } from '../../services/usersApi'
 import axiosClient from '../../lib/axios'
 import WorkingHoursSection from '../../components/performance/WorkingHoursSection'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Shared color conventions (match the rest of the app) ──────────────── */
 
-const BRAND = '#F95C4B'
+const BRAND = CORAL
 const ROLE_META = {
-  admin:             { label: 'Administrator',     color: '#F95C4B', Icon: ShieldCheck },
+  admin:             { label: 'Administrator',     color: CORAL, Icon: ShieldCheck },
   cold_caller:       { label: 'Cold Caller',        color: '#3B82F6', Icon: PhoneCall },
   agency:            { label: 'Agency',             color: '#10B981', Icon: Briefcase },
   follow_up_manager: { label: 'Follow Up Manager',  color: '#8B5CF6', Icon: Flame },
 }
 const STATUS_COLORS = {
   cold: '#6B7280', warm: '#F59E0B', hot: '#EF4444', listed: '#8B5CF6',
-  rented_out: '#10B981', sold: '#F95C4B', lost: '#9CA3AF',
+  rented_out: '#10B981', sold: CORAL, lost: '#9CA3AF',
 }
 const OUTCOME_COLORS = {
   interested: '#10B981', no_answer: '#F59E0B', callback_requested: '#3B82F6',
@@ -246,7 +247,7 @@ export default function UserDetailPage() {
   // count runs an order of magnitude ahead of everything else, which would otherwise
   // flatten Leads/Appointments/Call Logs into invisible slivers on a linear axis.
   const operationsData = systemTotals ? [
-    { name: 'Leads', value: systemTotals.totalLeads, fill: '#F95C4B' },
+    { name: 'Leads', value: systemTotals.totalLeads, fill: CORAL },
     { name: 'Appointments', value: systemTotals.totalAppointments, fill: '#10B981' },
     { name: 'Call Logs', value: systemTotals.totalCallLogs, fill: '#F59E0B' },
   ] : []
@@ -317,7 +318,7 @@ export default function UserDetailPage() {
               Performance
             </h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              <StatCard icon={Star} label="Score (This Month)" value={myBoardEntry?.score ?? 0} color="#F95C4B" delay={0} />
+              <StatCard icon={Star} label="Score (This Month)" value={myBoardEntry?.score ?? 0} color={CORAL} delay={0} />
               <StatCard
                 icon={Trophy}
                 label="Team Rank"
@@ -347,7 +348,7 @@ export default function UserDetailPage() {
                       <XAxis dataKey="date" tickFormatter={(d) => format(new Date(d), 'd MMM')} tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} minTickGap={24} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
                       <Tooltip content={<TrendTooltip />} />
-                      <Line type="monotone" dataKey="score" name="Points" stroke="#F95C4B" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} isAnimationActive animationDuration={900} />
+                      <Line type="monotone" dataKey="score" name="Points" stroke={CORAL} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} isAnimationActive animationDuration={900} />
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -537,7 +538,7 @@ export default function UserDetailPage() {
             </h2>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <StatCard icon={Users}         label="Total Contacts"     value={systemTotals.totalContacts}     color="#3B82F6" delay={0} />
-              <StatCard icon={FileText}      label="Total Leads"        value={systemTotals.totalLeads}        color="#F95C4B" delay={40} />
+              <StatCard icon={FileText}      label="Total Leads"        value={systemTotals.totalLeads}        color={CORAL} delay={40} />
               <StatCard icon={CalendarCheck} label="Total Appointments" value={systemTotals.totalAppointments} color="#10B981" delay={80} />
               <StatCard icon={PhoneCall}     label="Total Call Logs"    value={systemTotals.totalCallLogs}     color="#F59E0B" delay={120} />
               <StatCard icon={UserCog}       label="Team Members"       value={systemTotals.totalUsers}        color="#8B5CF6" delay={160} />
@@ -565,7 +566,7 @@ export default function UserDetailPage() {
                   Personally Logged
                 </h2>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <StatCard icon={FileText} label="Leads Created" value={leads.total} color="#F95C4B" delay={0} />
+                  <StatCard icon={FileText} label="Leads Created" value={leads.total} color={CORAL} delay={0} />
                   <StatCard icon={CalendarCheck} label="Appointments Booked" value={appointments.total} color="#3B82F6" delay={40} />
                   <StatCard icon={Flame} label="Hot Leads" value={leads.byStatus.hot ?? 0} color="#EF4444" delay={80} />
                   <StatCard icon={CheckCircle2} label="Closed (Listed/Sold/Rented)" value={(leads.byStatus.listed ?? 0) + (leads.byStatus.sold ?? 0) + (leads.byStatus.rented_out ?? 0)} color="#10B981" delay={120} />

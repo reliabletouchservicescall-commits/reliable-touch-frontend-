@@ -37,7 +37,7 @@ export default function AgencyTeamPage() {
           </div>
           {isManager && (
             <span className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#F95C4B]/10 text-[#F95C4B]">
-              <ShieldCheck className="w-3.5 h-3.5" /> Company manager
+              <ShieldCheck className="w-3.5 h-3.5" /> {user?.isAgencyAdmin ? 'Agency Admin' : 'Company manager'}
             </span>
           )}
         </div>
@@ -49,7 +49,7 @@ export default function AgencyTeamPage() {
           agencyName={agency?.name}
           currentUserId={user?._id}
           canManage={isManager}
-          canMakeManager={false}
+          canMakeManager={Boolean(user?.isAgencyAdmin)}
           canReset={isManager ? (m) => !m.isAgencyManager : false}
           resetFn={(m, password) => agenciesApi.resetTeamMemberPassword(user?.agencyId, m._id, password)}
           canMessage

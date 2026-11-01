@@ -3,8 +3,10 @@ import { format, isToday } from 'date-fns'
 import {
   PhoneCall, Sparkles, MessagesSquare, Flame, UserCheck, CalendarCheck, Home, KeyRound, Wallet, BadgePercent,
   Bell, MessageSquare, GitBranch, Trophy, XCircle, Minus, Plus, Maximize2, Check, Clock, Ban, X, TrendingUp, TrendingDown,
-  Paperclip,
+  Paperclip, UsersRound,
 } from 'lucide-react'
+import { CORAL } from '../../lib/brand'
+import { TenantTrack, TenantPeopleList, TENANT_STAGES } from '../tenants/TenantApplications'
 
 // One deal as a node workflow (n8n / Wati style): every step is a card on a dotted canvas,
 // joined by arrows — solid and flowing where it really happened, dashed where it was
@@ -15,11 +17,11 @@ import {
 
 const STEP_ICON = {
   call: PhoneCall, lead: Sparkles, follow: MessagesSquare, hot: Flame, agent: UserCheck, appt: CalendarCheck,
-  listed: Home, closed: KeyRound, lease: CalendarCheck, paid: Wallet, commission: BadgePercent,
+  listed: Home, tenants: UsersRound, closed: KeyRound, lease: CalendarCheck, paid: Wallet, commission: BadgePercent,
 }
 const STEP_COLOR = {
   call: '#3B82F6', lead: '#F59E0B', follow: '#8B5CF6', hot: '#EF4444', agent: '#10B981', appt: '#0EA5E9',
-  listed: '#8B5CF6', closed: '#F95C4B', lease: '#14B8A6', paid: '#22C55E', commission: '#F95C4B',
+  listed: '#8B5CF6', tenants: '#6366F1', closed: CORAL, lease: '#14B8A6', paid: '#22C55E', commission: CORAL,
 }
 const R = (v) => (v == null ? null : `R${Number(v).toLocaleString('en-ZA', { maximumFractionDigits: 0 })}`)
 const when = (d) => (d ? (isToday(new Date(d)) ? format(new Date(d), 'HH:mm') : format(new Date(d), 'd MMM yyyy')) : null)
@@ -85,7 +87,7 @@ function edgePath(a, b) {
 }
 
 const EDGE = {
-  done: { stroke: '#F95C4B', dash: null, marker: 'dt-arrow-coral', flow: true },
+  done: { stroke: CORAL, dash: null, marker: 'dt-arrow-coral', flow: true },
   skipped: { stroke: '#D4D4D8', dash: '6 6', marker: 'dt-arrow-grey' },
   yes: { stroke: '#10B981', dash: '8 6', marker: 'dt-arrow-green', flow: true },
   no: { stroke: '#EF4444', dash: '8 6', marker: 'dt-arrow-red' },
@@ -131,7 +133,7 @@ function EdgeLabels({ nodes, edges }) {
 function StepCard({ n, touches, selected, onSelect }) {
   const s = n.step
   const Icon = STEP_ICON[s.key] ?? Sparkles
-  const color = STEP_COLOR[s.key] ?? '#F95C4B'
+  const color = STEP_COLOR[s.key] ?? CORAL
   const faded = n.kind === 'skipped'
   const future = n.kind === 'predicted' || n.kind === 'pending'
   const status = n.kind === 'done' ? ['Done', '#10B981', Check] : n.kind === 'current' ? ['In progress', '#F59E0B', Clock]
@@ -156,14 +158,22 @@ function StepCard({ n, touches, selected, onSelect }) {
               </span>
             )}
           </span>
+          {s.key === 'tenants' && s.tenants ? (
+            <span className="text-[11px] font-semibold truncate" style={{ color: TENANT_STAGES.find((x) => x.key === s.tenants.stage)?.color }}>
+              {s.tenants.stage === 'approved' ? `${s.tenants.approvedName} approved` : `${s.tenants.stageLabel} · ${s.tenants.total} tenant${s.tenants.total === 1 ? '' : 's'}`}
+            </span>
+          ) : (
           <span className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] truncate">
             {s.at ? when(s.at) : s.predictedAt ? `~ ${format(new Date(s.predictedAt), 'd MMM yyyy')}` : faded ? 'No record' : s.state === 'done' ? 'Date not recorded' : 'Not yet'}
             {s.by ? ` · ${s.by}` : ''}
           </span>
+          )}
           <span className="mt-1 flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-md text-[9px] font-bold uppercase tracking-wide" style={{ color: status[1], backgroundColor: `${status[1]}18` }}>
-              <StatusIcon className="w-2.5 h-2.5" />{status[0]}
-            </span>
+            {s.key === 'tenants' && s.tenants ? <TenantTrack stage={s.tenants.stage} /> : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-md text-[9px] font-bold uppercase tracking-wide" style={{ color: status[1], backgroundColor: `${status[1]}18` }}>
+                <StatusIcon className="w-2.5 h-2.5" />{status[0]}
+              </span>
+            )}
             {touches.length > 0 && (
               <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold">
                 {touches.some((t) => t.kind === 'notification') && <span className="flex items-center gap-0.5 text-[#F95C4B]"><Bell className="w-3 h-3" />{touches.filter((t) => t.kind === 'notification').length}</span>}
@@ -276,6 +286,7 @@ function Inspector({ row, id, onClose }) {
           {step.by ? ` · ${step.by}` : ''}
         </p>
         {step.detail && <p className="mt-2 text-xs text-[#111111] dark:text-white">{step.detail}</p>}
+        {step.key === 'tenants' && (step.tenants ? <TenantPeopleList t={step.tenants} /> : <p className="mt-2 text-xs text-[#9CA3AF]">No tenant has been sent an application link yet. Add one from the deal's drawer.</p>)}
         {step.docs > 0 && <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#059669] dark:text-[#34D399]"><Paperclip className="w-3.5 h-3.5" /> {step.docs} document{step.docs === 1 ? '' : 's'} uploaded for this step</p>}
         <p className="mt-4 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF]">Sent during this step · {touches.length}</p>
         <ul className="mt-2 space-y-2">
@@ -359,7 +370,7 @@ export default function DealFlowCanvas({ row }) {
           <div className="relative origin-top-left" style={{ width, height, transform: `scale(${zoom})` }}>
             <svg width={width} height={height} className="absolute inset-0 pointer-events-none">
               <defs>
-                {[['coral', '#F95C4B'], ['grey', '#D4D4D8'], ['green', '#10B981'], ['red', '#EF4444'], ['amber', '#F59E0B']].map(([k, c]) => (
+                {[['coral', CORAL], ['grey', '#D4D4D8'], ['green', '#10B981'], ['red', '#EF4444'], ['amber', '#F59E0B']].map(([k, c]) => (
                   <marker key={k} id={`dt-arrow-${k}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                     <path d="M0,0 L10,5 L0,10 z" fill={c} />
                   </marker>

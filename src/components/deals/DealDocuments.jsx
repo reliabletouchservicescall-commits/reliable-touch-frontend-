@@ -8,6 +8,7 @@ import {
 import { leadsApi } from '../../services/leadsApi'
 import { getApiErrorMessage } from '../leads/leadShared'
 import { DEAL_DOC_STAGES, DOC_LABEL, docsFor, docProgress } from '../../lib/dealDocs'
+import { CORAL } from '../../lib/brand'
 
 // A deal's documents, stage by stage: pick the stage, see what's in and what's still needed
 // (★ key documents), and drop or pick files to upload them to that document — straight to
@@ -93,7 +94,7 @@ export default function DealDocuments({ leadId, listingType, documents = [], can
     <div className="space-y-4">
       {/* Overall */}
       <div className="flex items-center gap-3">
-        <Ring done={progress.keyDone} total={progress.key} color="#F95C4B" size={42} />
+        <Ring done={progress.keyDone} total={progress.key} color={CORAL} size={42} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-[#111111] dark:text-white">{progress.keyDone} of {progress.key} key documents in</p>
           <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">{progress.files} file{progress.files === 1 ? '' : 's'} uploaded · ★ = needed to close the deal</p>

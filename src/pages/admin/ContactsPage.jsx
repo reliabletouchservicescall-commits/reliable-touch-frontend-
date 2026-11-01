@@ -24,6 +24,7 @@ import FileAssignView from '../../components/files/FileAssignView'
 import DuplicatesReviewModal from '../../components/contacts/DuplicatesReviewModal'
 import { SearchableAreaSelect } from '../../components/leads/leadShared'
 import ContactPastLeads        from '../../components/contacts/ContactPastLeads'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
@@ -57,7 +58,7 @@ const EMPTY_FORM = {
 }
 
 const CALLER_PALETTE = [
-  '#F95C4B','#3B82F6','#10B981','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#84CC16',
+  CORAL,'#3B82F6','#10B981','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#84CC16',
 ]
 
 /* ─── Helpers ──────────────────────────────────────────────────────────── */
@@ -379,7 +380,7 @@ function CallerFilterDropdown({ callers, activeCaller, onSelect, totalCount, tot
 
 /* ─── Generic searchable filter dropdown — Scheme / Uploaded File ───────── */
 
-function GroupFilterDropdown({ icon: Icon, placeholder, allLabel, value, options, onChange, searchPlaceholder, accentColor = '#F95C4B' }) {
+function GroupFilterDropdown({ icon: Icon, placeholder, allLabel, value, options, onChange, searchPlaceholder, accentColor = CORAL }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef(null)
@@ -1917,7 +1918,7 @@ export default function ContactsPage() {
               placeholder="Scheme"
               allLabel="All Schemes"
               searchPlaceholder="Search schemes…"
-              accentColor="#F95C4B"
+              accentColor={CORAL}
               value={schemeFilter}
               options={schemes.map((s) => ({ value: s, label: s }))}
               onChange={(v) => { setScheme(v); if (v) setBatchFilter('') }}
@@ -1930,7 +1931,7 @@ export default function ContactsPage() {
               placeholder="Uploaded File"
               allLabel="All Files"
               searchPlaceholder="Search files by name…"
-              accentColor="#F95C4B"
+              accentColor={CORAL}
               value={batchFilter}
               options={filesForFilter.map((f) => ({ value: f.batchId, label: f.displayName }))}
               onChange={(v) => { setBatchFilter(v); if (v) setScheme('') }}

@@ -12,6 +12,7 @@ import { appointmentsApi } from '../../services/appointmentsApi'
 import { leadsApi }        from '../../services/leadsApi'
 import { DateField, TimeField } from '../../components/common/DateTimeFields'
 import { ListingTypeFilter, ListingBadge } from '../../components/leads/leadShared'
+import { CORAL } from '../../lib/brand'
 
 const ROLE_LABEL = { admin: 'Admin', agency: 'Agency', cold_caller: 'Cold Caller' }
 
@@ -760,7 +761,7 @@ export default function AppointmentsPage() {
       {/* Stats */}
       <div className="px-5 sm:px-8 py-4 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-          <StatCard label="Total"     value={stats.total}     color="#F95C4B" icon={Calendar}      isLoading={!allData} />
+          <StatCard label="Total"     value={stats.total}     color={CORAL} icon={Calendar}      isLoading={!allData} />
           <StatCard label="Scheduled" value={stats.scheduled} color="#3B82F6" icon={CalendarClock}  isLoading={!allData} />
           <StatCard label="Confirmed" value={stats.confirmed} color="#10B981" icon={CalendarCheck}  isLoading={!allData} />
           <StatCard label="Completed" value={stats.completed} color="#6B7280" icon={CheckCircle2}   isLoading={!allData} />
@@ -778,7 +779,7 @@ export default function AppointmentsPage() {
           {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111] dark:hover:text-white"><X className="w-3.5 h-3.5" /></button>}
         </div>
 
-        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
+        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent={CORAL} />
 
         {/* Assignee filter */}
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] self-start">

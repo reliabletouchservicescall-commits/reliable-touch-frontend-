@@ -14,6 +14,7 @@ import {
   Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, Donut, TrendChart,
   ChartLegend, ScopedProvinceCard, TodaysTasks, PhotoCard, UpcomingVisits, CompanySnapshot, CORAL, CORAL_3,
 } from '../../components/dashboard/DashboardKit'
+import { CORAL_DEEP } from '../../lib/brand'
 
 // The follow-up manager's dashboard — the admin command centre's look, built around the
 // hot-lead queue: what's overdue, what's never been touched, what still needs an agency,
@@ -26,7 +27,7 @@ const DAILY_SERIES = [
   { key: 'mine',   name: 'Your follow-ups',          color: '#10B981', kind: 'line', dashed: true, width: 2.5 },
 ]
 const RECENCY_COLORS = { today: '#10B981', week: CORAL, month: CORAL_3, older: '#D4D4D8', never: '#111111' }
-const AGE_COLORS = ['#10B981', '#84CC16', '#F59E0B', CORAL, '#C93A2B']
+const AGE_COLORS = ['#10B981', '#84CC16', '#F59E0B', CORAL, CORAL_DEEP]
 
 /* ─── Hot lead age ───────────────────────────────────────────────────────── */
 

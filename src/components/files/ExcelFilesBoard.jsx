@@ -16,6 +16,7 @@ import SidePanel from '../common/SidePanel'
 import AdminImportModal from '../contacts/ImportExcelModal'
 import DuplicatesReviewModal from '../contacts/DuplicatesReviewModal'
 import { ImportModal as AgencyImportModal } from '../../pages/agency/ContactsPage'
+import { CORAL } from '../../lib/brand'
 
 // The Excel Files board, shared by admin and a company manager. Spreadsheets sit in a
 // column per area; the left sidebar lists every area grouped by province (filter by
@@ -46,7 +47,7 @@ const MODES = {
   },
 }
 
-const AREA_PALETTE = ['#F95C4B', '#111111', '#10B981', '#0EA5E9', '#8B5CF6', '#E11D48', '#EA580C']
+const AREA_PALETTE = [CORAL, '#111111', '#10B981', '#0EA5E9', '#8B5CF6', '#E11D48', '#EA580C']
 const UNASSIGNED = '__unassigned__'
 const NO_PROVINCE = '__none__'
 const UNALLOCATED_COLOR = '#F59E0B'
@@ -819,7 +820,7 @@ function BoardColumn({ column, files, selectedId, movingId, dragOver, onDragOver
 const HISTORY_META = {
   uploaded: { icon: Upload, label: 'Uploaded', color: '#0EA5E9' },
   moved: { icon: ArrowRightLeft, label: 'Moved', color: '#F59E0B' },
-  assigned: { icon: UserCheck, label: 'Assigned', color: '#F95C4B' },
+  assigned: { icon: UserCheck, label: 'Assigned', color: CORAL },
   returned: { icon: RotateCcw, label: 'Returned to pool', color: '#10B981' },
 }
 
@@ -1281,8 +1282,8 @@ export default function ExcelFilesBoard({ mode = 'admin', embedded = false }) {
           <StatTile icon={AlertTriangle} label="Unallocated" value={unallocated} color={UNALLOCATED_COLOR} emphasise={unallocated > 0 && statusFilter !== 'unallocated'} delay={80} active={statusFilter === 'unallocated'} onClick={() => setStatusFilter(statusFilter === 'unallocated' ? '' : 'unallocated')} />
           <StatTile icon={Users} label="Contacts imported" value={totalContacts} color="#10B981" delay={120} />
           {cfg.canReturn
-            ? <StatTile icon={Lock} label="Locked to callers" value={locked} color="#F95C4B" delay={160} active={statusFilter === 'locked'} onClick={() => setStatusFilter(statusFilter === 'locked' ? '' : 'locked')} />
-            : <StatTile icon={UserPlus} label="Files with unassigned contacts" value={openFiles} color="#F95C4B" delay={160} active={statusFilter === 'open'} onClick={() => setStatusFilter(statusFilter === 'open' ? '' : 'open')} />}
+            ? <StatTile icon={Lock} label="Locked to callers" value={locked} color={CORAL} delay={160} active={statusFilter === 'locked'} onClick={() => setStatusFilter(statusFilter === 'locked' ? '' : 'locked')} />
+            : <StatTile icon={UserPlus} label="Files with unassigned contacts" value={openFiles} color={CORAL} delay={160} active={statusFilter === 'open'} onClick={() => setStatusFilter(statusFilter === 'open' ? '' : 'open')} />}
         </div>
         )}
 

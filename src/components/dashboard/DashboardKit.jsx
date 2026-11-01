@@ -14,16 +14,15 @@ import AnimatedNumber from './AnimatedNumber'
 import SouthAfricaMap from './SouthAfricaMap'
 import capeTownCoast from '../../assets/images/cape-town-coast.jpg'
 import sandtonSkyline from '../../assets/images/sandton-skyline.jpg'
+import { CORAL, CORAL_2, CORAL_3, CORAL_DEEP } from '../../lib/brand'
+export { CORAL, CORAL_2, CORAL_3 } from '../../lib/brand'
 
 // Shared building blocks for the admin and agency dashboards — one look, one set of
 // macOS-style motions (.mac-* in index.css), whichever role is looking.
 
 /* ─── Brand palette (from the logo: coral, black, white) ─────────────────── */
-export const CORAL = '#F95C4B'
-export const CORAL_2 = '#FF8C7A'
-export const CORAL_3 = '#FDBAAE'
 export const STATUS_COLORS = {
-  cold: '#9CA3AF', warm: '#F59E0B', hot: '#EF4444', still_negotiating: '#FF8C7A',
+  cold: '#9CA3AF', warm: '#F59E0B', hot: '#EF4444', still_negotiating: CORAL_2,
   listed: '#8B5CF6', rented_out: '#10B981', sold: CORAL, lost: '#D4D4D8',
 }
 export const STATUS_LABEL = {
@@ -225,7 +224,7 @@ const STAGE_STYLE = [
   { bg: CORAL_3,   fg: '#111111' },
   { bg: CORAL_2,   fg: '#111111' },
   { bg: CORAL,     fg: '#FFFFFF' },
-  { bg: '#C93A2B', fg: '#FFFFFF' },
+  { bg: CORAL_DEEP, fg: '#FFFFFF' },
   { bg: '#111111', fg: '#FFFFFF', darkBg: '#FFFFFF', darkFg: '#111111' },
 ]
 
@@ -609,7 +608,7 @@ export function ScopedProvinceCard({ title = 'Leads by province', subtitle, scop
     <Card delay={delay} className="p-5">
       <CardTitle
         title={title}
-        subtitle={subtitle ?? 'Tap a province · darker coral = more'}
+        subtitle={subtitle ?? 'Tap a province · darker = more'}
         action={scopes.length > 1 && (
           <div className="flex items-center gap-1 p-1 rounded-lg bg-[#F5F5F4] dark:bg-[#202020]">
             {scopes.map((x) => (

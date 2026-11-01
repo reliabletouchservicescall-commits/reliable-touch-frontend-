@@ -1,8 +1,9 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
+import { CORAL } from '../../lib/brand'
 
-const BRAND = '#F95C4B'
+const BRAND = CORAL
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null

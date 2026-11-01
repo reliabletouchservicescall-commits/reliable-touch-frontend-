@@ -13,12 +13,14 @@ import {
   Menu,
   X,
   ChevronRight,
+  KeyRound,
 } from 'lucide-react'
 import logo from '../assets/logo-reliable-touch.png'
 import { useTheme } from '../context/ThemeContext'
 import { useAuthStore } from '../store/authStore'
 import { authApi } from '../services/authApi'
 import NotificationBell from '../components/notifications/NotificationBell'
+import OnboardingTour, { TourButton } from '../components/onboarding/OnboardingTour'
 import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
 import ChatWidget from '../components/chat/ChatWidget'
 import { useSocket } from '../context/SocketContext'
@@ -29,6 +31,7 @@ const NAV = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/follow-up-manager', end: true },
       { label: 'Hot Leads',     icon: Flame,         to: '/follow-up-manager/leads' },
+      { label: 'Tenants', icon: KeyRound, to: '/follow-up-manager/tenants' },
     ],
   },
   {
@@ -277,6 +280,7 @@ export default function FollowUpManagerLayout() {
             Follow-Up Portal
           </span>
 
+          <TourButton />
           <NotificationBell />
 
           <button
@@ -296,6 +300,7 @@ export default function FollowUpManagerLayout() {
       </div>
 
       {!onMessagesPage && <ChatWidget />}
+      <OnboardingTour />
     </div>
   )
 }

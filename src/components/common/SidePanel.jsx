@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { CORAL } from '../../lib/brand'
 
 /**
  * Shared right-side sliding panel shell used across the leads flows.
@@ -7,7 +8,7 @@ import { X } from 'lucide-react'
 export default function SidePanel({
   onClose,
   icon: Icon,
-  iconColor = '#F95C4B',
+  iconColor = CORAL,
   title,
   subtitle,
   children,

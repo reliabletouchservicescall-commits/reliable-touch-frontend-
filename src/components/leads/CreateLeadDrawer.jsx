@@ -8,6 +8,7 @@ import { areasApi } from '../../services/areasApi'
 import SidePanel from '../common/SidePanel'
 import LeadFormFields from './LeadFormFields'
 import { LeadTemperaturePicker, AgentOrAgencyPicker, Field, inputCls, getApiErrorMessage } from './leadShared'
+import { CORAL } from '../../lib/brand'
 
 const OUTCOME_LABEL = {
   interested: 'Interested',
@@ -116,7 +117,7 @@ export default function CreateLeadDrawer({ contact, callLog, defaultStatus = '',
     <SidePanel
       onClose={onClose}
       icon={FileText}
-      iconColor="#F95C4B"
+      iconColor={CORAL}
       title="New Lead"
       subtitle={contact.name}
       footer={

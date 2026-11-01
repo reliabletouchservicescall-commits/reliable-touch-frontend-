@@ -20,6 +20,7 @@ import {
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
 import { InsightStrip, SmartViews, LeadListTable } from '../../components/leads/LeadsWorkbench'
 import { FollowUpManagerLeadDetail } from './LeadDetailPage'
+import { CORAL } from '../../lib/brand'
 
 // Leads load in batches of 300 ("Load more" appends the next batch).
 const PAGE_SIZE = 300
@@ -32,7 +33,7 @@ const FOLLOWED_UP_OPTIONS = [
 ]
 
 const FUM_COLORS = [
-  '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', '#F95C4B', '#84CC16',
+  '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', CORAL, '#84CC16',
 ]
 
 function useDebounce(value, delay = 400) {
@@ -276,7 +277,7 @@ export default function FollowUpManagerLeadsPage() {
     { key: 'due_today', label: 'Due today', count: insights?.dueToday ?? 0, color: '#F59E0B' },
     { key: 'overdue', label: 'Overdue', count: insights?.overdue ?? 0, color: '#DC2626' },
     { key: 'never_followed_up', label: 'Never followed up', count: insights?.neverFollowedUp ?? 0, color: '#111111' },
-    { key: 'no_agent', label: 'No agency yet', count: insights?.noAgent ?? 0, color: '#F95C4B' },
+    { key: 'no_agent', label: 'No agency yet', count: insights?.noAgent ?? 0, color: CORAL },
   ]
 
   function handleFollowUpSaved() {
@@ -344,7 +345,7 @@ export default function FollowUpManagerLeadsPage() {
             </button>
           )}
         </div>
-        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
+        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent={CORAL} />
 
         <div className={[
           'flex items-center gap-2 px-3 py-2.5 rounded-xl border self-start transition-colors',

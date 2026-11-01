@@ -21,6 +21,7 @@ import {
 import LeadSidePanel, { useLeadPanel, leadRowProps } from '../../components/leads/LeadSidePanel'
 import { InsightStrip, SmartViews, LeadListTable } from '../../components/leads/LeadsWorkbench'
 import { ColdCallerLeadDetail } from './LeadDetailPage'
+import { CORAL } from '../../lib/brand'
 
 // Leads load in batches of 300 ("Load more" appends the next batch).
 const PAGE_SIZE = 300
@@ -51,7 +52,7 @@ function ContactPickerPanel({ onClose, onPick }) {
   const contacts = data?.contacts ?? []
 
   return (
-    <SidePanel onClose={onClose} icon={Users} iconColor="#F95C4B" title="Select a Contact" subtitle="Who is this lead for?">
+    <SidePanel onClose={onClose} icon={Users} iconColor={CORAL} title="Select a Contact" subtitle="Who is this lead for?">
       <div className="px-5 py-4">
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280] dark:text-[#A1A1AA]" />
@@ -284,7 +285,7 @@ export default function ColdCallerLeadsPage() {
             </button>
           )}
         </div>
-        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
+        <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent={CORAL} />
 
         <FollowUpActivityFilters
           hasFollowUp={hasFollowUpFilter}

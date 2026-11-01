@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { usersApi } from '../../services/usersApi'
 import { agentsApi } from '../../services/agentsApi'
+import { CORAL } from '../../lib/brand'
 
 /* ── Constants ─────────────────────────────────────────────────────────── */
 const OUTCOME_META = {
@@ -16,7 +17,7 @@ const OUTCOME_META = {
   still_negotiating:       { label: 'Negotiating',           color: '#F59E0B', bg: 'bg-amber-50 dark:bg-amber-900/20',  text: 'text-amber-700 dark:text-amber-300' },
   follow_up_required:      { label: 'Follow-up Required',    color: '#8B5CF6', bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-700 dark:text-violet-300' },
   property_still_available:{ label: 'Still Available',       color: '#6B7280', bg: 'bg-gray-50 dark:bg-gray-800',       text: 'text-gray-600 dark:text-gray-400' },
-  rented_out:              { label: 'Rented Out',            color: '#F95C4B', bg: 'bg-red-50 dark:bg-red-900/20',      text: 'text-red-700 dark:text-red-300' },
+  rented_out:              { label: 'Rented Out',            color: CORAL, bg: 'bg-red-50 dark:bg-red-900/20',      text: 'text-red-700 dark:text-red-300' },
   sold:                    { label: 'Sold',                  color: '#059669', bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-700 dark:text-emerald-300' },
 }
 
@@ -360,7 +361,7 @@ export default function AgentsPage() {
       {/* Summary stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={Users}       label="Total Agents"   value={agents.length}             accent="#3B82F6" />
-        <StatCard icon={CheckCircle2} label="Deals Closed"  value={totalDeals}  sub={`${avgDealsPerAgent} avg/agent`} accent="#F95C4B" />
+        <StatCard icon={CheckCircle2} label="Deals Closed"  value={totalDeals}  sub={`${avgDealsPerAgent} avg/agent`} accent={CORAL} />
         <StatCard icon={ArrowUpRight} label="Listings Signed" value={totalSigned}             accent="#10B981" />
         <StatCard icon={DollarSign}  label="Total Rent Placed" value={totalRevenue > 0 ? formatCurrency(totalRevenue) : '—'} accent="#8B5CF6" />
       </div>

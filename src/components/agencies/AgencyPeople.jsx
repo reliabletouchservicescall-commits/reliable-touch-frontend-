@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 import {
   Plus, Loader2, X, Eye, EyeOff, Copy, Check, KeyRound, Power, PowerOff, ShieldCheck,
-  UserCircle2, MessageSquare, Mail, Phone, Users, AlertTriangle, Activity, Clock,
+  UserCircle2, MessageSquare, Mail, Phone, Users, AlertTriangle, Activity, Clock, Crown,
 } from 'lucide-react'
 import { agenciesApi } from '../../services/agenciesApi'
 import { usersApi } from '../../services/usersApi'
@@ -69,7 +69,7 @@ function CopyButton({ text, label = 'Copy' }) {
 }
 
 // Shown once after a password is set — the only time the plain password exists on screen.
-function CredentialsPanel({ email, password }) {
+export function CredentialsPanel({ email, password }) {
   return (
     <div className="rounded-2xl border border-[#10B981]/25 bg-[#10B981]/5 p-4 space-y-3">
       <div className="flex items-start gap-2.5">
@@ -131,9 +131,17 @@ function ModalShell({ title, subtitle, icon: Icon, onClose, busy, children, foot
 
 /* ─── Add a person to a company's team ─────────────────────────────────────── */
 
+// What a new login can be: admin and the Agency Admin can add company managers; a manager adds
+// agents. The Agency Admin (one per company) is made with the agency, or handed over on its card.
+const LEVELS = [
+  { key: 'agent', label: 'Agent', icon: UserCircle2, sub: 'Works the leads and visits assigned to them.' },
+  { key: 'manager', label: 'Company manager', icon: ShieldCheck, sub: 'Sees every lead and appointment of the company, and manages its agents.' },
+]
+
 export function AddPersonModal({ agencyId, agencyName, canMakeManager, onClose }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: generatePassword(), isManager: false })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: generatePassword(), level: 'agent' })
+  const levels = LEVELS.filter((l) => l.key === 'agent' || canMakeManager)
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState({})
   const [created, setCreated] = useState(null)
@@ -145,13 +153,13 @@ export function AddPersonModal({ agencyId, agencyName, canMakeManager, onClose }
       email: form.email.trim(),
       phone: form.phone.trim(),
       password: form.password,
-      ...(canMakeManager && form.isManager ? { isManager: true } : {}),
+      ...(canMakeManager && form.level === 'manager' ? { isManager: true } : {}),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agency-team', agencyId] })
       qc.invalidateQueries({ queryKey: ['agency-manager-dashboard'] })
       qc.invalidateQueries({ queryKey: ['agencies'] })
-      setCreated({ email: form.email.trim(), password: form.password, name: `${form.firstName} ${form.lastName}` })
+      setCreated({ email: form.email.trim(), password: form.password, name: `${form.firstName} ${form.lastName}`, level: form.level })
       toast.success('Login created')
     },
     onError: (err) => toast.error(getApiErrorMessage(err, 'Could not add this person')),
@@ -187,7 +195,7 @@ export function AddPersonModal({ agencyId, agencyName, canMakeManager, onClose }
 
   return (
     <ModalShell
-      title={canMakeManager ? 'Add a person to this company' : 'Add an agent'}
+      title={levels.length > 1 ? 'Add a person to this company' : 'Add an agent'}
       subtitle={agencyName}
       icon={UserCircle2}
       onClose={onClose}
@@ -241,16 +249,22 @@ export function AddPersonModal({ agencyId, agencyName, canMakeManager, onClose }
             </button>
           </div>
         </Field>
-        {canMakeManager && (
-          <label className="flex items-start gap-3 p-3.5 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] cursor-pointer hover:border-[#F95C4B]/40 transition-colors">
-            <input type="checkbox" checked={form.isManager} onChange={(e) => set('isManager', e.target.checked)} className="mt-0.5 accent-[#F95C4B]" />
-            <div>
-              <p className="text-sm font-semibold text-[#111111] dark:text-white">Company manager login</p>
-              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">
-                Sees every lead and appointment of the company, and can add and manage its agents.
-              </p>
-            </div>
-          </label>
+        {levels.length > 1 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA]">Their role</p>
+            {levels.map((l) => (
+              <label key={l.key} className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors ${
+                form.level === l.key ? 'border-[#F95C4B] bg-[#F95C4B]/5' : 'border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/40'
+              }`}>
+                <input type="radio" name="level" checked={form.level === l.key} onChange={() => set('level', l.key)} className="mt-1 accent-[#F95C4B]" />
+                <l.icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${l.key === 'admin' ? 'text-[#F59E0B]' : 'text-[#F95C4B]'}`} />
+                <div>
+                  <p className="text-sm font-semibold text-[#111111] dark:text-white">{l.label}</p>
+                  <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">{l.sub}</p>
+                </div>
+              </label>
+            ))}
+          </div>
         )}
       </form>
     </ModalShell>
@@ -325,10 +339,10 @@ function initialsOf(m) {
   return `${m.firstName?.[0] ?? ''}${m.lastName?.[0] ?? ''}`.toUpperCase()
 }
 
-function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle, onMessage, toggling, onViewActivity }) {
+function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle, onMessage, toggling, onViewActivity, onToggleAdmin, togglingAdmin }) {
   const active = member.isActive
   const fullName = `${member.firstName} ${member.lastName}`
-  const hasFooter = canManage || canReset || onViewActivity
+  const hasFooter = canManage || canReset || onViewActivity || onToggleAdmin
   return (
     <div className={`bg-white dark:bg-[#181818] rounded-2xl border p-5 flex flex-col gap-4 transition-all hover:shadow-md ${
       active ? 'border-[#E5E7EB] dark:border-[#2A2A2A] hover:border-[#F95C4B]/30' : 'border-[#E5E7EB]/70 dark:border-[#2A2A2A]/70 opacity-70'
@@ -342,10 +356,10 @@ function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle
           <p className="text-sm font-bold text-[#111111] dark:text-white truncate">{fullName}</p>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-              member.isAgencyManager ? 'bg-[#F95C4B]/10 text-[#F95C4B]' : 'bg-[#6B7280]/10 text-[#6B7280] dark:text-[#A1A1AA]'
+              member.isAgencyAdmin ? 'bg-[#F59E0B]/10 text-[#B45309] dark:text-[#FBBF24]' : member.isAgencyManager ? 'bg-[#F95C4B]/10 text-[#F95C4B]' : 'bg-[#6B7280]/10 text-[#6B7280] dark:text-[#A1A1AA]'
             }`}>
-              {member.isAgencyManager ? <ShieldCheck className="w-3 h-3" /> : <UserCircle2 className="w-3 h-3" />}
-              {member.isAgencyManager ? 'Company manager' : 'Agent'}
+              {member.isAgencyAdmin ? <Crown className="w-3 h-3" /> : member.isAgencyManager ? <ShieldCheck className="w-3 h-3" /> : <UserCircle2 className="w-3 h-3" />}
+              {member.isAgencyAdmin ? 'Agency Admin' : member.isAgencyManager ? 'Company manager' : 'Agent'}
             </span>
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
               active ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#6B7280]/10 text-[#6B7280]'
@@ -387,6 +401,14 @@ function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle
               <Activity className="w-3.5 h-3.5" /> View activity
             </button>
           )}
+          {onToggleAdmin && (
+            <button onClick={onToggleAdmin} disabled={togglingAdmin}
+              title="Make them this company's Agency Admin — there is one per company"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap border border-[#F59E0B]/35 text-[#B45309] dark:text-[#FBBF24] hover:bg-[#F59E0B]/10 transition-colors disabled:opacity-60">
+              {togglingAdmin ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crown className="w-3.5 h-3.5" />}
+              Make Agency Admin
+            </button>
+          )}
           {canReset && (
             <button onClick={onReset}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white hover:bg-[#F5F5F4] dark:hover:bg-[#202020] transition-colors">
@@ -417,7 +439,7 @@ function MemberCard({ member, canManage, canReset, canMessage, onReset, onToggle
  */
 // `canReset` is either a flag or a per-member check (a company manager may reset agents'
 // passwords but not another manager's); `resetFn` is handed to ResetPasswordModal.
-export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canMakeManager, canReset, resetFn, canMessage, onMessage, onViewActivity, showAdd = true, embedded = false }) {
+export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canMakeManager, canMakeAdmin, canReset, resetFn, canMessage, onMessage, onViewActivity, showAdd = true, embedded = false }) {
   const qc = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [resetting, setResetting] = useState(null)
@@ -442,7 +464,25 @@ export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canM
     onSettled: () => setTogglingId(null),
   })
 
+  const adminMut = useMutation({
+    mutationFn: ({ member }) => agenciesApi.setTeamMemberAdmin(agencyId, member._id, true),
+    onSuccess: (res) => {
+      toast.success(res.data.message)
+      qc.invalidateQueries({ queryKey: ['agency-team', agencyId] })
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err, 'Could not change the Agency Admin')),
+  })
+
   const team = data ?? []
+  const currentAdmin = team.find((m) => m.isAgencyAdmin)
+
+  // One Agency Admin per company — handing it over makes the current one a company manager
+  function makeAdmin(m) {
+    const msg = currentAdmin
+      ? `Make ${m.firstName} ${m.lastName} the Agency Admin?\n\n${currentAdmin.firstName} ${currentAdmin.lastName} stays on as a company manager. There is one Agency Admin per company.`
+      : `Make ${m.firstName} ${m.lastName} the Agency Admin of ${agencyName ?? 'this company'}?`
+    if (window.confirm(msg)) adminMut.mutate({ member: m })
+  }
   const visible = team.filter((m) => filter === 'all' || (filter === 'active' ? m.isActive : !m.isActive))
   const activeCount = team.filter((m) => m.isActive).length
 
@@ -462,10 +502,20 @@ export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canM
         {showAdd && canManage && (
           <button onClick={() => setAdding(true)}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-sm hover:shadow-md transition-all">
-            <Plus className="w-4 h-4" /> {canMakeManager ? 'Add person' : 'Add agent'}
+            <Plus className="w-4 h-4" /> {canMakeManager || canMakeAdmin ? 'Add person' : 'Add agent'}
           </button>
         )}
       </div>
+
+      {canMakeAdmin && !isLoading && !currentAdmin && (
+        <div className="flex items-start gap-3 p-4 rounded-2xl border border-[#F59E0B]/30 bg-[#F59E0B]/[0.06]">
+          <Crown className="w-5 h-5 text-[#D97706] flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-[#111111] dark:text-white">{agencyName ?? 'This company'} has no Agency Admin yet</p>
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] mt-0.5">Every company has one. Press <span className="font-semibold">Make Agency Admin</span> on the person who runs it.</p>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -501,6 +551,9 @@ export function TeamPanel({ agencyId, agencyName, currentUserId, canManage, canM
               toggling={togglingId === m._id}
               onToggle={() => { setTogglingId(m._id); toggleMut.mutate({ member: m, isActive: !m.isActive }) }}
               onViewActivity={onViewActivity ? () => onViewActivity(m) : undefined}
+              // Offered on managers — or on anyone while the company has no Agency Admin yet
+              onToggleAdmin={canMakeAdmin && m.isActive && !m.isAgencyAdmin && (m.isAgencyManager || !currentAdmin) ? () => makeAdmin(m) : undefined}
+              togglingAdmin={adminMut.isPending && adminMut.variables?.member._id === m._id}
             />
           ))}
         </div>

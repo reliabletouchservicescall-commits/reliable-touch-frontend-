@@ -9,6 +9,7 @@ import {
   SlidersHorizontal, TrendingUp, Activity,
 } from 'lucide-react'
 import { campaignsApi } from '../../services/campaignsApi'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -809,7 +810,7 @@ export default function CampaignsPage() {
       {/* ── Stats row ───────────────────────────────────────────────────── */}
       <div className="px-5 sm:px-8 py-4 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <StatCard label="Total"    value={stats.total}    icon={Megaphone}   color="#F95C4B" isLoading={!allData} />
+          <StatCard label="Total"    value={stats.total}    icon={Megaphone}   color={CORAL} isLoading={!allData} />
           <StatCard label="Active"   value={stats.active}   icon={CheckCircle2} color="#10B981" isLoading={!allData} />
           <StatCard label="Inactive" value={stats.inactive} icon={XCircle}     color="#6B7280" isLoading={!allData} />
           <StatCard label="Running"  value={stats.running}  icon={Activity}    color="#3B82F6" isLoading={!allData} />

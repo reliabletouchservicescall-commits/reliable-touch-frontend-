@@ -9,8 +9,9 @@ import {
   CheckCircle2, Clock, Building2, UserCheck, Target,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
+import { CORAL } from '../../lib/brand'
 
-const BRAND = '#F95C4B'
+const BRAND = CORAL
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 
@@ -148,7 +149,7 @@ function CallsByHourChart({ data }) {
         <Tooltip content={<CustomTooltip />} cursor={{ fill: '#F5F5F4', radius: 4 }} />
         <Bar dataKey="calls" name="Calls" radius={[4, 4, 0, 0]}>
           {data.map((entry, i) => (
-            <Cell key={i} fill={entry.calls === maxVal ? BRAND : '#F95C4B55'} />
+            <Cell key={i} fill={entry.calls === maxVal ? BRAND : `${CORAL}55`} />
           ))}
         </Bar>
       </BarChart>

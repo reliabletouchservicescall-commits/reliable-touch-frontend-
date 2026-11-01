@@ -14,6 +14,7 @@ import { appointmentsApi } from '../../services/appointmentsApi'
 import { agentsApi } from '../../services/agentsApi'
 import SidePanel from '../../components/common/SidePanel'
 import { ListingBadge, ListingTypeFilter } from '../../components/leads/leadShared'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Constants ─────────────────────────────────────────────────────────── */
 
@@ -219,7 +220,7 @@ function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, on
     <SidePanel
       onClose={onClose}
       icon={CalendarCheck}
-      iconColor="#F95C4B"
+      iconColor={CORAL}
       title="Appointment Details"
       subtitle={lead?.landlordName ?? 'Appointment'}
       widthClass="sm:max-w-lg"
@@ -331,7 +332,7 @@ function DetailPanel({ appointment, onClose, onStatusUpdate, onRecordOutcome, on
               className={inputCls(false)}
             >
               {team.map((m) => (
-                <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyManager ? ' (manager)' : ''}</option>
+                <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyAdmin ? ' (Agency Admin)' : m.isAgencyManager ? ' (manager)' : ''}</option>
               ))}
             </select>
           </div>
@@ -552,7 +553,7 @@ function RecordOutcomePanel({ appointment, onClose, onSuccess }) {
     <SidePanel
       onClose={onClose}
       icon={ClipboardList}
-      iconColor="#F95C4B"
+      iconColor={CORAL}
       title="Record Deal Outcome"
       subtitle={lead?.landlordName ?? 'Appointment'}
       widthClass="sm:max-w-lg"
@@ -837,7 +838,7 @@ export default function AgencyAppointmentsPage() {
               <option key={key} value={key}>{meta.label}</option>
             ))}
           </select>
-          <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} accent="#F95C4B" />
+          <ListingTypeFilter value={listingTypeFilter} onChange={setListingTypeFilter} />
         </div>
 
         {/* Results count */}

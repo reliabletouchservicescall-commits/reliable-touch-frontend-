@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Brand colour as variables — postcss-brand-vars.js points every coral in the app at these,
+   and a company's own colour (src/lib/brand.js) overrides them for that company's people. */
+:root {
+  --brand-rgb: 249 92 75;
+  --brand-hover-rgb: 232 75 58;
+  --brand-light-rgb: 255 122 107;
+}
+
 @layer base {
   *, *::before, *::after {
     box-sizing: border-box;
@@ -102,6 +110,8 @@
 .mac-slide-in { animation: mac-slide-in 520ms var(--ease-mac) both; animation-delay: var(--d, 0ms); }
 .mac-pop      { animation: mac-pop 420ms var(--ease-spring) both; animation-delay: var(--d, 0ms); }
 .mac-grow-x   { transform-origin: left; animation: mac-grow-x 900ms var(--ease-mac) both; animation-delay: var(--d, 0ms); }
+.prog-bar     { transform-origin: bottom; animation: prog-rise 800ms var(--ease-mac) both; animation-delay: var(--d, 0ms); }
+@keyframes prog-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .mac-float    { animation: mac-float 3.2s ease-in-out infinite; }
 .mac-ken-burns { animation: mac-ken-burns 1600ms var(--ease-mac) both; }
 /* Hover lift — the subtle raise a macOS card/dock item gives under the pointer */
@@ -125,7 +135,7 @@
 .mac-indeterminate { animation: mac-indeterminate 1.1s var(--ease-mac) infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mac-in, .mac-slide-in, .mac-pop, .mac-grow-x, .mac-ken-burns, .mac-reveal, .mac-rise { animation: mac-fade 200ms ease both; }
+  .mac-in, .mac-slide-in, .mac-pop, .mac-grow-x, .mac-ken-burns, .mac-reveal, .mac-rise, .prog-bar { animation: mac-fade 200ms ease both; }
   .mac-float { animation: none; }
   .mac-lift, .mac-lift:hover { transform: none; }
 }
@@ -317,3 +327,26 @@ button[data-lead-selected], div[role="button"][data-lead-selected] { border-colo
 @keyframes node-glow { 0%, 100% { box-shadow: 0 0 0 0 rgb(245 158 11 / 0.0), 0 12px 30px -16px rgb(245 158 11 / 0.6); } 50% { box-shadow: 0 0 0 6px rgb(245 158 11 / 0.15), 0 12px 30px -16px rgb(245 158 11 / 0.6); } }
 .node-glow { animation: node-glow 2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .flow-dots, .node-glow { animation: none; } }
+
+/* Guided tour — the card springs in like a macOS sheet, the backdrop fades */
+@keyframes tour-pop {
+  0%   { opacity: 0; transform: var(--tour-t, translate(0, 0)) scale(0.94) translateY(8px); filter: blur(4px); }
+  100% { opacity: 1; transform: var(--tour-t, translate(0, 0)) scale(1); filter: none; }
+}
+@keyframes tour-fade { from { opacity: 0; } to { opacity: 1; } }
+.tour-pop  { animation: tour-pop 0.42s cubic-bezier(0.2, 0.9, 0.25, 1.15) both; }
+.tour-fade { animation: tour-fade 0.3s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .tour-pop, .tour-fade { animation: none; } }
+
+/* Tenant application page — each step slides in, sheets rise, confirmations pop */
+@keyframes apply-step { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes apply-sheet { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes apply-pop { 0% { opacity: 0; transform: scale(0.9); } 100% { opacity: 1; transform: scale(1); } }
+.apply-step  { animation: apply-step 0.32s cubic-bezier(0.2, 0.9, 0.25, 1) both; }
+.apply-sheet { animation: apply-sheet 0.36s cubic-bezier(0.2, 0.9, 0.25, 1.05) both; }
+.apply-pop   { animation: apply-pop 0.3s cubic-bezier(0.2, 0.9, 0.25, 1.2) both; }
+.apply-fade  { animation: tour-fade 0.25s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .apply-step, .apply-sheet, .apply-pop, .apply-fade { animation: none; } }
+
+/* The floating chat button steps aside while a side panel is open (it would cover its Save button) */
+body:has([data-lead-dialog]) .chat-fab { display: none; }

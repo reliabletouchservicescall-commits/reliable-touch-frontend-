@@ -13,11 +13,12 @@ import {
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
 import WorkingHoursSection from '../../components/performance/WorkingHoursSection'
+import { CORAL, CORAL_2 } from '../../lib/brand'
 
 const BRAND = '#10B981'
 const STATUS_COLORS = {
   cold: '#6B7280', warm: '#F59E0B', hot: '#EF4444', listed: '#8B5CF6',
-  rented_out: '#10B981', sold: '#F95C4B', lost: '#9CA3AF',
+  rented_out: '#10B981', sold: CORAL, lost: '#9CA3AF',
 }
 const APPT_STATUS_COLORS = {
   scheduled: '#3B82F6', confirmed: '#10B981', completed: '#6B7280', cancelled: '#EF4444', no_show: '#F59E0B',
@@ -245,7 +246,7 @@ export default function AgentDetailPage() {
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight">{fullName}{isSelf && ' (You)'}</h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold" style={{ color: BRAND, backgroundColor: `${BRAND}18` }}>
-              <Briefcase className="w-3 h-3" /> {user.isAgencyManager ? 'Company Manager' : 'Agent'}
+              <Briefcase className="w-3 h-3" /> {user.isAgencyAdmin ? 'Agency Admin' : user.isAgencyManager ? 'Company Manager' : 'Agent'}
             </span>
             {user.isAgencyManager && <Crown className="w-3.5 h-3.5 text-[#F59E0B]" />}
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${user.isActive ? 'text-[#10B981] bg-[#10B981]/10' : 'text-[#EF4444] bg-[#EF4444]/10'}`}>
@@ -269,9 +270,9 @@ export default function AgentDetailPage() {
       <section>
         <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">Performance</h2>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-          <StatCard icon={Star} label="Score (This Month)" value={scoreStats?.score ?? 0} color="#F95C4B" delay={0} />
+          <StatCard icon={Star} label="Score (This Month)" value={scoreStats?.score ?? 0} color={CORAL} delay={0} />
           <StatCard icon={Trophy} label="Company Rank" value={scoreStats?.rank ? `#${scoreStats.rank}` : '—'} sub={scoreStats?.total ? `of ${scoreStats.total} agents` : undefined} color="#F59E0B" delay={40} />
-          <StatCard icon={Phone} label="Calls (This Month)" value={scoreStats?.totalCalls ?? 0} color="#FF8C7A" delay={80} />
+          <StatCard icon={Phone} label="Calls (This Month)" value={scoreStats?.totalCalls ?? 0} color={CORAL_2} delay={80} />
           <StatCard icon={TrendingUp} label="Leads Closed" value={scoreStats?.leadsClosed ?? 0} color="#8B5CF6" delay={120} />
           <StatCard icon={CalendarCheck} label="Appointments Attended" value={scoreStats?.appointmentsAttended ?? 0} color="#10B981" delay={160} />
         </div>
@@ -291,7 +292,7 @@ export default function AgentDetailPage() {
                   <XAxis dataKey="date" tickFormatter={(d) => format(new Date(d), 'd MMM')} tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} minTickGap={24} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<TrendTooltip />} />
-                  <Line type="monotone" dataKey="score" name="Points" stroke="#F95C4B" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} isAnimationActive animationDuration={900} />
+                  <Line type="monotone" dataKey="score" name="Points" stroke={CORAL} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} isAnimationActive animationDuration={900} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -345,7 +346,7 @@ export default function AgentDetailPage() {
         <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-4">Assigned Work</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard icon={FileText} label="Leads Assigned" value={leads.total} color={BRAND} delay={0} />
-          <StatCard icon={CalendarCheck} label="Appointments" value={appointments.total} color="#FF8C7A" delay={40} />
+          <StatCard icon={CalendarCheck} label="Appointments" value={appointments.total} color={CORAL_2} delay={40} />
           <StatCard icon={CheckCircle2} label="Completed" value={appointments.byStatus.completed ?? 0} color="#10B981" delay={80} />
           <StatCard icon={Home} label="Hot / Listed" value={(leads.byStatus.hot ?? 0) + (leads.byStatus.listed ?? 0)} color="#EF4444" delay={120} />
         </div>

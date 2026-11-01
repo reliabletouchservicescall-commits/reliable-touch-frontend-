@@ -24,6 +24,7 @@ import { agenciesApi } from '../../services/agenciesApi'
 import { useSocket } from '../../context/SocketContext'
 import { useAuthStore } from '../../store/authStore'
 import { LeadStatusBadge } from '../leads/leadShared'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
@@ -54,17 +55,17 @@ function fileTypeIcon(name = '', mimeType = '') {
 // Matches COMMENT_AUTHOR_META's palette in leadShared.jsx, so a role reads the same
 // color everywhere in the app (lead comments, chat, etc.).
 const ROLE_META = {
-  admin:             { label: 'Admin',              color: '#F95C4B', Icon: User },
+  admin:             { label: 'Admin',              color: CORAL, Icon: User },
   cold_caller:       { label: 'Cold Caller',         color: '#3B82F6', Icon: Phone },
   follow_up_manager: { label: 'Follow Up Manager',   color: '#8B5CF6', Icon: ClipboardCheck },
   agency:            { label: 'Agency',              color: '#10B981', Icon: Building2 },
 }
 
-// Within a company, "Agency" says nothing — label people as the Manager or an Agent.
-function roleBadge(role, isAgencyManager) {
+// Within a company, "Agency" says nothing — label people as the Agency Admin, Manager or an Agent.
+function roleBadge(role, isAgencyManager, isAgencyAdmin = false) {
   const base = ROLE_META[role] ?? { label: role, color: '#6B7280', Icon: User }
   const meta = role === 'agency' && isAgencyManager !== undefined
-    ? { ...base, label: isAgencyManager ? 'Manager' : 'Agent' }
+    ? { ...base, label: isAgencyAdmin ? 'Agency Admin' : isAgencyManager ? 'Manager' : 'Agent' }
     : base
   const { Icon } = meta
   return (
@@ -639,7 +640,7 @@ function ChatWindow({ conversation, currentUserId, leadsBasePath, pendingLead, o
             {other ? `${other.firstName} ${other.lastName}` : 'Unknown'}
           </p>
           <div className="flex items-center gap-2">
-            {other && roleBadge(other.role, other.isAgencyManager)}
+            {other && roleBadge(other.role, other.isAgencyManager, other.isAgencyAdmin)}
             <span className={`text-[10px] font-medium ${isOnline ? 'text-emerald-500' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
               {isOnline ? 'Online' : 'Offline'}
             </span>
@@ -742,7 +743,7 @@ function ConversationItem({ conv, isActive, onClick, onlineUsers, currentUserId 
         </div>
 
         <div className="flex items-center gap-1 mt-0.5">
-          {other && roleBadge(other.role, other.isAgencyManager)}
+          {other && roleBadge(other.role, other.isAgencyManager, other.isAgencyAdmin)}
         </div>
 
         <div className="flex items-center justify-between gap-2 mt-1">
@@ -792,7 +793,7 @@ function TeamMemberItem({ member, online, onClick, busy }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-[#111111] dark:text-white truncate">{member.firstName} {member.lastName}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          {roleBadge(member.role ?? 'agency', member.isAgencyManager ?? false)}
+          {roleBadge(member.role ?? 'agency', member.isAgencyManager ?? false, member.isAgencyAdmin)}
           <span className={`text-[10px] font-medium ${online ? 'text-emerald-500' : 'text-[#9CA3AF]'}`}>{online ? 'Online' : 'Offline'}</span>
         </div>
       </div>
@@ -843,7 +844,7 @@ function NewChatPicker({ currentUserId, currentRole, onSelect, onClose }) {
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-xs font-semibold text-[#111111] dark:text-white truncate">{u.firstName} {u.lastName}</p>
                 <div className="flex items-center gap-1 mt-0.5">
-                  {roleBadge(u.role ?? currentRole, currentRole === 'agency' ? Boolean(u.isAgencyManager) : undefined)}
+                  {roleBadge(u.role ?? currentRole, currentRole === 'agency' ? Boolean(u.isAgencyManager) : undefined, u.isAgencyAdmin)}
                   <span className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate">{u.email}</span>
                 </div>
               </div>

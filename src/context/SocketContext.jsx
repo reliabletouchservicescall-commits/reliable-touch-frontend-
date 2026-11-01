@@ -44,6 +44,12 @@ export function SocketProvider({ children }) {
     })
 
     // Everyone already online at the moment we connect (user_status only covers changes after).
+    // The company's Agency Admin changed its logo / colour — repaint for everyone in it
+    // A tenant opened, filled in or submitted their application
+    socket.on('tenant_application', () => qc.invalidateQueries({ queryKey: ['tenant-apps'] }))
+
+    socket.on('agency:branding', () => qc.invalidateQueries({ queryKey: ['agency-profile'] }))
+
     socket.on('online_users', (userIds = []) => {
       setOnlineUsers(new Set(userIds))
     })

@@ -18,14 +18,15 @@ import {
   Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Milestone, Kpi, Pipeline, TemperatureDonut, IntentBars,
   TrendChart, CallsByHourChart, ProvincePanel, TodaysTasks, RecentActivity, PhotoCard, STATUS_COLORS, STATUS_LABEL,
 } from '../../components/dashboard/DashboardKit'
+import { CORAL } from '../../lib/brand'
 
 const DAILY_SERIES = [
-  { key: 'calls',  name: 'Calls',         color: '#F95C4B', kind: 'area' },
+  { key: 'calls',  name: 'Calls',         color: CORAL, kind: 'area' },
   { key: 'leads',  name: 'Leads created', color: 'ink',     kind: 'line', axis: 'right' },
   { key: 'closed', name: 'Deals closed',  color: '#10B981', kind: 'line', axis: 'right', dashed: true },
 ]
 const WEEKLY_SERIES = [
-  { key: 'created', name: 'Leads created', color: '#F95C4B', kind: 'line', dots: true, width: 3 },
+  { key: 'created', name: 'Leads created', color: CORAL, kind: 'line', dots: true, width: 3 },
   { key: 'closed',  name: 'Deals closed',  color: 'ink',     kind: 'line', dots: true, width: 2.5 },
 ]
 
@@ -298,7 +299,7 @@ export default function DashboardPage() {
               </Card>
             </div>
             <Card delay={180} className="p-5">
-              <CardTitle title="Leads by province" subtitle="Hover or tap a province · darker coral = more leads" action={<LinkButton to="/admin/areas">Areas</LinkButton>} />
+              <CardTitle title="Leads by province" subtitle="Hover or tap a province · darker = more leads" action={<LinkButton to="/admin/areas">Areas</LinkButton>} />
               {!o ? <Skeleton className="h-[360px]" /> : <ProvincePanel provinces={o.provinces} isDark={isDark} fixAreasTo="/admin/areas" />}
             </Card>
           </div>

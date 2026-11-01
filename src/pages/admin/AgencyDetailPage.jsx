@@ -15,8 +15,9 @@ import { contactsApi } from '../../services/contactsApi'
 import { LEAD_STATUS_META, getApiErrorMessage } from '../../components/leads/leadShared'
 import { TeamPanel, inputCls } from '../../components/agencies/AgencyPeople'
 import { useAuthStore } from '../../store/authStore'
+import { CORAL } from '../../lib/brand'
 
-const AVATAR_COLORS = ['#F95C4B', '#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4', '#84CC16']
+const AVATAR_COLORS = [CORAL, '#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4', '#84CC16']
 
 function colorFor(id = '') {
   const sum = [...id].reduce((s, c) => s + c.charCodeAt(0), 0)
@@ -126,7 +127,7 @@ function CompanyLeads({ agencyId, team, onOpen }) {
         <select value={agentId} onChange={(e) => { setAgentId(e.target.value); setPage(1) }}
           className="px-3 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none cursor-pointer">
           <option value="">Every agent</option>
-          {team.map((m) => <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyManager ? ' (manager)' : ''}</option>)}
+          {team.map((m) => <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyAdmin ? ' (Agency Admin)' : m.isAgencyManager ? ' (manager)' : ''}</option>)}
         </select>
       </div>
 
@@ -322,7 +323,7 @@ function CompanyContacts({ agencyId, team }) {
           className="px-3 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none cursor-pointer">
           <option value="">Everyone</option>
           <option value="unassigned">Unassigned (pool)</option>
-          {team.map((m) => <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyManager ? ' (manager)' : ''}</option>)}
+          {team.map((m) => <option key={m._id} value={m._id}>{m.firstName} {m.lastName}{m.isAgencyAdmin ? ' (Agency Admin)' : m.isAgencyManager ? ' (manager)' : ''}</option>)}
         </select>
         <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}
           className="px-3 py-2.5 rounded-xl text-sm bg-white dark:bg-[#181818] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white outline-none cursor-pointer">
@@ -608,9 +609,14 @@ export default function AgencyDetailPage() {
 
         <div className="flex flex-col lg:flex-row lg:items-center gap-5 pb-5">
           <div className="flex items-center gap-4 min-w-0 flex-1">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-sm flex-shrink-0" style={{ backgroundColor: color }}>
-              {initials(agency.name)}
-            </div>
+{agency.branding?.logoUrl ? (
+              // The logo its Agency Admin uploaded, framed in its brand colour
+              <img src={agency.branding.logoUrl} alt={agency.name} className="w-14 h-14 rounded-2xl object-contain bg-white p-1.5 shadow-sm flex-shrink-0 border-2" style={{ borderColor: agency.branding.primaryColor ?? '#E5E7EB' }} />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-sm flex-shrink-0" style={{ backgroundColor: agency.branding?.primaryColor ?? color }}>
+                {initials(agency.name)}
+              </div>
+            )}
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-xl font-bold text-[#111111] dark:text-white tracking-tight truncate">{agency.name}</h1>
@@ -663,7 +669,7 @@ export default function AgencyDetailPage() {
       <div className="px-5 sm:px-8 py-4 bg-[#FAFAF9] dark:bg-[#0B0B0B] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <StatTile icon={Users} label="Team" value={stats.agents ?? 0} sub={`${stats.activeAgents ?? 0} active`} color="#3B82F6" />
-          <StatTile icon={ShieldCheck} label="Company logins" value={managers} sub={managers ? 'Can run the company' : 'None yet — add one from Team'} color="#F95C4B" />
+          <StatTile icon={ShieldCheck} label="Company logins" value={managers} sub={managers ? 'Can run the company' : 'None yet — add one from Team'} color={CORAL} />
           <StatTile icon={BookUser} label="Contacts" value={(stats.contacts ?? 0).toLocaleString()} sub="Uploaded or assigned" color="#06B6D4" />
           <StatTile icon={TrendingUp} label="Leads" value={(stats.leads ?? 0).toLocaleString()} sub="Attached to this company" color="#10B981" />
           <StatTile icon={CalendarCheck} label="Upcoming visits" value={stats.upcomingAppointments ?? 0} sub="Scheduled or confirmed" color="#8B5CF6" />
@@ -679,6 +685,7 @@ export default function AgencyDetailPage() {
             currentUserId={user?._id}
             canManage
             canMakeManager
+            canMakeAdmin
             canReset
             showAdd
           />

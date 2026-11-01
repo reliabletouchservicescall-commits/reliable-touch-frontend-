@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import mapData from '../../assets/maps/south-africa-provinces.json'
+import { CORAL } from '../../lib/brand'
 
 // Province shapes are pre-projected SVG paths (52 districts grouped into the 9 provinces),
 // built from the open "Click That Hood" South Africa boundaries — so no map library or
 // tile server is needed at runtime.
 
-const BRAND = '#F95C4B'
+const BRAND = CORAL
 
 // Light → full coral by share of leads; square-root scale so a province with a handful of
 // leads is still visibly "on" next to one with thousands.
@@ -31,7 +32,7 @@ export default function SouthAfricaMap({ provinces, metric = 'leads', isDark = f
       <svg viewBox={`0 0 ${mapData.width} ${mapData.height}`} className="w-full h-auto select-none" role="img" aria-label="Map of South Africa by province">
         <defs>
           <filter id="sa-map-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#F95C4B" floodOpacity="0.35" />
+            <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor={CORAL} floodOpacity="0.35" />
           </filter>
         </defs>
         {mapData.provinces.map((p, i) => {

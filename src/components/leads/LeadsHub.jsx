@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import AnimatedNumber from '../dashboard/AnimatedNumber'
+import { CORAL, CORAL_2 } from '../../lib/brand'
 
 /*
  * Shared pieces of every role's Leads screen (admin, follow-up manager, company manager,
@@ -16,13 +17,12 @@ import AnimatedNumber from '../dashboard/AnimatedNumber'
  * GET /leads, so clicking a number shows exactly those leads.
  */
 
-const CORAL = '#F95C4B'
 
 export const LEAD_STATUS_TILES = [
   { key: 'cold',              label: 'Cold',        color: '#9CA3AF' },
   { key: 'warm',              label: 'Warm',        color: '#F59E0B' },
   { key: 'hot',               label: 'Hot',         color: '#EF4444' },
-  { key: 'still_negotiating', label: 'Negotiating', color: '#FF8C7A' },
+  { key: 'still_negotiating', label: 'Negotiating', color: CORAL_2 },
   { key: 'listed',            label: 'Listed',      color: '#8B5CF6' },
   { key: 'rented_out',        label: 'Rented out',  color: '#10B981' },
   { key: 'sold',              label: 'Sold',        color: CORAL },
@@ -30,6 +30,8 @@ export const LEAD_STATUS_TILES = [
 ]
 
 export const FOCUS_LABELS = {
+  promise_due: 'Promise due (48h)',
+  callback_now: 'Call back now',
   due_today: 'Follow-ups due today',
   overdue: 'Overdue follow-ups',
   no_followup_date: 'No follow-up date set',
@@ -350,7 +352,7 @@ export function AgencyBreakdown({ params, agency, onAgency }) {
                   <span className="font-bold tabular-nums text-[#111111] dark:text-white">{r.count.toLocaleString()}</span>
                 </div>
                 <div className="h-1.5 mt-1 rounded-full bg-[#F5F5F4] dark:bg-[#2A2A2A] overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(r.count / max) * 100}%`, backgroundColor: r.muted ? '#D4D4D8' : '#F95C4B' }} />
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(r.count / max) * 100}%`, backgroundColor: r.muted ? '#D4D4D8' : CORAL }} />
                 </div>
               </button>
             </li>

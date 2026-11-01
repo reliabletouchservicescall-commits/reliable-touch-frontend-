@@ -7,11 +7,13 @@ import {
   Building2, Plus, Search, X, Pencil, Trash2, Loader2,
   Phone, Mail, CheckCircle2, XCircle, ChevronLeft, ChevronRight,
   DollarSign, Users, AlertTriangle, ToggleLeft, ToggleRight,
-  TrendingUp, ShieldCheck,
+  TrendingUp, ShieldCheck, Crown, KeyRound, Eye, EyeOff, ArrowRight,
 } from 'lucide-react'
 import { agenciesApi } from '../../services/agenciesApi'
 import { commissionsApi } from '../../services/commissionsApi'
 import { usersApi } from '../../services/usersApi'
+import { CredentialsPanel, generatePassword } from '../../components/agencies/AgencyPeople'
+import { CORAL } from '../../lib/brand'
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -24,7 +26,7 @@ function fmtCurrency(n) {
 }
 
 const AVATAR_COLORS = [
-  '#F95C4B', '#3B82F6', '#10B981', '#8B5CF6',
+  CORAL, '#3B82F6', '#10B981', '#8B5CF6',
   '#F59E0B', '#EC4899', '#06B6D4', '#84CC16',
 ]
 
@@ -230,10 +232,20 @@ function AgencyCard({ agency, agentCount, commStats, onOpen, onEdit, onDelete, o
 /* ─── Agency Form ─────────────────────────────────────────────────────────── */
 
 const EMPTY_FORM = { name: '', contactEmail: '', contactPhone: '', isActive: true }
+const EMPTY_ADMIN = { firstName: '', lastName: '', email: '', phone: '' }
+const STRONG = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/
 
-function AgencyForm({ id, initial, onSubmit, isPending }) {
+// `withAdmin` — a new agency: its Agency Admin login is made with it (one per company)
+function AgencyForm({ id, initial, onSubmit, isPending, withAdmin = false }) {
   const [form, setForm] = useState(initial)
   const [errors, setErrors] = useState({})
+  const [admin, setAdmin] = useState(() => ({ ...EMPTY_ADMIN, password: generatePassword() }))
+  const [showPassword, setShowPassword] = useState(false)
+
+  function setA(k, v) {
+    setAdmin((a) => ({ ...a, [k]: v }))
+    if (errors[`admin.${k}`]) setErrors((e) => ({ ...e, [`admin.${k}`]: null }))
+  }
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -246,6 +258,13 @@ function AgencyForm({ id, initial, onSubmit, isPending }) {
     else if (form.name.trim().length < 2) errs.name = 'Name must be at least 2 characters'
     if (form.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactEmail))
       errs.contactEmail = 'Enter a valid email address'
+    if (withAdmin) {
+      if (!admin.firstName.trim()) errs['admin.firstName'] = 'Required'
+      if (!admin.lastName.trim()) errs['admin.lastName'] = 'Required'
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin.email.trim())) errs['admin.email'] = 'Enter a valid email — this is their login'
+      if (!admin.phone.trim()) errs['admin.phone'] = 'Required'
+      if (!STRONG.test(admin.password)) errs['admin.password'] = 'At least 8 characters with an uppercase letter, a lowercase letter and a number'
+    }
     return errs
   }
 
@@ -258,6 +277,7 @@ function AgencyForm({ id, initial, onSubmit, isPending }) {
       contactEmail: form.contactEmail.trim() || null,
       contactPhone: form.contactPhone.trim() || null,
       isActive: form.isActive,
+      ...(withAdmin ? { admin: { firstName: admin.firstName.trim(), lastName: admin.lastName.trim(), email: admin.email.trim(), phone: admin.phone.trim(), password: admin.password } } : {}),
     })
   }
 
@@ -312,13 +332,59 @@ function AgencyForm({ id, initial, onSubmit, isPending }) {
           ))}
         </div>
       </Field>
+
+      {withAdmin && (
+        <div className="rounded-2xl border border-[#F59E0B]/30 bg-[#F59E0B]/[0.04] p-4 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#F59E0B]/15 flex items-center justify-center flex-shrink-0">
+              <Crown className="w-[18px] h-[18px] text-[#D97706]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#111111] dark:text-white">Agency Admin</p>
+              <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed mt-0.5">
+                The one person who runs this agency on the CRM: sets its logo and colour, adds its people and leads. They're guided through set-up when they first sign in.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="First name" required error={errors['admin.firstName']}>
+              <input value={admin.firstName} onChange={(e) => setA('firstName', e.target.value)} className={inputCls(errors['admin.firstName'])} />
+            </Field>
+            <Field label="Last name" required error={errors['admin.lastName']}>
+              <input value={admin.lastName} onChange={(e) => setA('lastName', e.target.value)} className={inputCls(errors['admin.lastName'])} />
+            </Field>
+          </div>
+          <Field label="Email (their login)" required error={errors['admin.email']}>
+            <input type="email" value={admin.email} onChange={(e) => setA('email', e.target.value)} placeholder="name@agency.co.za" className={inputCls(errors['admin.email'])} />
+          </Field>
+          <Field label="Phone" required error={errors['admin.phone']}>
+            <input value={admin.phone} onChange={(e) => setA('phone', e.target.value)} placeholder="082 123 4567" className={inputCls(errors['admin.phone'])} />
+          </Field>
+          <Field label="Password" required error={errors['admin.password']} hint="Generated for you — you'll see it once more to hand over">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input type={showPassword ? 'text' : 'password'} value={admin.password} onChange={(e) => setA('password', e.target.value)}
+                  className={`${inputCls(errors['admin.password'])} font-mono pr-10`} />
+                <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#111111] dark:hover:text-white">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <button type="button" onClick={() => setA('password', generatePassword())}
+                className="px-3 rounded-xl text-xs font-semibold text-[#F95C4B] bg-[#F95C4B]/10 hover:bg-[#F95C4B]/15 flex items-center gap-1.5 whitespace-nowrap">
+                <KeyRound className="w-3.5 h-3.5" /> Generate
+              </button>
+            </div>
+          </Field>
+        </div>
+      )}
     </form>
   )
 }
 
 /* ─── Drawer Shell ────────────────────────────────────────────────────────── */
 
-function Drawer({ title, subtitle, iconBg, iconColor, Icon, formId, submitLabel, isPending, onClose, children }) {
+function Drawer({ title, subtitle, iconBg, iconColor, Icon, formId, submitLabel, isPending, onClose, children, footer }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
@@ -341,6 +407,7 @@ function Drawer({ title, subtitle, iconBg, iconColor, Icon, formId, submitLabel,
         <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
 
         <div className="px-6 py-4 border-t border-[#E5E7EB] dark:border-[#2A2A2A] flex gap-3">
+          {footer ?? (<>
           <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
             Cancel
           </button>
@@ -348,6 +415,7 @@ function Drawer({ title, subtitle, iconBg, iconColor, Icon, formId, submitLabel,
             {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             {submitLabel}
           </button>
+          </>)}
         </div>
       </div>
     </>
@@ -472,9 +540,16 @@ export default function AgenciesPage() {
     qc.invalidateQueries({ queryKey: ['commissions-all'] })
   }
 
+  // After creating: the Agency Admin's login, shown once to hand over
+  const [created, setCreated] = useState(null)
   const createMut = useMutation({
     mutationFn: (d) => agenciesApi.create(d),
-    onSuccess: () => { invalidate(); toast.success('Agency created'); setCreating(false) },
+    onSuccess: (res, vars) => {
+      invalidate()
+      toast.success('Agency and its Agency Admin created')
+      const { agency, admin } = res.data.data
+      setCreated({ agency, name: `${admin.firstName} ${admin.lastName}`, email: admin.email, password: vars.admin.password })
+    },
     onError:   (e) => toast.error(e.response?.data?.message ?? 'Failed to create agency'),
   })
 
@@ -562,7 +637,7 @@ export default function AgenciesPage() {
 
       {/* ── Summary Stats ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard icon={Building2}   label="Total Agencies"     value={isLoading ? '—' : total}        color="#F95C4B" loading={isLoading} />
+        <StatCard icon={Building2}   label="Total Agencies"     value={isLoading ? '—' : total}        color={CORAL} loading={isLoading} />
         <StatCard icon={ShieldCheck} label="Active"             value={isLoading ? '—' : activeCount}  color="#10B981" loading={isLoading} />
         <StatCard icon={Users}       label="Inactive"           value={isLoading ? '—' : inactiveCount} color="#6B7280" loading={isLoading} />
         <StatCard icon={TrendingUp}  label="Pending Commissions" value={isLoading ? '—' : totalPending} color="#F59E0B" loading={isLoading} />
@@ -667,13 +742,43 @@ export default function AgenciesPage() {
       )}
 
       {/* ── Create Drawer ────────────────────────────────────────────────── */}
-      {creating && (
+      {creating && (created ? (
+        <Drawer
+          title={`${created.agency.name} is ready`}
+          subtitle="Send the Agency Admin their login"
+          Icon={CheckCircle2}
+          iconBg="#10B98118"
+          iconColor="#10B981"
+          onClose={() => { setCreated(null); setCreating(false) }}
+          footer={<>
+            <button type="button" onClick={() => { setCreated(null); setCreating(false) }}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+              Done
+            </button>
+            <button type="button" onClick={() => navigate(`/admin/agencies/${created.agency._id}`)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] flex items-center justify-center gap-2">
+              Open agency <ArrowRight className="w-4 h-4" />
+            </button>
+          </>}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#F59E0B]/[0.06] border border-[#F59E0B]/25">
+              <Crown className="w-5 h-5 text-[#D97706] flex-shrink-0" />
+              <p className="text-sm text-[#111111] dark:text-white"><span className="font-semibold">{created.name}</span> is the Agency Admin of {created.agency.name}.</p>
+            </div>
+            <CredentialsPanel email={created.email} password={created.password} />
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA] leading-relaxed">
+              When they sign in, a short guided set-up walks them through the company profile (logo and colour), adding their team and creating their first lead.
+            </p>
+          </div>
+        </Drawer>
+      ) : (
         <Drawer
           title="New Agency"
-          subtitle="Add a property agency to the system"
+          subtitle="Add a property agency and its Agency Admin"
           Icon={Building2}
-          iconBg="#F95C4B18"
-          iconColor="#F95C4B"
+          iconBg={`${CORAL}18`}
+          iconColor={CORAL}
           formId="create-agency"
           submitLabel="Create Agency"
           isPending={createMut.isPending}
@@ -684,9 +789,10 @@ export default function AgenciesPage() {
             initial={EMPTY_FORM}
             onSubmit={(d) => createMut.mutate(d)}
             isPending={createMut.isPending}
+            withAdmin
           />
         </Drawer>
-      )}
+      ))}
 
       {/* ── Edit Drawer ──────────────────────────────────────────────────── */}
       {editing && (

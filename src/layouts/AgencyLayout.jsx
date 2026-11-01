@@ -12,6 +12,7 @@ import {
   X,
   ChevronRight,
   Trophy,
+  Target,
   TrendingUp,
   Handshake,
   Users,
@@ -25,6 +26,8 @@ import {
   UserCircle,
   PhoneOutgoing,
   AlarmClock,
+  Building2,
+  KeyRound,
 } from 'lucide-react'
 import logo from '../assets/logo-reliable-touch.png'
 import { useTheme } from '../context/ThemeContext'
@@ -35,6 +38,8 @@ import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
 import ChatWidget from '../components/chat/ChatWidget'
 import { useSocket } from '../context/SocketContext'
 import { CallModeBadge } from '../lib/useCallMode'
+import { useAgencyBrand } from '../lib/useAgencyBrand'
+import OnboardingTour, { TourButton } from '../components/onboarding/OnboardingTour'
 
 const NAV = [
   {
@@ -43,6 +48,7 @@ const NAV = [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/agency', end: true },
       { label: 'My Leads',  icon: TrendingUp,      to: '/agency/leads' },
       { label: 'Deal Tracker', icon: Handshake,    to: '/agency/deal-tracker' },
+      { label: 'Tenants', icon: KeyRound, to: '/agency/tenants' },
     ],
   },
   {
@@ -63,7 +69,8 @@ const NAV = [
   {
     group: 'Performance',
     items: [
-      { label: 'Leaderboard', icon: Trophy, to: '/agency/leaderboard' },
+      { label: 'My progress', icon: Target, to: '/agency/progress', agentOnly: true },
+      { label: 'Leaderboard', icon: Trophy, to: '/agency/leaderboard', managerOnly: true },
       // Hidden from the sidebar for now — routes still work; drop `hidden` to bring them back.
       { label: 'My Activity', icon: UserCircle, to: '/agency/agents', selfLink: true, hidden: true },
       { label: 'Login Activity', icon: ShieldCheck, to: '/agency/login-activity', managerOnly: true, hidden: true },
@@ -72,6 +79,7 @@ const NAV = [
   {
     group: 'Account',
     items: [
+      { label: 'Company profile', icon: Building2, to: '/agency/company-profile', adminOnly: true },
       { label: 'Messages', icon: MessageSquare, to: '/agency/chat', hasBadge: true },
       { label: 'Notifications', icon: Bell, to: '/agency/notifications' },
     ],
@@ -119,7 +127,18 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge, cal
   )
 }
 
-function Sidebar({ collapsed, onClose, isMobile }) {
+// The company's own logo, or its initials on its brand colour
+function CompanyMark({ agency, size = 'w-8 h-8' }) {
+  const name = agency?.name ?? 'Reliable Touch'
+  if (agency?.branding?.logoUrl) {
+    return <img src={agency.branding.logoUrl} alt={name} className={`flex-shrink-0 ${size} rounded-lg object-contain bg-white`} />
+  }
+  if (!agency) return <img src={logo} alt="Reliable Touch" className={`flex-shrink-0 ${size} rounded-lg object-contain`} />
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+  return <span className={`flex-shrink-0 ${size} rounded-lg bg-[#F95C4B] text-white text-[11px] font-bold flex items-center justify-center`}>{initials}</span>
+}
+
+function Sidebar({ collapsed, onClose, isMobile, agency }) {
   const { user, clearAuth } = useAuthStore()
   const { theme, toggle } = useTheme()
   const navigate = useNavigate()
@@ -142,15 +161,11 @@ function Sidebar({ collapsed, onClose, isMobile }) {
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <img
-          src={logo}
-          alt="Reliable Touch"
-          className="flex-shrink-0 w-8 h-8 rounded-lg object-contain"
-        />
+        <CompanyMark agency={agency} />
         {(!collapsed || isMobile) && (
           <div className="min-w-0">
-            <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm">
-              Reliable Touch
+            <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm" title={agency?.name}>
+              {agency?.name ?? 'Reliable Touch'}
             </p>
             <p className="text-[9px] uppercase tracking-widest font-semibold text-[#F95C4B]">
               Agency Portal
@@ -177,7 +192,7 @@ function Sidebar({ collapsed, onClose, isMobile }) {
               </p>
             )}
             <ul className="space-y-0.5">
-              {items.filter((item) => !item.hidden && (!item.managerOnly || user?.isAgencyManager)).map((item) => (
+              {items.filter((item) => !item.hidden && (!item.managerOnly || user?.isAgencyManager) && (!item.agentOnly || !user?.isAgencyManager) && (!item.adminOnly || user?.isAgencyAdmin)).map((item) => (
                 <li key={item.to}>
                   <NavItem
                     {...item}
@@ -212,7 +227,9 @@ function Sidebar({ collapsed, onClose, isMobile }) {
               <p className="text-xs font-semibold text-[#111111] dark:text-white truncate">
                 {user?.firstName} {user?.lastName}
               </p>
-              <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate">Agency</p>
+              <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate">
+                {user?.isAgencyAdmin ? 'Agency Admin' : user?.isAgencyManager ? 'Company manager' : 'Agent'}
+              </p>
             </div>
             <button
               onClick={handleLogout}
@@ -233,6 +250,14 @@ function Sidebar({ collapsed, onClose, isMobile }) {
             <LogOut className="w-[18px] h-[18px]" strokeWidth={1.75} />
           </button>
         )}
+
+        {/* The company's brand on top, ours underneath */}
+        <a href="https://reliabletouchservices.co.za" target="_blank" rel="noreferrer"
+          title="Powered by Reliable Touch Service"
+          className={`flex items-center justify-center gap-1.5 pt-2 text-[10px] text-[#9CA3AF] hover:text-[#6B7280] dark:hover:text-[#A1A1AA] transition-colors ${collapsed && !isMobile ? '' : 'px-3'}`}>
+          <img src={logo} alt="" className="w-3.5 h-3.5 object-contain opacity-80" />
+          {(!collapsed || isMobile) && <span>Powered by <span className="font-semibold">Reliable Touch Service</span></span>}
+        </a>
       </div>
     </aside>
   )
@@ -248,6 +273,8 @@ export default function AgencyLayout() {
   // widget does (and more) — showing both stacks the widget's FAB on top of the inbox's
   // own send button.
   const onMessagesPage = location.pathname.startsWith('/agency/chat')
+  // The company's logo, name and colour (set by its Agency Admin) — painted across the app
+  const { agency } = useAgencyBrand({ apply: true })
 
   useEffect(() => {
     let unsub = () => {}
@@ -267,7 +294,7 @@ export default function AgencyLayout() {
       {/* Desktop sidebar */}
       <div className="hidden lg:flex flex-col flex-shrink-0">
         <div className="h-full">
-          <Sidebar collapsed={collapsed} isMobile={false} />
+          <Sidebar collapsed={collapsed} isMobile={false} agency={agency} />
         </div>
       </div>
 
@@ -285,7 +312,7 @@ export default function AgencyLayout() {
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <Sidebar isMobile onClose={() => setMobileOpen(false)} />
+        <Sidebar isMobile onClose={() => setMobileOpen(false)} agency={agency} />
       </div>
 
       {/* Main */}
@@ -309,9 +336,10 @@ export default function AgencyLayout() {
           <div className="flex-1" />
 
           <span className="hidden sm:block text-[10px] uppercase tracking-widest font-medium text-[#6B7280] dark:text-[#A1A1AA]">
-            Agency Portal
+            {agency?.name ?? 'Agency Portal'}
           </span>
 
+          <TourButton />
           <NotificationBell />
 
           <button
@@ -326,11 +354,13 @@ export default function AgencyLayout() {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
-          <Outlet />
+          {/* Re-mounted when the company colour changes, so charts and inline colours repaint */}
+          <Outlet key={agency?.branding?.primaryColor ?? 'rt'} />
         </main>
       </div>
 
       {!onMessagesPage && <ChatWidget />}
+      <OnboardingTour />
     </div>
   )
 }

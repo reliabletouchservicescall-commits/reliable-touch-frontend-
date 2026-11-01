@@ -16,8 +16,9 @@ import {
 } from 'recharts'
 import axiosClient from '../../lib/axios'
 import { DateField } from '../common/DateTimeFields'
+import { CORAL } from '../../lib/brand'
 
-const BRAND = '#F95C4B'
+const BRAND = CORAL
 
 const OUTCOME_COLORS = {
   interested: '#10B981', no_answer: '#F59E0B', callback_requested: '#3B82F6',

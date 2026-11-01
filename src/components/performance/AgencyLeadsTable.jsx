@@ -6,6 +6,7 @@ import {
   Handshake, Building2, Key, Banknote, Ban, CalendarCheck, CalendarClock, CalendarX, CalendarDays,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
+import { CORAL, CORAL_2 } from '../../lib/brand'
 
 const MEDAL = {
   1: { color: '#F59E0B', bg: '#F59E0B18' },
@@ -26,7 +27,7 @@ const STATUS_COLS = [
   { key: 'still_negotiating', label: 'Negot.', icon: Handshake,            color: '#3B82F6' },
   { key: 'listed',            label: 'Listed', icon: Building2,            color: '#8B5CF6' },
   { key: 'rented_out',        label: 'Rented', icon: Key,                  color: '#16A34A' },
-  { key: 'sold',              label: 'Sold',   icon: Banknote,             color: '#F95C4B' },
+  { key: 'sold',              label: 'Sold',   icon: Banknote,             color: CORAL },
   { key: 'lost',              label: 'Lost',   icon: Ban,                  color: '#9CA3AF' },
 ]
 
@@ -203,7 +204,7 @@ export default function AgencyLeadsTable({ period, canOpenRow }) {
                   onClick={clickable ? () => navigate(`/agency/agents/${r.userId}`) : undefined}
                   className={`grid items-center gap-3 px-5 py-3 transition-colors ${clickable ? 'cursor-pointer' : ''} ${
                     r.isSelf
-                      ? 'bg-[#F95C4B]/5 shadow-[inset_3px_0_0_#F95C4B]'
+                      ? `bg-[#F95C4B]/5 shadow-[inset_3px_0_0_${CORAL}]`
                       : 'hover:bg-[#FAFAF9] dark:hover:bg-[#111111]'
                   }`}
                   style={{
@@ -220,7 +221,7 @@ export default function AgencyLeadsTable({ period, canOpenRow }) {
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
                       className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold"
-                      style={r.isSelf ? { backgroundColor: '#F95C4B', color: 'white' } : { backgroundColor: medal?.bg ?? '#F5F5F4', color: medal?.color ?? '#6B7280' }}
+                      style={r.isSelf ? { backgroundColor: CORAL, color: 'white' } : { backgroundColor: medal?.bg ?? '#F5F5F4', color: medal?.color ?? '#6B7280' }}
                     >
                       {initials(r.name)}
                     </div>
@@ -268,7 +269,7 @@ export default function AgencyLeadsTable({ period, canOpenRow }) {
                   {/* Progress */}
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 rounded-full bg-[#F3F4F6] dark:bg-[#2A2A2A] overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #F95C4B, #FF8C7A)' }} />
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${CORAL}, ${CORAL_2})` }} />
                     </div>
                     <span className="text-[10px] font-semibold text-[#9CA3AF] w-8 text-right">{pct}%</span>
                   </div>

@@ -229,7 +229,7 @@ export function BulkDialog({ kind, ids, onClose, onDone }) {
     ...(assignees?.agencies ?? []).map((a) => ({ value: `agency:${a._id}`, label: a.name, sub: 'Company — their manager picks the agent', icon: Building2 })),
     ...(assignees?.agents ?? []).map((a) => ({
       value: `agent:${a._id}`, label: `${a.firstName} ${a.lastName}`,
-      sub: a.agencyId ? `${(assignees?.agencies ?? []).find((c) => c._id === a.agencyId)?.name ?? 'Agent'}${a.isAgencyManager ? ' · manager' : ''}` : 'Reliable Touch agent',
+      sub: a.agencyId ? `${(assignees?.agencies ?? []).find((c) => c._id === a.agencyId)?.name ?? 'Agent'}${a.isAgencyAdmin ? ' · Agency Admin' : a.isAgencyManager ? ' · manager' : ''}` : 'Reliable Touch agent',
     })),
   ], [assignees])
   const fumItems = (fums ?? []).map((u) => ({ value: u._id, label: `${u.firstName} ${u.lastName}`, sub: 'Follow-up manager' }))

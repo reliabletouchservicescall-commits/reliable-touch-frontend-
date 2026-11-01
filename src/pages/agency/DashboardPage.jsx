@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useTheme } from '../../context/ThemeContext'
 import { agenciesApi } from '../../services/agenciesApi'
 import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
+import AgentHome from '../../components/dashboard/AgentHome'
 import {
   DashboardHeader, FunnelStrip, NeedsAttention, OnTheFloor, LiveActivity, LeadTemperature, LeadingThisMonth, SourcesReport,
   useLiveFloor, useLiveOverview, useAttentionItems, useNow,
@@ -379,6 +380,9 @@ export default function AgencyDashboard() {
     navigate(key === 'closed' ? '/agency/leads?focus=closed_month' : `/agency/leads?status=${key}`)
   }
 
+  // An agent gets their own home: what to do next, not the company's numbers
+  if (!isManager) return <AgentHome overview={o} isDark={isDark} stageTo={stageTo} pickTemperature={pickTemperature} dailySeries={DAILY_SERIES} />
+
   return (
     <div className="relative p-4 sm:p-6 xl:p-8 space-y-6">
       {isManager && (
@@ -457,7 +461,7 @@ export default function AgencyDashboard() {
             </div>
             <div className="min-w-0">
               <Card delay={180} className="p-5">
-                <CardTitle title="Leads by province" subtitle="Tap a province · darker coral = more leads" action={isManager ? <LinkButton to="/agency/areas">Areas</LinkButton> : null} />
+                <CardTitle title="Leads by province" subtitle="Tap a province · darker = more leads" action={isManager ? <LinkButton to="/agency/areas">Areas</LinkButton> : null} />
                 {!o ? <Skeleton className="h-[360px]" /> : (
                   <ProvincePanel provinces={o.provinces} isDark={isDark} provinceTo={(name) => `/agency/leads?province=${encodeURIComponent(name)}`} fixAreasTo={isManager ? '/agency/areas' : undefined} />
                 )}
