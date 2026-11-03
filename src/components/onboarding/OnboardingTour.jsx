@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Sparkles, PhoneOutgoing, AlarmClock, FileText, Handshake, Award, Trophy, MessageSquare, TrendingUp,
   CalendarCheck, LayoutDashboard, Users, Gauge, Building2, Rocket, Flame, Megaphone, HelpCircle, KeyRound,
+  Home, Phone, CalendarDays, Target, Search, Plus, Bell,
   ArrowLeft, ArrowRight, X, Check, ChevronRight,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
@@ -16,6 +17,7 @@ import { useAgencyBrand } from '../../lib/useAgencyBrand'
 const ICONS = {
   Sparkles, PhoneOutgoing, AlarmClock, FileText, Handshake, Award, Trophy, MessageSquare, TrendingUp,
   CalendarCheck, LayoutDashboard, Users, Gauge, Building2, Rocket, Flame, Megaphone, KeyRound,
+  Home, Phone, CalendarDays, Target, Search, Plus, Bell,
 }
 
 const OPEN_EVENT = 'rt:open-tour'
@@ -36,11 +38,12 @@ export function TourButton() {
   )
 }
 
-// The sidebar link a step points at — the one actually on screen (the mobile drawer keeps a
+// The sidebar link (or top-bar control) a step points at — the one actually on screen (the mobile drawer keeps a
 // second copy off-screen, and the desktop sidebar is hidden on phones)
 function findTarget(href) {
   if (!href) return null
-  const els = [...document.querySelectorAll(`aside a[href="${href}"]`)]
+  // A route ('/agency/leads') is a sidebar or bottom-bar link; anything else is a CSS selector
+  const els = [...document.querySelectorAll(href.startsWith('/') ? `aside a[href="${href}"], nav[data-tabbar] a[href="${href}"]` : href)]
   for (const el of els) {
     const r = el.getBoundingClientRect()
     if (r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= window.innerWidth) return el

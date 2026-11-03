@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { addDays, format, formatDistanceToNowStrict, isToday, isYesterday } from 'date-fns'
 import {
-  Check, Eye, Star, Sparkles, Repeat, CalendarClock, CalendarPlus, UserPlus, Loader2, X, PencilLine, Trash2, Phone,
+  Check, Eye, Star, Sparkles, Repeat, CalendarClock, CalendarPlus, UserPlus, Loader2, X, PencilLine, Trash2, Phone, MessageCircle, KeyRound,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { leadsApi } from '../../services/leadsApi'
@@ -12,6 +12,7 @@ import LeadCallButton from './LeadCallButton'
 import BookAppointmentDrawer from '../appointments/BookAppointmentDrawer'
 import { LeadStatusBadge, LeadSourceBadge, ListingBadge, AgentOrAgencyPicker, inputCls, getApiErrorMessage } from './leadShared'
 import { DateField } from '../common/DateTimeFields'
+import { useAgentActions } from '../agent/AgentActions'
 
 // The live parts of the lead screen, shared by every role (LeadDetailScreen puts them
 // together): the journey hero with whoever has the lead open right now, a one-tap action
@@ -183,6 +184,36 @@ export function QuickActions({
   const assigned = lead.assignedAgent || lead.agencyId
   const phone = lead.contactId?.phone ?? lead.phone
   const callable = canCall && phone && (lead.contactId?._id ?? lead.contactId) // LeadCallButton needs both
+  const actions = useAgentActions()
+  // A company agent gets one bar: Call · WhatsApp · Update (note + status + next date in one
+  // step) · Book viewing · Tenant link — the same forms as on Home and the top bar's "+ New"
+  if (currentUserRole === 'agency' && !canAssign && actions) {
+    const wa = phone ? String(phone).replace(/\D/g, '').replace(/^0/, '27') : ''
+    const rentalListed = lead.listingType === 'rental' && ['listed', 'rented_out'].includes(lead.status)
+    return (
+      <section className="glass-in flex flex-wrap items-center gap-2" style={{ '--d': '60ms' }}>
+        {callable && <LeadCallButton lead={lead} notifyManager={callNotifiesManager} />}
+        {!callable && phone && (
+          <a href={`tel:${String(phone).replace(/[^\d+]/g, '')}`} className="mac-press flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] text-[#111111] dark:text-white hover:border-[#10B981]">
+            <Phone className="w-4 h-4 text-[#10B981]" /> Call
+          </a>
+        )}
+        {wa.length >= 10 && (
+          <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" className="mac-press flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] text-[#111111] dark:text-white hover:border-[#25D366]">
+            <MessageCircle className="w-4 h-4 text-[#25D366]" /> WhatsApp
+          </a>
+        )}
+        {canChangeStatus && <ActionButton primary icon={PencilLine} label="Update" onClick={() => actions.open('update', { lead })} />}
+        {canBook && <ActionButton icon={CalendarPlus} label="Book viewing" tone="#10B981" onClick={() => actions.open('viewing', { lead })} />}
+        {rentalListed && <ActionButton icon={KeyRound} label="Tenant link" tone="#F95C4B" onClick={() => actions.open('tenant', { lead })} />}
+        {canEdit && (
+          <button type="button" onClick={onEdit} title="Edit details" className="ml-auto w-10 h-10 rounded-2xl flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white transition-colors">
+            <PencilLine className="w-4 h-4" />
+          </button>
+        )}
+      </section>
+    )
+  }
   return (
     <section className="glass-in space-y-3" style={{ '--d': '60ms' }}>
       <div className="flex flex-wrap items-center gap-2">

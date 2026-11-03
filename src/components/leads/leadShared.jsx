@@ -1530,7 +1530,7 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded, see
                     {c.createdAt && <span className="text-[#9CA3AF]" title={format(new Date(c.createdAt), 'd MMM yyyy, HH:mm')}> · {isToday(new Date(c.createdAt)) ? `Today ${format(new Date(c.createdAt), 'HH:mm')}` : format(new Date(c.createdAt), 'd MMM')}</span>}
                   </p>
                   <div className={`px-4 py-3 text-[15px] leading-relaxed whitespace-pre-wrap break-words ${
-                    isMine ? 'bg-[#E11D48] text-white rounded-2xl rounded-br-md' : 'bg-[#F5F5F4] dark:bg-[#222222] text-[#111111] dark:text-white rounded-2xl rounded-bl-md'
+                    isMine ? 'bg-[rgb(var(--cm-deep,225_29_72))] text-white rounded-2xl rounded-br-md' : 'bg-[#F5F5F4] dark:bg-[#222222] text-[#111111] dark:text-white rounded-2xl rounded-bl-md'
                   }`}>
                     {c.text}
                   </div>
@@ -1573,7 +1573,7 @@ export function FollowUpComments({ lead, currentUserId, canComment, onAdded, see
             <button
               type="submit"
               disabled={mut.isPending || !text.trim()}
-              className="mac-press flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center text-white bg-[#E11D48] hover:bg-[#BE123C] disabled:opacity-50 transition-colors"
+              className="mac-press flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center text-white bg-[rgb(var(--cm-deep,225_29_72))] hover:brightness-95 disabled:opacity-50 transition-colors"
             >
               {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>

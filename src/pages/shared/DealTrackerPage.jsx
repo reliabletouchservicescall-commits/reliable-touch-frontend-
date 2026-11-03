@@ -421,7 +421,7 @@ function PointsCard({ row }) {
   if (!p) return null
   const won = row.group === 'completed' || ['rented_out', 'sold'].includes(row.status)
   return (
-    <div className="mac-pop rounded-xl p-4 bg-gradient-to-r from-[#F43F5E] to-[#F95C4B] text-white flex items-center gap-4">
+    <div className="mac-pop rounded-xl p-4 bg-gradient-to-r from-[rgb(var(--cm,244_63_94))] to-[#F95C4B] text-white flex items-center gap-4">
       <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0"><Trophy className="w-5 h-5" /></span>
       <div className="flex-1 min-w-0">
         <p className="text-lg font-bold">{p.now} points from this deal so far</p>
@@ -577,7 +577,7 @@ export default function DealTrackerPage({ role = 'admin' }) {
   const kpis = mine ? [
     { label: 'Open deals', value: pts.openDeals, color: '#579BFC' },
     { label: 'Closed (rented / sold)', value: won.length, color: '#00C875' },
-    { label: 'Points from your deals', value: `${pts.earned.toLocaleString()} pts`, color: '#F43F5E' },
+    { label: 'Points from your deals', value: `${pts.earned.toLocaleString()} pts`, color: 'rgb(var(--cm, 244 63 94))' },
     { label: 'Still to win', value: `+${pts.toGain.toLocaleString()} pts`, color: '#10B981', hint: 'If every open deal closes' },
     { label: 'Likely to win', value: `~${pts.expected.toLocaleString()} pts`, color: '#FDAB3D', hint: 'Each open deal’s points × its chance of closing' },
     hide.includes('agentShare')
@@ -637,7 +637,7 @@ export default function DealTrackerPage({ role = 'admin' }) {
         </div>
 
         {mine && pts.openDeals > 0 && (
-          <div className="glass-in relative overflow-hidden rounded-2xl px-5 py-4 bg-gradient-to-r from-[#F43F5E] to-[#F95C4B] text-white shadow-[0_18px_40px_-20px_rgba(244,63,94,0.9)]">
+          <div className="glass-in relative overflow-hidden rounded-2xl px-5 py-4 bg-gradient-to-r from-[rgb(var(--cm,244_63_94))] to-[#F95C4B] text-white shadow-[0_18px_40px_-20px_rgba(244,63,94,0.9)]">
             <span aria-hidden className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/10" />
             <div className="relative flex flex-wrap items-center gap-4">
               <span className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"><Trophy className="w-5 h-5" /></span>

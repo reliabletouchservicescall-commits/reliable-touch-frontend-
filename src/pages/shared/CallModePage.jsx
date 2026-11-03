@@ -173,7 +173,7 @@ function RaceBanner({ race }) {
   const nobodyYet = !lead && race.score + race.pointsToFirst === 0 // nobody has scored today
   const pct = lead ? 100 : race.pointsToFirst + race.score > 0 ? Math.round((race.score / (race.score + race.pointsToFirst)) * 100) : 0
   return (
-    <div className="glass-in relative overflow-hidden rounded-2xl px-5 py-4 bg-gradient-to-r from-[#F43F5E] to-[#F95C4B] text-white shadow-[0_18px_40px_-20px_rgba(244,63,94,0.9)]" style={{ '--d': '160ms' }}>
+    <div className="glass-in relative overflow-hidden rounded-2xl px-5 py-4 bg-gradient-to-r from-[rgb(var(--cm))] to-[rgb(var(--cm-deep))] text-white shadow-[0_18px_40px_-20px_rgba(244,63,94,0.9)]" style={{ '--d': '160ms' }}>
       <span aria-hidden className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/10" />
       <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2">
         <span className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0"><Trophy className="w-5 h-5" /></span>
@@ -360,7 +360,8 @@ export default function CallModePage({ mode = 'all' }) {
   const pts = data?.leadPoints?.[m.temp] ?? { hot: 10, warm: 2, cold: 1 }[m.temp]
 
   return (
-    <div className="h-full overflow-y-auto thin-scroll bg-[#FAFAF9] dark:bg-[#0B0B0B]">
+    <div className="h-full overflow-y-auto thin-scroll bg-[#FAFAF9] dark:bg-[#0B0B0B]"
+      style={user?.role === 'agency' ? { '--cm': 'var(--brand-rgb)', '--cm-deep': 'var(--brand-hover-rgb)' } : { '--cm': '244 63 94', '--cm-deep': '225 29 72' }}>
       <div className="p-4 sm:p-6 xl:p-8 space-y-5">
         {/* Tiles */}
         {callbacksOnly ? (
@@ -373,7 +374,7 @@ export default function CallModePage({ mode = 'all' }) {
         ) : (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <Tile label="Calls this session" value={session.calls} sub={`Goal today: ${goal} · ${s?.callsToday ?? 0} so far`} delay={0} />
-          <Tile label="Leads this session" value={session.leads} sub={s ? `Month: ${s.leadsMonth} of ${s.leadTarget}` : ' '} color="#F43F5E" delay={50} />
+          <Tile label="Leads this session" value={session.leads} sub={s ? `Month: ${s.leadsMonth} of ${s.leadTarget}` : ' '} color="rgb(var(--cm))" delay={50} />
           <Tile label="Points today" value={race ? Math.round(race.score * 10) / 10 : '–'} sub={race ? (race.isFirst ? 'You’re #1 today' : `${Math.max(0.5, race.pointsToNext)} more to move up a place`) : ' '} color="#F59E0B" delay={100} />
           <Tile label="Calls this week" value={s?.callsWeek ?? '–'} sub={s ? `Your call → lead rate: ${s.leadRate}%` : ' '} delay={150} />
         </div>
@@ -390,7 +391,7 @@ export default function CallModePage({ mode = 'all' }) {
               <p className="mt-1 text-sm text-[#6B7280] dark:text-[#A1A1AA]">{callbacksOnly ? 'When an owner asks you to call back, they\u2019ll show here at the time they asked for.' : 'You\u2019ve worked through your list. Ask for more contacts, or come back when a callback is due.'}</p>
               <div className="mt-5 flex justify-center gap-2">
                 <button type="button" onClick={() => refetch()} className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white">Check again</button>
-                <button type="button" onClick={() => navigate(callbacksOnly ? `${base}/call-mode` : `${base}/contacts`)} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F43F5E]">{callbacksOnly ? 'Go to Call mode' : 'Go to my contacts'}</button>
+                <button type="button" onClick={() => navigate(callbacksOnly ? `${base}/call-mode` : `${base}/contacts`)} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[rgb(var(--cm))]">{callbacksOnly ? 'Go to Call mode' : 'Go to my contacts'}</button>
               </div>
             </div>
           ) : (
@@ -413,12 +414,12 @@ export default function CallModePage({ mode = 'all' }) {
                 </div>
                 <div className="flex flex-col items-stretch gap-2 w-full sm:w-auto">
                   <a id="call-now" href={phone ? telHref(phone) : undefined} onClick={(e) => { if (!phone) { e.preventDefault(); return } startCall() }}
-                    className={`mac-press flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl text-lg font-bold text-white transition-all ${onCall ? 'bg-[#10B981] shadow-[0_14px_34px_-14px_rgba(16,185,129,0.9)]' : 'bg-[#E11D48] hover:bg-[#BE123C] shadow-[0_14px_34px_-14px_rgba(225,29,72,0.9)]'} ${phone ? '' : 'opacity-50 pointer-events-none'}`}>
+                    className={`mac-press flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl text-lg font-bold text-white transition-all ${onCall ? 'bg-[#10B981] shadow-[0_14px_34px_-14px_rgba(16,185,129,0.9)]' : 'bg-[rgb(var(--cm-deep))] hover:brightness-95 shadow-[0_14px_34px_-14px_rgb(var(--cm-deep)/0.9)]'} ${phone ? '' : 'opacity-50 pointer-events-none'}`}>
                     {onCall ? <><PhoneCall className="w-5 h-5 animate-pulse" /> On the call</> : <><Phone className="w-5 h-5" /> Call now</>}
                   </a>
                   <p className="text-center text-sm font-mono text-[#6B7280] dark:text-[#A1A1AA]">{phone ?? 'No number'}</p>
                   {current.altPhone && current.altPhone !== phone && (
-                    <a href={telHref(current.altPhone)} onClick={() => callFlow.startCall(current, current.altPhone)} className="text-center text-xs font-semibold text-[#F43F5E] hover:underline">Or call {current.altPhone}</a>
+                    <a href={telHref(current.altPhone)} onClick={() => callFlow.startCall(current, current.altPhone)} className="text-center text-xs font-semibold text-[rgb(var(--cm))] hover:underline">Or call {current.altPhone}</a>
                   )}
                 </div>
               </div>
@@ -480,7 +481,7 @@ export default function CallModePage({ mode = 'all' }) {
                   </div>
                   <label className="block mt-4 text-sm font-semibold text-[#111111] dark:text-white">Your note for the follow-up manager and agent</label>
                   <textarea ref={noteRef} value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="e.g. Tenant leaves end of November. Prefers WhatsApp. Best after 17:00."
-                    className="mt-1.5 w-full px-4 py-3 rounded-xl text-sm bg-[#FAFAF9] dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#9CA3AF] outline-none focus:border-[#F43F5E] resize-none" />
+                    className="mt-1.5 w-full px-4 py-3 rounded-xl text-sm bg-[#FAFAF9] dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#9CA3AF] outline-none focus:border-[rgb(var(--cm))] resize-none" />
                 </div>
               )}
 
@@ -495,7 +496,7 @@ export default function CallModePage({ mode = 'all' }) {
 
               {outcome && outcome !== 'interested' && (
                 <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder={outcome === 'remove_me' ? 'Why they asked not to be called (goes to admin for the Do Not Call list)' : 'Note (optional)'}
-                  className="files-collapse mt-4 w-full px-4 py-3 rounded-xl text-sm bg-[#FAFAF9] dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#9CA3AF] outline-none focus:border-[#F43F5E] resize-none" />
+                  className="files-collapse mt-4 w-full px-4 py-3 rounded-xl text-sm bg-[#FAFAF9] dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#2A2A2A] text-[#111111] dark:text-white placeholder:text-[#9CA3AF] outline-none focus:border-[rgb(var(--cm))] resize-none" />
               )}
 
               {/* Save / skip */}

@@ -164,7 +164,7 @@ function QuickAddContactForm({ prefill, onBack, onCreated }) {
 }
 
 /* ─── New Lead: pick (or add) a contact first, then the full create form ── */
-function NewLeadFlow({ team, isManager, currentUserId, onClose, onCreated }) {
+export function NewLeadFlow({ team, isManager, currentUserId, onClose, onCreated }) {
   const [contactId, setContactId] = useState('')
   const [adding, setAdding] = useState(null) // null = picking; string = quick-add, prefilled with the search text
   const { data: contact, isFetching } = useQuery({

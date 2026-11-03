@@ -680,9 +680,9 @@ export function TenantReviewDrawer({ id, onClose }) {
 
 /* ─── Add a tenant from anywhere: pick a listed rental first ───────────── */
 
-export function NewApplicationModal({ onClose, onCreated }) {
+export function NewApplicationModal({ onClose, onCreated, initialLead = null }) {
   const [search, setSearch] = useState('')
-  const [lead, setLead] = useState(null)
+  const [lead, setLead] = useState(initialLead)
   const [created, setCreated] = useState(null)
   const { data: leads, isLoading } = useQuery({
     queryKey: ['tenant-apps', 'listed-rentals', search],

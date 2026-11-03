@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
 
 // Auth
 import RoleSelectPage from '../pages/auth/RoleSelectPage'
@@ -48,6 +49,26 @@ import AgencyDashboard from '../pages/agency/DashboardPage'
 import AgencyAppointmentsPage from '../pages/agency/AppointmentsPage'
 import AgencyLeaderboardPage from '../pages/agency/LeaderboardPage'
 import AgencyMyProgressPage from '../pages/agency/MyProgressPage'
+import CallsHubPage from '../pages/agency/CallsHubPage'
+import LeadsHubPage from '../pages/agency/LeadsHubPage'
+import DiaryPage from '../pages/agency/DiaryPage'
+
+// Agents work from six places (see AgencyLayout's AGENT_NAV). Their old addresses still
+// work — bookmarks, notification links, emails — and land on the right tab; company
+// managers keep the full pages.
+function AgentGoes({ to, children }) {
+  const user = useAuthStore((s) => s.user)
+  const { search } = useLocation()
+  if (user?.isAgencyManager) return children
+  const [path, q = ''] = to.split('?')
+  const params = new URLSearchParams(q)
+  new URLSearchParams(search).forEach((v, k) => params.set(k, v))
+  const qs = params.toString()
+  return <Navigate to={`${path}${qs ? `?${qs}` : ''}`} replace />
+}
+function ForAgent({ agent, manager }) {
+  return useAuthStore((s) => s.user)?.isAgencyManager ? manager : agent
+}
 import AgencyLeadsPage from '../pages/agency/LeadsPage'
 import AgencyLeadDetailPage from '../pages/agency/LeadDetailPage'
 import AgencyNotificationsPage from '../pages/agency/NotificationsPage'
@@ -193,19 +214,21 @@ export default function AppRouter() {
           }
         >
           <Route index element={<AgencyDashboard />} />
-          <Route path="contacts" element={<AgencyContactsPage />} />
-          <Route path="call-mode" element={<CallModePage />} />
-          <Route path="callbacks" element={<CallModePage mode="callbacks" key="callbacks" />} />
+          <Route path="contacts" element={<AgentGoes to="/agency/calls?tab=contacts"><AgencyContactsPage /></AgentGoes>} />
+          <Route path="call-mode" element={<AgentGoes to="/agency/calls"><CallModePage /></AgentGoes>} />
+          <Route path="callbacks" element={<AgentGoes to="/agency/calls?tab=callbacks"><CallModePage mode="callbacks" key="callbacks" /></AgentGoes>} />
           <Route path="caller-workload" element={<AgencyCallerWorkloadPage />} />
-          <Route path="dnc" element={<AgencyDncPage />} />
+          <Route path="dnc" element={<AgentGoes to="/agency/calls?tab=dnc"><AgencyDncPage /></AgentGoes>} />
           <Route path="excel-files" element={<AgencyExcelFilesPage />} />
           <Route path="areas" element={<AgencyAreasPage />} />
-          <Route path="campaigns" element={<AgencyCampaignsPage />} />
-          <Route path="appointments" element={<AgencyAppointmentsPage />} />
-          <Route path="leads" element={<AgencyLeadsPage />} />
+          <Route path="campaigns" element={<AgentGoes to="/agency/calls"><AgencyCampaignsPage /></AgentGoes>} />
+          <Route path="appointments" element={<AgentGoes to="/agency/diary"><AgencyAppointmentsPage /></AgentGoes>} />
+          <Route path="leads" element={<ForAgent agent={<LeadsHubPage />} manager={<AgencyLeadsPage />} />} />
+          <Route path="calls" element={<ForAgent agent={<CallsHubPage />} manager={<Navigate to="/agency/call-mode" replace />} />} />
+          <Route path="diary" element={<ForAgent agent={<DiaryPage />} manager={<Navigate to="/agency/appointments" replace />} />} />
           <Route path="leads/:id" element={<AgencyLeadDetailPage />} />
-          <Route path="deal-tracker" element={<DealTrackerPage role="agency" />} />
-          <Route path="tenants" element={<TenantApplicationsPage />} />
+          <Route path="deal-tracker" element={<AgentGoes to="/agency/leads?tab=board"><DealTrackerPage role="agency" /></AgentGoes>} />
+          <Route path="tenants" element={<AgentGoes to="/agency/leads?tab=tenants"><TenantApplicationsPage /></AgentGoes>} />
           <Route path="leaderboard" element={<AgencyLeaderboardPage />} />
           <Route path="progress" element={<AgencyMyProgressPage />} />
           <Route path="notifications" element={<AgencyNotificationsPage />} />

@@ -3,10 +3,11 @@
 // (see .claude/skills/onboarding-tour/SKILL.md). Bump TOUR_VERSION when the tour changes.
 //
 // A step: { title, body, icon, target?, to?, cta?, tips?, checklist? }
-//   target — the sidebar link it points at (its href); spotlighted when it's on screen
+//   target — the sidebar link it points at (its href), or a CSS selector for a top-bar
+//            control; spotlighted when it's on screen
 //   to/cta  — a button that opens that page (closes the tour first)
 //   checklist — the closing "get set up" list: [{ label, sub, to, done? }]
-export const TOUR_VERSION = 3
+export const TOUR_VERSION = 4
 
 const welcome = (who, what) => ({
   icon: 'Sparkles',
@@ -28,14 +29,15 @@ const COLD_CALLER = [
 ]
 
 const AGENT = (company) => [
-  welcome(company, 'You work the leads your company gets — call, book viewings and close deals. Here is the quick tour.'),
-  { icon: 'TrendingUp', target: '/agency/leads', title: 'My leads', body: 'The leads assigned to you. Open one for the contact, the history, Follow-up chat and quick actions.', to: '/agency/leads?new=1', cta: 'Create a lead' },
-  { icon: 'PhoneOutgoing', target: '/agency/call-mode', title: 'Call mode & Callbacks', body: 'Work through your calls one by one, and never miss a "call me back" at the time they asked for.' },
-  { icon: 'CalendarCheck', target: '/agency/appointments', title: 'Appointments', body: 'Your viewings and meetings. Add one from any lead in two taps.' },
-  { icon: 'KeyRound', target: '/agency/tenants', title: 'Tenants', body: 'Someone wants to rent a listed property? Add them by name and send their private link — they apply, upload documents and sign on their phone, and you see every step.' },
-  { icon: 'Handshake', target: '/agency/deal-tracker', title: 'Deal Tracker', body: 'Every deal stage by stage — and upload the paperwork (ID, payslips, lease, commission) right there.' },
-  { icon: 'Trophy', target: '/agency/progress', title: 'My progress', body: 'Your points, your rank, your calls against your own daily goal and the milestones you are close to. Reach #1 for the day and you get fireworks.' },
+  welcome(company, 'You work the leads your company gets — call, book viewings and close deals. Everything lives in six places. Here is the quick tour.'),
+  { icon: 'Home', target: '/agency', title: 'Home', body: 'Your day: a button for each everyday job — update landlords, start calling, callbacks, add a lead, book a viewing, send a tenant link — and what is due today.' },
+  { icon: 'Phone', target: '/agency/calls', title: 'Calls', body: 'Who to call next, the callbacks owners asked for, all your contacts and the do-not-call list — in tabs. Today’s campaign shows on top.' },
+  { icon: 'TrendingUp', target: '/agency/leads', title: 'Leads', body: 'Your leads as a list, as a board stage by stage (the Deal Tracker), and the tenants applying for your listed rentals.' },
+  { icon: 'CalendarDays', target: '/agency/diary', title: 'Diary', body: 'Viewings, callbacks, follow-ups and landlord updates due — by day, week or month. Overdue things sit on today.' },
+  { icon: 'Target', target: '/agency/progress', title: 'My progress', body: 'Your points, your rank, your calls against your own daily goal and the milestones you are close to. Reach #1 for the day and you get fireworks.' },
   { icon: 'MessageSquare', target: '/agency/chat', title: 'Messages', body: 'Chat with your manager and the Reliable Touch team.' },
+  { icon: 'Plus', target: '[data-tour="new"]', title: 'New, from anywhere', body: 'Add a lead, book a viewing or send a tenant link without leaving the page you are on. Search (Ctrl K) finds any lead or contact.' },
+  { icon: 'Bell', target: 'button[aria-label="Notifications"]', title: 'Notifications', body: 'The bell tells you the moment something happens on your leads. Your profile, dark mode and sign out are under your initials.' },
 ]
 
 const MANAGER = (company) => [

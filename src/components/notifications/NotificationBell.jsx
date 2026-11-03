@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { Bell, CheckCheck, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -15,7 +16,8 @@ function timeAgo(date) {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-export default function NotificationBell() {
+// seeAllTo: the full notifications page — a link under the list replaces a sidebar entry
+export default function NotificationBell({ seeAllTo = null }) {
   const [open, setOpen] = useState(false)
   const panelRef = useRef(null)
   const queryClient = useQueryClient()
@@ -169,6 +171,12 @@ export default function NotificationBell() {
               </ul>
             )}
           </div>
+          {seeAllTo && (
+            <Link to={seeAllTo} onClick={() => setOpen(false)}
+              className="flex-shrink-0 border-t border-[#E5E7EB] dark:border-[#2A2A2A] py-2.5 text-center text-xs font-semibold text-[#F95C4B] hover:bg-[#FAFAF9] dark:hover:bg-[#202020]">
+              See all notifications
+            </Link>
+          )}
         </div>
       )}
     </div>

@@ -283,7 +283,9 @@ function CallingPerformancePanel() {
 
 /* ─── Agent: call queue ──────────────────────────────────────────────────── */
 function AgentQueuePanel() {
-  const [search, setSearch] = useState('')
+  // ?q= from the top bar's search opens straight onto that person
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [viewMode, setViewMode] = useState('todo')
   const [page, setPage] = useState(1)
   const [leadPrompt, setLeadPrompt] = useState(null)

@@ -1,53 +1,27 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { formatDistanceToNowStrict, format } from 'date-fns'
+import { format } from 'date-fns'
 import {
-  ArrowRight, MessageSquare, Check, Plus, Bell, Flame, Home, UserCheck, CalendarCheck, Users, Send, Loader2, Eye,
-  Trophy, Sparkles, KeyRound, Clock, Inbox, AlertTriangle, PhoneOutgoing, Megaphone,
+  ArrowRight, Check, Plus, Loader2, KeyRound, Clock, PhoneOutgoing, PencilLine, AlarmClock, CalendarPlus, CalendarDays,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
-import { CORAL } from '../../lib/brand'
 import { tenantsApi } from '../../services/tenantsApi'
 import { useAuthStore } from '../../store/authStore'
-import { Card, CardTitle, LinkButton, Skeleton, Pipeline, TemperatureDonut, ProvincePanel, UpcomingVisits, TrendChart, ChartLegend } from './DashboardKit'
-import { StatusPill, TenantReviewDrawer, linkOf } from '../tenants/TenantApplications'
+import { Card, CardTitle, LinkButton, Skeleton, Pipeline, TemperatureDonut, ProvincePanel, TrendChart, ChartLegend } from './DashboardKit'
+import { TenantReviewDrawer, linkOf } from '../tenants/TenantApplications'
+import { useAgentActions } from '../agent/AgentActions'
+import { useAgentHome } from '../agent/useAgentHome'
+import { DiaryRow } from '../../pages/agency/DiaryPage'
 
-// An agent's home: where they stand, today's goal, the next three things worth doing, what's
-// new, the landlord promise and their tenants' links — then the pipeline, map, temperature and
-// visits from the company overview. Colours follow the company's brand (CSS brand variables).
+// An agent's home: where they stand, today's goal, a button for each everyday job (each opens
+// right here), the next three things worth doing, today's diary and the landlord promise —
+// then the pipeline, map, temperature and last 30 days from the company overview. What's new
+// lives on the bell; tenants on Leads › Tenants; visits in the Diary. Colours follow the
+// company's brand (CSS brand variables).
 
-const ago = (d) => (d ? formatDistanceToNowStrict(new Date(d), { addSuffix: false }).replace(/ (\w)\w*$/, '$1').replace(' ', '') : '')
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' }
-const TONE = {
-  danger: { ring: '#EF4444', soft: 'bg-[#EF4444]/[0.06] border-[#EF4444]/30', label: 'text-[#EF4444]', btn: 'bg-[#EF4444] hover:bg-[#DC2626] text-white' },
-  violet: { ring: '#8B5CF6', soft: '', label: 'text-[#8B5CF6]', btn: '' },
-  amber: { ring: '#F59E0B', soft: '', label: 'text-[#D97706] dark:text-[#FBBF24]', btn: '' },
-  blue: { ring: 'rgb(var(--brand-rgb))', soft: '', label: 'text-[#F95C4B]', btn: '' },
-}
-const NEWS_ICON = {
-  agency_lead_comment: [MessageSquare, CORAL], lead_changed: [Sparkles, '#8B5CF6'], lead_status_updated: [Check, '#8B5CF6'],
-  lead_assigned_to_agent: [Plus, CORAL], lead_assigned_to_agency: [Plus, CORAL], agency_agent_assigned: [UserCheck, '#3B82F6'],
-  appointment_booked: [CalendarCheck, '#0EA5E9'], appointment_reminder: [CalendarCheck, '#0EA5E9'], appointment_confirmed: [CalendarCheck, '#0EA5E9'],
-  tenant_application: [Users, '#6366F1'], hot_lead: [Flame, '#EF4444'], lead_status_escalated: [Flame, '#EF4444'],
-  new_message: [MessageSquare, '#3B82F6'], daily_winner: [Trophy, '#F59E0B'], personal_record: [Trophy, '#F59E0B'],
-  property_rented: [KeyRound, '#10B981'], listing_signed: [Home, '#10B981'],
-  lead_negotiation_reminder: [Clock, '#F59E0B'], lead_followup_due: [Clock, '#F59E0B'], lead_followup_nudge: [Clock, '#F59E0B'],
-  campaign_daily_reminder: [Megaphone, '#8B5CF6'], leaderboard_leader_changed: [Trophy, '#F59E0B'], contacts_assigned: [Users, '#3B82F6'],
-}
-// Same reminder several times (e.g. a campaign every day) → one row with a count
-const cleanTitle = (t = '') => t.replace(/^[^\p{L}\p{N}]+/u, '').trim()
-function groupNews(items) {
-  const out = []
-  for (const n of items) {
-    const key = `${n.event}|${cleanTitle(n.title)}|${n.leadId ?? ''}`
-    const prev = out.find((x) => x.key === key)
-    if (prev) { prev.count += 1; prev.read = prev.read && n.read } else out.push({ ...n, key, count: 1, title: cleanTitle(n.title) })
-  }
-  return out.slice(0, 6)
-}
-
 const box = 'rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818]'
 
 /* ─── Today's goal ──────────────────────────────────────────────────────── */
@@ -98,9 +72,9 @@ function Hero({ data, firstName }) {
   const st = data.stats
   const tiles = [
     [st.closedMonth, 'deals closed this month', 'text-[#10B981]'],
-    [st.listedMonth, 'properties listed', 'text-[#8B5CF6]'],
+    [st.listedMonth, 'properties listed', 'text-[#F95C4B]'],
     [st.callsMonth.toLocaleString(), 'calls this month', 'text-[#111111] dark:text-white'],
-    st.bestDay ? [`#${st.bestDay.rank}`, `on the daily board on ${format(new Date(st.bestDay.date), 'EEEE')}`, 'text-[#F59E0B]'] : [s ? s.score : '—', 'points this month', 'text-[#F59E0B]'],
+    st.bestDay ? [`#${st.bestDay.rank}`, `on the daily board on ${format(new Date(st.bestDay.date), 'EEEE')}`, 'text-[#F95C4B]'] : [s ? s.score : '—', 'points this month', 'text-[#F95C4B]'],
   ]
   return (
     <div className={`${box} relative overflow-hidden p-6`}>
@@ -110,8 +84,8 @@ function Hero({ data, firstName }) {
       {s && (
         <p className="mt-1 text-[15px] text-[#3F3F46] dark:text-[#D4D4D8]">
           {s.rank === 1
-            ? <>You're <b className="text-[#F59E0B]">#1 this month</b> out of {s.of} — keep the lead.</>
-            : <>You're <b className="text-[#F59E0B]">#{s.rank} this month</b> — just {s.above.gap} point{s.above.gap === 1 ? '' : 's'} behind {s.above.firstName}. {s.oneDealToTop ? 'One closed deal puts you on top.' : `A closed deal is worth ${s.dealPoints} points.`}</>}
+            ? <>You're <b className="text-[#F95C4B]">#1 this month</b> out of {s.of} — keep the lead.</>
+            : <>You're <b className="text-[#F95C4B]">#{s.rank} this month</b> — just {s.above.gap} point{s.above.gap === 1 ? '' : 's'} behind {s.above.firstName}. {s.oneDealToTop ? 'One closed deal puts you on top.' : `A closed deal is worth ${s.dealPoints} points.`}</>}
         </p>
       )}
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -122,6 +96,68 @@ function Hero({ data, firstName }) {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/* ─── Everyday jobs ─────────────────────────────────────────────────────── */
+
+function ActionButtons({ data }) {
+  const navigate = useNavigate()
+  const actions = useAgentActions()
+  const a = data.actions ?? {}
+  const left = Math.max(0, data.goal.target - data.goal.done)
+  const items = [
+    { key: 'promise', label: 'Update landlords', icon: PencilLine, hot: a.promise > 0, sub: a.promise ? `${a.promise} waiting over 48 h` : 'Every promise kept', go: () => actions?.open('update') },
+    { key: 'call', label: 'Start calling', icon: PhoneOutgoing, sub: left ? `${left} to reach today's goal` : `${(a.toCall ?? 0).toLocaleString()} still to call`, go: () => navigate('/agency/calls') },
+    { key: 'callbacks', label: 'Callbacks', icon: AlarmClock, hot: a.callbacksDue > 0 && !(a.promise > 0), sub: a.callbacksDue ? `${a.callbacksDue} due today` : 'None due', go: () => navigate('/agency/calls?tab=callbacks') },
+    { key: 'lead', label: 'Add a lead', icon: Plus, sub: 'From a call or a walk-in', go: () => actions?.open('lead') },
+    { key: 'viewing', label: 'Book a viewing', icon: CalendarPlus, sub: a.viewingsToday ? `${a.viewingsToday} today` : 'Pick a lead and a time', go: () => actions?.open('viewing') },
+    { key: 'tenant', label: 'Send tenant link', icon: KeyRound, sub: a.listedNoTenant ? `${a.listedNoTenant} listed, no tenant yet` : 'For a listed rental', go: () => actions?.open('tenant') },
+  ]
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+      {items.map((it, i) => (
+        <button key={it.key} type="button" onClick={it.go} data-tour={`home-${it.key}`}
+          className={`mac-in group flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98] ${it.hot ? 'border-[#F95C4B]/40 bg-[#F95C4B]/[0.07]' : 'border-[#E5E7EB] bg-white hover:border-[#F95C4B]/40 dark:border-[#2A2A2A] dark:bg-[#181818]'}`}
+          style={{ '--d': `${i * 50}ms` }}>
+          <span className={`grid h-9 w-9 place-items-center rounded-xl transition-colors ${it.hot ? 'bg-[#F95C4B] text-white' : 'bg-[#F95C4B]/10 text-[#F95C4B] group-hover:bg-[#F95C4B] group-hover:text-white'}`}><it.icon className="h-[18px] w-[18px]" /></span>
+          <span className="text-sm font-bold text-[#111111] dark:text-white">{it.label}</span>
+          <span className={`text-xs ${it.hot ? 'font-semibold text-[#F95C4B]' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>{it.sub}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ─── Today ─────────────────────────────────────────────────────────────── */
+
+// Viewings, callbacks, follow-ups and landlord updates due today (overdue pulled in) — the
+// landlord promise lives here too, so each landlord shows once
+function Today({ items, promise }) {
+  const navigate = useNavigate()
+  const overdue = items.filter((i) => i.overdue).length
+  const allKept = promise.total > 0 && promise.kept === promise.total
+  return (
+    <div className={`${box} p-5`}>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="flex items-center gap-2 text-[15px] font-bold text-[#111111] dark:text-white"><CalendarDays className="h-4 w-4 text-[#F95C4B]" /> Today</p>
+        <span className="flex items-center gap-3">
+          {promise.total > 0 && <span title={`Landlords from Reliable Touch are promised news every ${promise.hours} hours`} className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${allKept ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F95C4B]/10 text-[#F95C4B]'}`}>Landlord promise {promise.kept} of {promise.total} kept</span>}
+          {overdue > 0 && <span className="rounded-full bg-[#F95C4B]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#F95C4B]">{overdue} overdue</span>}
+          <Link to="/agency/diary" className="text-xs font-semibold text-[#6B7280] hover:text-[#F95C4B] dark:text-[#A1A1AA]">Diary</Link>
+        </span>
+      </div>
+      {items.length ? (
+        <ul className="grid grid-cols-1 gap-2 xl:grid-cols-2">{items.slice(0, 8).map((i) => <DiaryRow key={i.id} item={i} compact />)}</ul>
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl bg-[#FAFAF9] p-4 dark:bg-[#141414]">
+          <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-[#10B981]/12 text-[#10B981]"><Check className="h-5 w-5" strokeWidth={3} /></span>
+          <p className="flex-1 text-sm text-[#3F3F46] dark:text-[#D4D4D8]">Nothing due today. A good time to make calls.</p>
+          <button type="button" onClick={() => navigate('/agency/calls')} className="rounded-lg bg-[#F95C4B] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#E84B3A]">Start calling</button>
+        </div>
+      )}
+      {items.length > 8 && <Link to="/agency/diary" className="mt-3 block text-center text-xs font-semibold text-[#F95C4B] hover:underline">{items.length - 8} more in your diary</Link>}
     </div>
   )
 }
@@ -148,6 +184,7 @@ function nudgeTenant(t, nudge) {
 
 function Moves({ moves, tenants, onReview }) {
   const navigate = useNavigate()
+  const actions = useAgentActions()
   const nudge = useNudge()
   if (!moves.length) {
     return (
@@ -160,25 +197,25 @@ function Moves({ moves, tenants, onReview }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       {moves.map((m, i) => {
-        const tone = TONE[m.tone] ?? TONE.blue
         const lead = i === 0
         const go = () => {
           if (m.nudge) { const t = tenants.find((x) => x.id === m.applicationId); if (t) nudgeTenant(t, nudge); return }
           if (m.applicationId) return onReview(m.applicationId)
-          navigate(m.to)
+          if (m.key === 'promise' && actions) return actions.open('update', { leadId: m.to.split('/').pop() })
+          navigate(m.to.replace('/agency/call-mode', '/agency/calls'))
         }
         return (
-          <div key={m.key} className={`mac-in flex flex-col rounded-2xl border p-5 ${lead && m.tone === 'danger' ? `${tone.soft}` : 'border-[#E5E7EB] bg-white dark:border-[#2A2A2A] dark:bg-[#181818]'}`} style={{ '--d': `${i * 70}ms` }}>
+          <div key={m.key} className={`mac-in flex flex-col rounded-2xl border p-5 ${lead ? 'border-[#F95C4B]/30 bg-[#F95C4B]/[0.06]' : 'border-[#E5E7EB] bg-white dark:border-[#2A2A2A] dark:bg-[#181818]'}`} style={{ '--d': `${i * 70}ms` }}>
             <div className="flex items-center gap-2.5">
-              <span className="grid h-7 w-7 place-items-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: tone.ring }}>{i + 1}</span>
-              <span className={`text-[11px] font-bold uppercase tracking-wider ${tone.label}`}>{m.label}</span>
+              <span className="grid h-7 w-7 place-items-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: 'rgb(var(--brand-rgb))' }}>{i + 1}</span>
+              <span className={`text-[11px] font-bold uppercase tracking-wider text-[#F95C4B]`}>{m.label}</span>
               <span className="ml-auto text-[11px] text-[#9CA3AF]">{m.eta}</span>
             </div>
             <p className="mt-3 text-[15px] font-bold leading-snug text-[#111111] dark:text-white">{m.title}</p>
             <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-[#6B7280] dark:text-[#A1A1AA]">{m.detail}</p>
             <button type="button" onClick={go} disabled={m.nudge && nudge.isPending}
               className={`mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${lead
-                ? (m.tone === 'danger' ? tone.btn : 'bg-[#F95C4B] text-white hover:bg-[#E84B3A]')
+                ? 'bg-[#F95C4B] text-white shadow-btn hover:bg-[#E84B3A]'
                 : 'bg-[#F5F5F4] text-[#111111] hover:bg-[#EDEDEA] dark:bg-[#232323] dark:text-white dark:hover:bg-[#2A2A2A]'}`}>
               {m.nudge && nudge.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {m.cta} <ArrowRight className="h-4 w-4" />
@@ -190,159 +227,12 @@ function Moves({ moves, tenants, onReview }) {
   )
 }
 
-/* ─── What's new ────────────────────────────────────────────────────────── */
-
-function WhatsNew({ news }) {
-  const navigate = useNavigate()
-  return (
-    <div className={`${box} overflow-hidden`}>
-      <div className="flex items-center justify-between px-5 pb-3 pt-5">
-        <p className="text-[15px] font-bold text-[#111111] dark:text-white">What's new for you</p>
-        <span className="flex items-center gap-3">
-          {news.unread > 0 && <span className="rounded-full bg-[#F95C4B]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#F95C4B]">{news.unread} new</span>}
-          <Link to="/agency/notifications" className="text-xs font-semibold text-[#6B7280] hover:text-[#F95C4B] dark:text-[#A1A1AA]">All</Link>
-        </span>
-      </div>
-      {news.items.length ? (
-        <ul className="divide-y divide-[#F1EFEC] dark:divide-[#232323]">
-          {groupNews(news.items).map((n) => {
-            const [Icon, color] = NEWS_ICON[n.event] ?? [Bell, '#9CA3AF']
-            return (
-              <li key={n.id}>
-                <button type="button" onClick={() => navigate(n.leadId ? `/agency/leads/${n.leadId}` : '/agency/notifications')}
-                  className={`flex w-full items-start gap-3 px-5 py-3.5 text-left transition-colors hover:bg-[#FAFAF9] dark:hover:bg-[#1E1E1E] ${n.read ? '' : 'bg-[#F95C4B]/[0.03]'}`}>
-                  <span className="grid h-9 w-9 flex-none place-items-center rounded-xl" style={{ backgroundColor: `${color}1A`, color }}><Icon className="h-4 w-4" /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-[#111111] dark:text-white">{n.title}</span>
-                      {n.count > 1 && <span className="flex-none rounded-full bg-[#F5F5F4] px-1.5 text-[10px] font-bold text-[#6B7280] dark:bg-[#232323] dark:text-[#A1A1AA]">×{n.count}</span>}
-                      {!n.read && <span className="h-1.5 w-1.5 flex-none rounded-full bg-[#F95C4B]" />}
-                    </span>
-                    <span className="mt-0.5 line-clamp-1 block text-xs text-[#6B7280] dark:text-[#A1A1AA]">{n.message}</span>
-                  </span>
-                  <span className="flex-none text-[11px] text-[#9CA3AF]">{ago(n.at)}</span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : <p className="px-5 pb-6 text-sm text-[#9CA3AF]">Nothing new — you're up to date.</p>}
-    </div>
-  )
-}
-
-/* ─── Landlord promise ──────────────────────────────────────────────────── */
-
-function Countdown({ hoursLeft, total }) {
-  const late = hoursLeft <= 0
-  const r = 15, c = 2 * Math.PI * r
-  const frac = late ? 1 : Math.max(0.04, Math.min(1, hoursLeft / total))
-  const color = late ? '#EF4444' : hoursLeft <= 12 ? '#F59E0B' : '#10B981'
-  const label = late ? `−${Math.max(1, Math.round(-hoursLeft / 24))}d` : hoursLeft >= 24 ? `${Math.round(hoursLeft / 24)}d` : `${hoursLeft}h`
-  return (
-    <span className="relative grid h-10 w-10 flex-none place-items-center">
-      <svg viewBox="0 0 40 40" className="absolute inset-0 -rotate-90">
-        <circle cx="20" cy="20" r={r} fill="none" strokeWidth="3.5" className="stroke-[#F1EFEC] dark:stroke-[#262626]" />
-        <circle cx="20" cy="20" r={r} fill="none" strokeWidth="3.5" strokeLinecap="round" stroke={color} strokeDasharray={c} strokeDashoffset={c * (1 - frac)} />
-      </svg>
-      <span className="text-[10px] font-bold" style={{ color }}>{label}</span>
-    </span>
-  )
-}
-
-function Promise({ promise }) {
-  const navigate = useNavigate()
-  const all = promise.total > 0 && promise.kept === promise.total
-  return (
-    <div className={`${box} p-5`}>
-      <div className="flex items-center justify-between">
-        <p className="text-[15px] font-bold text-[#111111] dark:text-white">Landlord promise</p>
-        {promise.total > 0 && <span className={`text-xs font-bold ${all ? 'text-[#10B981]' : promise.kept / promise.total >= 0.7 ? 'text-[#D97706]' : 'text-[#EF4444]'}`}>{promise.kept} of {promise.total} kept</span>}
-      </div>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-[#6B7280] dark:text-[#A1A1AA]">Landlords from Reliable Touch were promised news every {promise.hours} hours. Keep the promise, keep the streak.</p>
-      {promise.leads.length ? (
-        <ul className="mt-3 space-y-2">
-          {promise.leads.map((l) => (
-            <li key={l.id}>
-              <button type="button" onClick={() => navigate(`/agency/leads/${l.id}`)}
-                className="flex w-full items-center gap-3 rounded-xl bg-[#FAFAF9] p-2.5 text-left transition-colors hover:bg-[#F1EFEC] dark:bg-[#141414] dark:hover:bg-[#1E1E1E]">
-                <Countdown hoursLeft={l.hoursLeft} total={promise.hours} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-semibold text-[#111111] dark:text-white">{l.landlordName}</span>
-                  <span className={`block text-[11px] ${l.hoursLeft <= 0 ? 'text-[#EF4444]' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
-                    {l.hoursLeft <= 0 ? `Window passed ${format(new Date(l.dueAt), 'EEE')} · update to restart` : `Next update due ${format(new Date(l.dueAt), 'EEE HH:mm')}`}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : <p className="mt-3 rounded-xl bg-[#FAFAF9] p-3 text-xs text-[#9CA3AF] dark:bg-[#141414]">No open Reliable Touch leads right now.</p>}
-    </div>
-  )
-}
-
-/* ─── Tenant links ──────────────────────────────────────────────────────── */
-
-function Tenants({ tenants, onReview }) {
-  const nudge = useNudge()
-  const c = tenants.counts
-  const chips = [['To review', c.review, '#8B5CF6'], ['Filling in', c.filling, '#F59E0B'], ['Not opened', c.notOpened, '#9CA3AF'], ['Approved', c.approved, '#10B981']].filter(([, n]) => n)
-  return (
-    <div className={`${box} overflow-hidden`}>
-      <div className="flex flex-wrap items-center gap-2 px-5 pb-3 pt-5">
-        <p className="mr-auto flex items-center gap-2 text-[15px] font-bold text-[#111111] dark:text-white"><Users className="h-4 w-4 text-[#F95C4B]" /> Your tenants' applications</p>
-        {chips.map(([l, n, col]) => <span key={l} className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: col, backgroundColor: `${col}1F` }}>{n} {l.toLowerCase()}</span>)}
-        <Link to="/agency/tenants" className="text-xs font-semibold text-[#6B7280] hover:text-[#F95C4B] dark:text-[#A1A1AA]">All</Link>
-      </div>
-      {tenants.list.length ? (
-        <ul className="divide-y divide-[#F1EFEC] dark:divide-[#232323]">
-          {tenants.list.map((t) => {
-            const action = t.status === 'submitted' ? ['Review', () => onReview(t.id), Eye, true]
-              : t.stalled ? ['Nudge', () => nudgeTenant(t, nudge), Send, false]
-                : ['Open', () => onReview(t.id), ArrowRight, false]
-            return (
-              <li key={t.id} className="flex items-center gap-3 px-5 py-3">
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-[#111111] dark:text-white">{t.name}</span>
-                    <StatusPill status={t.status} small />
-                    {t.stalled && <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#D97706]"><AlertTriangle className="h-3 w-3" /> idle {Math.round(t.idleHours / 24) || 1}d</span>}
-                  </span>
-                  <span className="mt-0.5 block truncate text-xs text-[#6B7280] dark:text-[#A1A1AA]">
-                    {t.property}{t.status !== 'submitted' && t.status !== 'approved' ? ` · step ${Math.max(0, Math.min(t.step, 6))} of 6` : ''}{t.waitingCo.length ? ` · waiting on ${t.waitingCo.join(' & ')}` : ''}
-                  </span>
-                </span>
-                <button type="button" onClick={action[1]}
-                  className={`inline-flex flex-none items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${action[3] ? 'bg-[#F95C4B] text-white hover:bg-[#E84B3A]' : 'border border-[#E5E7EB] text-[#111111] hover:bg-[#F5F5F4] dark:border-[#2A2A2A] dark:text-white dark:hover:bg-[#232323]'}`}>
-                  {action[0] === 'Nudge' && nudge.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (() => { const I = action[2]; return <I className="h-3.5 w-3.5" /> })()}
-                  {action[0]}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-        <div className="flex items-center gap-3 px-5 pb-5">
-          <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-[#F5F5F4] text-[#9CA3AF] dark:bg-[#232323]"><Inbox className="h-5 w-5" /></span>
-          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">No tenant applications yet. When someone asks about one of your listed rentals, add them on the lead and send their link — you'll see here when they open it, fill it in and submit.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
 /* ─── The page ──────────────────────────────────────────────────────────── */
 
 export default function AgentHome({ overview: o, isDark, stageTo, pickTemperature, dailySeries }) {
   const user = useAuthStore((s) => s.user)
   const [review, setReview] = useState(null)
-  const { data, isLoading } = useQuery({
-    queryKey: ['agent-home'],
-    queryFn: () => axiosClient.get('/reports/agent-home').then((r) => r.data.data),
-    refetchInterval: 45_000,
-    staleTime: 30_000,
-  })
+  const { data, isLoading } = useAgentHome()
   const firstName = user?.firstName ?? ''
 
   return (
@@ -352,6 +242,9 @@ export default function AgentHome({ overview: o, isDark, stageTo, pickTemperatur
         {data ? <Hero data={data} firstName={firstName} /> : <Skeleton className="h-[230px]" />}
         {data ? <GoalRing goal={data.goal} /> : <Skeleton className="h-[230px]" />}
       </div>
+
+      {/* Everyday jobs — each opens right here */}
+      {data ? <ActionButtons data={data} /> : <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[118px]" />)}</div>}
 
       {/* Next three moves */}
       <section>
@@ -363,20 +256,8 @@ export default function AgentHome({ overview: o, isDark, stageTo, pickTemperatur
           : <Moves moves={data.moves} tenants={data.tenants.list} onReview={setReview} />}
       </section>
 
-      {/* What's new · landlord promise */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        {data ? <WhatsNew news={data.news} /> : <Skeleton className="h-[360px]" />}
-        {data ? <Promise promise={data.promise} /> : <Skeleton className="h-[360px]" />}
-      </div>
-
-      {/* Tenants · upcoming visits */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        {data ? <Tenants tenants={data.tenants} onReview={setReview} /> : <Skeleton className="h-[240px]" />}
-        <Card className="p-5">
-          <CardTitle title="Upcoming visits" subtitle={`${(o?.kpis?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/agency/appointments">All</LinkButton>} />
-          {!o ? <Skeleton className="h-[200px]" /> : <UpcomingVisits visits={o.upcomingVisits} leadPath={(id) => `/agency/leads/${id}`} allTo="/agency/appointments" />}
-        </Card>
-      </div>
+      {/* Today, with the landlord promise */}
+      {data ? <Today items={data.today ?? []} promise={data.promise} /> : <Skeleton className="h-[300px]" />}
 
       {/* Pipeline */}
       <Card className="p-5">
@@ -398,7 +279,7 @@ export default function AgentHome({ overview: o, isDark, stageTo, pickTemperatur
 
       {/* Last 30 days */}
       <Card className="p-5">
-        <CardTitle title="Your last 30 days" subtitle="Calls (left axis) against leads generated, received and closed (right axis)" action={<Link to="/agency/call-mode" className="inline-flex items-center gap-1 text-xs font-semibold text-[#F95C4B] hover:underline"><PhoneOutgoing className="h-3.5 w-3.5" /> Call mode</Link>} />
+        <CardTitle title="Your last 30 days" subtitle="Calls (left axis) against leads generated, received and closed (right axis)" action={<Link to="/agency/calls" className="inline-flex items-center gap-1 text-xs font-semibold text-[#F95C4B] hover:underline"><PhoneOutgoing className="h-3.5 w-3.5" /> Call mode</Link>} />
         {!o ? <Skeleton className="h-[250px]" /> : (
           <>
             <TrendChart data={o.charts.daily} xKey="date" series={dailySeries} rightAxis isDark={isDark} xFormat={(d) => format(new Date(d), 'd MMM')} labelFormat={(d) => format(new Date(d), 'EEE d MMM')} />
