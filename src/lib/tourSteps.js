@@ -7,7 +7,7 @@
 //            control; spotlighted when it's on screen
 //   to/cta  — a button that opens that page (closes the tour first)
 //   checklist — the closing "get set up" list: [{ label, sub, to, done? }]
-export const TOUR_VERSION = 4
+export const TOUR_VERSION = 5
 
 const welcome = (who, what) => ({
   icon: 'Sparkles',
@@ -42,23 +42,20 @@ const AGENT = (company) => [
 
 const MANAGER = (company) => [
   welcome(company, 'You run your company on Reliable Touch: your team, every lead and every deal. Here is the quick tour.'),
-  { icon: 'LayoutDashboard', target: '/agency', title: 'Dashboard', body: "Today at a glance — who's calling, new leads, appointments and deals." },
-  { icon: 'TrendingUp', target: '/agency/leads', title: 'Leads', body: "All of your company's leads. Assign them to agents and follow each one live.", to: '/agency/leads?new=1', cta: 'Create a lead' },
-  { icon: 'Users', target: '/agency/team', title: 'Team', body: 'Add agents, reset passwords and switch access off — each person gets their own login.', to: '/agency/team', cta: 'Open Team' },
-  { icon: 'KeyRound', target: '/agency/tenants', title: 'Tenants', body: 'Someone wants to rent a listed property? Add them by name and send their private link — they apply, upload documents and sign on their phone, and you see every step.' },
-  { icon: 'Gauge', target: '/agency/caller-workload', title: 'Calling workload', body: 'Hand out contacts to call and see who is keeping up.' },
-  { icon: 'Handshake', target: '/agency/deal-tracker', title: 'Deal Tracker', body: 'Every deal stage by stage, with its documents and commission.' },
-  { icon: 'CalendarCheck', target: '/agency/appointments', title: 'Appointments', body: "Your team's viewings and meetings in one calendar." },
+  { icon: 'Home', target: '/agency', title: 'Home', body: 'Big buttons for the jobs you do every day, what needs you now and who is working. Tap “Show all the numbers” for the charts.' },
+  { icon: 'TrendingUp', target: '/agency/leads', title: 'Leads', body: "Every lead in your company. Use List to find one, Board to see each deal step by step, and Tenants for people renting a listed home.", to: '/agency/leads?new=1', cta: 'Create a lead' },
+  { icon: 'CalendarDays', target: '/agency/diary', title: 'Diary', body: "Your team's viewings and meetings in one calendar." },
+  { icon: 'Users', target: '/agency/team', title: 'Team', body: 'Add agents, reset passwords and see who is leading this month.', to: '/agency/team', cta: 'Open Team' },
+  { icon: 'Phone', target: '/agency/calls', title: 'Calls', body: 'See how much each agent has to call, give out Excel files, then phone owners and do callbacks. Areas and campaigns are here too.' },
+  { icon: 'Bell', target: '[data-tour="new"]', title: '+ New and the bell', body: 'Add a lead, book a viewing or send a tenant link from any page with + New. The bell tells you when something happens.' },
 ]
-
 const AGENCY_ADMIN = (company) => [
   welcome(company, 'As Agency Admin you set up your company: its look, its people and its first leads. Let’s get you going.'),
   { icon: 'Building2', target: '/agency/company-profile', title: 'Make it yours', body: 'Upload your logo and pick your colour — everyone in your company sees your brand instead of ours. Add your registration details while you are there.', to: '/agency/company-profile', cta: 'Set up company profile' },
   { icon: 'Users', target: '/agency/team', title: 'Add your people', body: 'Create a login for each agent or manager. You get their password once to hand over.', to: '/agency/team', cta: 'Add a person' },
-  { icon: 'TrendingUp', target: '/agency/leads', title: 'Create and assign leads', body: 'Add a lead in seconds and assign it to an agent. Everything that happens on it shows live.', to: '/agency/leads?new=1', cta: 'Create a lead' },
-  { icon: 'Handshake', target: '/agency/deal-tracker', title: 'Track every deal', body: 'Deals stage by stage, with the paperwork uploaded at each step.' },
-  { icon: 'KeyRound', target: '/agency/tenants', title: 'Tenants', body: 'Someone wants to rent a listed property? Add them by name and send their private link — they apply, upload documents and sign on their phone, and you see every step.' },
-  { icon: 'LayoutDashboard', target: '/agency', title: 'Your dashboard', body: "Who's calling, new leads, appointments and deals — today at a glance." },
+  { icon: 'TrendingUp', target: '/agency/leads', title: 'Create and assign leads', body: 'Add a lead in seconds and give it to an agent. Board shows each deal step by step; Tenants is for people renting a listed home.', to: '/agency/leads?new=1', cta: 'Create a lead' },
+  { icon: 'Phone', target: '/agency/calls', title: 'Calls', body: 'Upload Excel files of owners and give them to your agents to phone. Areas and campaigns live here too.' },
+  { icon: 'Home', target: '/agency', title: 'Home', body: 'Big buttons for the jobs you do every day, what needs you now and who is working.' },
   {
     icon: 'Rocket',
     title: 'Your set-up checklist',

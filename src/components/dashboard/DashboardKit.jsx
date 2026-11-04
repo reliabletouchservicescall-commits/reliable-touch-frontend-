@@ -161,7 +161,7 @@ export function Milestone({ milestone, to }) {
   const navigate = useNavigate()
   const pct = milestone ? Math.min(100, Math.round((milestone.current / milestone.target) * 100)) : 0
   return (
-    <Card delay={60} className={`p-5 flex flex-col justify-between text-left ${to ? 'mac-lift mac-press hover:border-[#F95C4B]/40' : ''}`}
+    <Card delay={60} className={`w-full p-5 flex flex-col justify-between text-left ${to ? 'mac-lift mac-press hover:border-[#F95C4B]/40' : ''}`}
       as={to ? 'button' : 'div'} type={to ? 'button' : undefined} onClick={to ? () => navigate(to) : undefined}>
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-lg bg-[#F95C4B]/10 flex items-center justify-center mac-float">

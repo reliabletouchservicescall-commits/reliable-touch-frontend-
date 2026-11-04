@@ -25,7 +25,7 @@ import { CORAL, CORAL_2 } from '../../lib/brand'
 // Where things link to on each board
 export const SCOPES = {
   admin: { leads: '/admin/leads', person: (id) => `/admin/users/${id}`, team: '/admin/performance', ranking: '/admin/performance', newLead: '/admin/leads?new=1' },
-  agency: { leads: '/agency/leads', person: (id) => `/agency/agents/${id}`, team: '/agency/team', ranking: '/agency/leaderboard', newLead: '/agency/leads?new=1' },
+  agency: { leads: '/agency/leads', person: (id) => `/agency/agents/${id}`, team: '/agency/team', ranking: '/agency/team?tab=leaderboard', newLead: '/agency/leads?new=1' },
 }
 
 const ROLE_LABEL = { cold_caller: 'Cold caller', follow_up_manager: 'Follow-up manager', agency: 'Agent', admin: 'Admin' }
@@ -166,10 +166,11 @@ export function DashboardHeader({ user, floor, needsCount, period, onPeriod, sco
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => navigate(SCOPES[scope].newLead)}
+        {/* A company has + New and the Add a lead button on its home already */}
+        {scope !== 'agency' && <button type="button" onClick={() => navigate(SCOPES[scope].newLead)}
           className="mac-press flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F95C4B] hover:bg-[#E84B3A] shadow-[0_10px_24px_-10px_rgba(249,92,75,0.9)]">
           <Plus className="w-4 h-4" /> Add lead
-        </button>
+        </button>}
       </div>
     </div>
   )
@@ -244,7 +245,8 @@ const TONE = {
 // hasn't done any work today
 export function useAttentionItems(overview, floor, now, scope = 'admin') {
   return useMemo(() => {
-    const items = [...(overview?.attention ?? [])]
+    // A company's Deal Tracker is the Board tab of Leads
+    const items = (overview?.attention ?? []).map((i) => (scope === 'agency' && i.action?.label === 'Deal Tracker' ? { ...i, action: { ...i.action, label: 'Open the board' } } : i))
     const team = (floor?.people ?? []).filter((p) => scope === 'agency' || p.role !== 'agency')
     const idle = team.map((p) => ({ p, s: presenceOf(p, now) })).filter(({ s }) => s.rank === 3 && s.idle >= 30)
       .sort((a, b) => b.s.idle - a.s.idle).slice(0, 2)
@@ -330,7 +332,7 @@ const FLOOR_FILTERS = [
   { key: 'idle', label: 'Not working' },
 ]
 
-export function OnTheFloor({ floor, loading, now, scope = 'admin' }) {
+export function OnTheFloor({ floor, loading, now, scope = 'admin', fill = false }) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
   const rows = useMemo(() => (floor?.people ?? [])
@@ -340,7 +342,7 @@ export function OnTheFloor({ floor, loading, now, scope = 'admin' }) {
   const notWorked = rows.filter(({ s }) => s.flag).length
   const shown = rows.filter(({ p, s }) => (filter === 'online' ? p.online : filter === 'idle' ? s.rank >= 3 : true))
   return (
-    <Card delay={160} className="overflow-hidden flex flex-col" id="live-floor">
+    <Card delay={160} className={`overflow-hidden flex flex-col ${fill ? 'flex-1 min-h-0' : ''}`} id="live-floor">
       <div className="px-5 pt-4 pb-3 border-b border-[#F1EFEC] dark:border-[#232323]">
         <div className="flex items-center justify-between gap-3">
           <h3 className="flex items-center gap-2 text-[15px] font-bold text-[#111111] dark:text-white">

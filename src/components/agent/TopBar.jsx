@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search, X, Plus, ChevronDown, TrendingUp, CalendarPlus, KeyRound, BookUser, Loader2, Sun, Moon, LogOut, Compass } from 'lucide-react'
+import { Search, X, Plus, ChevronDown, TrendingUp, CalendarPlus, KeyRound, BookUser, Loader2, Sun, Moon, LogOut, Compass, Building2 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
 import { authApi } from '../../services/authApi'
@@ -167,6 +167,7 @@ export function AvatarMenu() {
             <p className="truncate text-xs text-[#6B7280] dark:text-[#A1A1AA]">{role}{user?.email ? ` · ${user.email}` : ''}</p>
           </div>
           <div className="py-1">
+            {user?.isAgencyAdmin && <button type="button" onClick={() => { setOpen(false); navigate('/agency/company-profile') }} className={row}><Building2 className="h-4 w-4 text-[#6B7280]" /> Company profile</button>}
             <button type="button" onClick={toggle} className={row}>{theme === 'dark' ? <Sun className="h-4 w-4 text-[#6B7280]" /> : <Moon className="h-4 w-4 text-[#6B7280]" />} {theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
             <button type="button" onClick={() => { setOpen(false); openTour() }} className={row}><Compass className="h-4 w-4 text-[#6B7280]" /> Take the tour</button>
             <button type="button" onClick={signOut} className={`${row} text-[#F95C4B] dark:text-[#F95C4B]`}><LogOut className="h-4 w-4" /> Sign out</button>

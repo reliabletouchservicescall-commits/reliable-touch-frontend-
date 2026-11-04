@@ -1,16 +1,23 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { PhoneOutgoing, AlarmClock, BookUser, PhoneOff, Megaphone, ChevronDown } from 'lucide-react'
+import { PhoneOutgoing, AlarmClock, BookUser, PhoneOff, Megaphone, ChevronDown, FileSpreadsheet, MapPin, Gauge } from 'lucide-react'
 import HubTabs, { useHubTab } from '../../components/agent/HubTabs'
 import CallModePage from '../shared/CallModePage'
 import ContactsPage from './ContactsPage'
 import DncPage from './DncPage'
+import ExcelFilesPage from './ExcelFilesPage'
+import CallerWorkloadPage from './CallerWorkloadPage'
+import AreasPage from './AreasPage'
+import CampaignsPage from './CampaignsPage'
 import { campaignsApi } from '../../services/campaignsApi'
 import { useAgentHome } from '../../components/agent/useAgentHome'
+import { useAuthStore } from '../../store/authStore'
 
 // Calls — everyone the agent phones, in one place: who to call next, the callbacks owners
 // asked for, all their contacts and the do-not-call list. Today's campaign sits on top,
-// the one moment it matters (agents only read campaigns; managers run them).
+// the one moment it matters (agents only read campaigns; managers run them). A company
+// manager starts from what feeds the calling — who has how much to call, then the Excel
+// files they hand out — and also gets the areas and campaigns.
 
 function CampaignBanner() {
   const [open, setOpen] = useState(false)
@@ -49,12 +56,19 @@ function CampaignBanner() {
 
 export default function CallsHubPage() {
   const { data: home } = useAgentHome()
-  const tabs = [
-    { key: 'next', label: 'Call next', icon: PhoneOutgoing },
-    { key: 'callbacks', label: 'Callbacks', icon: AlarmClock, count: home?.actions?.callbacksDue },
-    { key: 'contacts', label: 'All contacts', icon: BookUser },
-    { key: 'dnc', label: 'Do not call', icon: PhoneOff },
-  ]
+  const isManager = Boolean(useAuthStore((s) => s.user)?.isAgencyManager)
+  const next = { key: 'next', label: 'Call next', icon: PhoneOutgoing }
+  const callbacks = { key: 'callbacks', label: 'Callbacks', icon: AlarmClock, count: home?.actions?.callbacksDue }
+  const contacts = { key: 'contacts', label: 'All contacts', icon: BookUser }
+  const dnc = { key: 'dnc', label: 'Do not call', icon: PhoneOff }
+  const tabs = isManager ? [
+    { key: 'workload', label: 'Calling workload', icon: Gauge },
+    { key: 'files', label: 'Excel files', icon: FileSpreadsheet },
+    contacts, next, callbacks,
+    { key: 'areas', label: 'Areas', icon: MapPin },
+    { key: 'campaigns', label: 'Campaigns', icon: Megaphone },
+    dnc,
+  ] : [next, callbacks, contacts, dnc]
   const [tab, pick] = useHubTab(tabs)
   return (
     <HubTabs tabs={tabs} tab={tab} onPick={pick}>
@@ -66,6 +80,10 @@ export default function CallsHubPage() {
           {tab === 'callbacks' && <CallModePage key="callbacks" mode="callbacks" />}
           {tab === 'contacts' && <ContactsPage />}
           {tab === 'dnc' && <DncPage />}
+          {tab === 'workload' && <CallerWorkloadPage />}
+          {tab === 'files' && <ExcelFilesPage />}
+          {tab === 'areas' && <AreasPage />}
+          {tab === 'campaigns' && <CampaignsPage />}
         </div>
       </div>
     </HubTabs>

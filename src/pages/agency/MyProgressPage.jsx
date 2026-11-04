@@ -16,6 +16,7 @@ import { Skeleton } from '../../components/dashboard/DashboardKit'
 // (once a day here, and live the moment it happens — see SocketContext 'you_are_leader').
 
 const PERIODS = [['week', 'This week'], ['month', 'This month'], ['quarter', 'This quarter']]
+const isPeriod = (p) => PERIODS.some(([k]) => k === p)
 const PREV = { week: 'last week', month: 'last month', quarter: 'last quarter' }
 const MILESTONE_ICON = { home: Home, trophy: Trophy, star: Star, check: Check, phone: Phone, flame: Flame }
 const box = 'rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818]'
@@ -66,7 +67,7 @@ function useTopOfDay(topToday, userId) {
 
 export default function MyProgressPage() {
   const user = useAuthStore((s) => s.user)
-  const [period, setPeriod] = useState(() => { try { return localStorage.getItem('rt-progress-period') || 'month' } catch { return 'month' } })
+  const [period, setPeriod] = useState(() => { try { const p = localStorage.getItem('rt-progress-period'); return isPeriod(p) ? p : 'month' } catch { return 'month' } })
   const pick = (p) => { setPeriod(p); try { localStorage.setItem('rt-progress-period', p) } catch { /* private mode */ } }
   const { data, isLoading } = useQuery({
     queryKey: ['performance', 'agent-progress', period],
@@ -80,7 +81,7 @@ export default function MyProgressPage() {
     staleTime: 5 * 60_000,
   })
   const manager = (team ?? []).find((m) => m.isAgencyManager && m._id !== user?._id)
-  const managerName = manager ? manager.firstName.charAt(0) + manager.firstName.slice(1).toLowerCase() : 'Your manager'
+  const managerName = manager?.firstName ? manager.firstName.charAt(0) + manager.firstName.slice(1).toLowerCase() : 'Your manager'
   const [fireworks, stopFireworks] = useTopOfDay(data?.topToday, user?._id)
 
   const c = data?.cards
@@ -136,7 +137,7 @@ export default function MyProgressPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className={`${box} p-5`}>
           <div className="mb-4 flex items-center justify-between">
-            <p className="text-[15px] font-bold text-[#111111] dark:text-white">Your race {PERIODS.find(([k]) => k === period)[1].toLowerCase()}</p>
+            <p className="text-[15px] font-bold text-[#111111] dark:text-white">Your race {(PERIODS.find(([k]) => k === period)?.[1] ?? 'This month').toLowerCase()}</p>
             <Link to="/agency/leaderboard" className="rounded-lg border border-[#E5E7EB] px-2.5 py-1 text-xs font-semibold text-[#111111] hover:bg-[#F5F5F4] dark:border-[#2A2A2A] dark:text-white dark:hover:bg-[#232323]">Show full board</Link>
           </div>
           {!data ? <Skeleton className="h-[240px]" /> : (

@@ -115,6 +115,12 @@ function ActionButtons({ data }) {
     { key: 'viewing', label: 'Book a viewing', icon: CalendarPlus, sub: a.viewingsToday ? `${a.viewingsToday} today` : 'Pick a lead and a time', go: () => actions?.open('viewing') },
     { key: 'tenant', label: 'Send tenant link', icon: KeyRound, sub: a.listedNoTenant ? `${a.listedNoTenant} listed, no tenant yet` : 'For a listed rental', go: () => actions?.open('tenant') },
   ]
+  return <ActionTiles items={items} />
+}
+
+// A row of big buttons, one per everyday job: an icon, a plain name and one line saying why
+// now. `hot` ones are filled in the brand colour. Shared with the company manager's home.
+export function ActionTiles({ items }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
       {items.map((it, i) => (

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  Building2, Upload, Trash2, Loader2, Check, Palette, Wand2, ShieldCheck, LayoutDashboard,
-  TrendingUp, Handshake, Users, Lock, ImagePlus, Pipette,
+  Building2, Upload, Trash2, Loader2, Check, Palette, Wand2, ShieldCheck, Home,
+  TrendingUp, Phone, Users, Lock, ImagePlus, Pipette,
 } from 'lucide-react'
 import rtLogo from '../../assets/logo-reliable-touch.png'
 import { agenciesApi } from '../../services/agenciesApi'
@@ -66,7 +66,7 @@ function Swatch({ color, active, onClick, title }) {
 // What the company's people will see — the sidebar, in this logo and colour
 function LivePreview({ name, logoUrl, color }) {
   const brand = readableBrand(color ?? RT_BRAND)
-  const items = [[LayoutDashboard, 'Dashboard'], [TrendingUp, 'Leads'], [Handshake, 'Deal Tracker'], [Users, 'Team']]
+  const items = [[Home, 'Home'], [Phone, 'Calls'], [TrendingUp, 'Leads'], [Users, 'Team']]
   return (
     <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#0F0F0F] overflow-hidden">
       <div className="flex">
