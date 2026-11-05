@@ -1,30 +1,33 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
-  Phone, PhoneCall, PhoneIncoming, TrendingUp, Flame, CalendarClock, Target, RefreshCw, Trophy, Crown, Medal,
-  ArrowRight, Headphones, FileText,
+  Phone, PhoneCall, TrendingUp, Flame, CalendarClock, Target, RefreshCw, Trophy, Crown, Medal,
+  ArrowRight, Headphones, PhoneOutgoing, AlarmClock, Plus, CalendarCheck, Award, BarChart3, ChevronDown,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
 import { useTheme } from '../../context/ThemeContext'
 import WorkingHoursSection from '../../components/performance/WorkingHoursSection'
 import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
+import { ActionTiles } from '../../components/dashboard/AgentHome'
+import CallNowCard from '../../components/dashboard/CallNowCard'
+import { useCallMode } from '../../lib/useCallMode'
 import {
   CallerHero, CallsRing, HappeningFeed, DealsStarted, MonthCard, LeadsOnTheMove, TodaysList, useCallerBoard,
 } from '../../components/dashboard/CallerBoard'
 import {
-  Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, TemperatureDonut,
-  TrendChart, ChartLegend, CallsByHourChart, ScopedProvinceCard, TodaysTasks, PhotoCard, CallOutcomes,
+  Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Kpi, Pipeline, TemperatureDonut,
+  TrendChart, ChartLegend, CallsByHourChart, ScopedProvinceCard, CallOutcomes,
   UpcomingVisits, CompanySnapshot, OUTCOME_META, CORAL,
 } from '../../components/dashboard/DashboardKit'
 
-// The cold caller's dashboard — the admin command centre's look, built around the job:
-// work the contact list, turn calls into leads, keep those leads followed up — plus where
-// the whole company stands. Data: GET /reports/my-overview (+ /performance/me for rank).
-// On top, the live board (GET /reports/my-board): what's happening to the leads they found,
-// the deals they started, the month's milestone, leads on the move and today's list.
+// The cold caller's home, built around the day's job: how today is going (the calls ring),
+// the next owner to phone with one Call button, a big button for each everyday job, and what
+// is happening to the leads they found (GET /reports/my-board). Every other number — KPIs,
+// pipeline, charts, rank, visits — sits behind "Show all the numbers" (GET /reports/my-overview,
+// /performance/me), remembered per browser.
 
 const DAILY_SERIES = [
   { key: 'calls',      name: 'Calls',              color: CORAL,     kind: 'area' },
@@ -41,7 +44,7 @@ function RankCard({ day, month }) {
     { key: 'month', label: 'This month', s: month },
   ]
   return (
-    <Card as="button" type="button" delay={160} onClick={() => navigate('/cold-caller/leaderboard')}
+    <Card as="button" type="button" delay={160} onClick={() => navigate('/cold-caller/progress?tab=board')}
       className="mac-lift mac-press group w-full text-left p-5 hover:border-[#F95C4B]/40">
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -89,7 +92,7 @@ function RecentCalls({ calls }) {
         const meta = OUTCOME_META[c.outcome] ?? { label: c.outcome, color: '#9CA3AF' }
         return (
           <li key={c._id}>
-            <button type="button" onClick={() => navigate(c.leadId ? `/cold-caller/leads/${c.leadId}` : '/cold-caller/call-logs')}
+            <button type="button" onClick={() => navigate(c.leadId ? `/cold-caller/leads/${c.leadId}` : '/cold-caller/calls?tab=log')}
               className="mac-in w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-[#FAFAF9] dark:hover:bg-[#1C1C1C] transition-colors text-left"
               style={{ '--d': `${i * 40}ms` }}>
               <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${meta.color}18` }}>
@@ -116,13 +119,10 @@ export default function ColdCallerDashboard() {
   const { theme } = useTheme() ?? {}
   const isDark = theme === 'dark'
   const navigate = useNavigate()
-  const [now, setNow] = useState(() => new Date())
   const freshRef = useRef(false)
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60_000)
-    return () => clearInterval(t)
-  }, [])
+  const [more, setMore] = useState(() => { try { return localStorage.getItem('rt-caller-more') === '1' } catch { return false } })
+  const toggleMore = () => setMore((v) => { try { localStorage.setItem('rt-caller-more', v ? '0' : '1') } catch { /* private mode */ } return !v })
+  const { data: cbs } = useCallMode({ mode: 'callbacks' })
 
   const { data: o, isError, isFetching, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['my-overview', user?._id],
@@ -147,17 +147,17 @@ export default function ColdCallerDashboard() {
 
   const k = o?.kpis
   const kpiCards = useMemo(() => [
-    { icon: Phone, label: 'Calls this week', value: k?.callsWeek, sub: `Today ${k?.callsToday ?? 0} · Month ${(k?.callsMonth ?? 0).toLocaleString()}`, to: '/cold-caller/call-logs' },
-    { icon: Headphones, label: 'Contacts to call', value: k?.toCall, sub: `${(k?.contacts ?? 0).toLocaleString()} assigned to you`, to: '/cold-caller/contacts', tone: '#111111' },
+    { icon: Phone, label: 'Calls this week', value: k?.callsWeek, sub: `Today ${k?.callsToday ?? 0} · Month ${(k?.callsMonth ?? 0).toLocaleString()}`, to: '/cold-caller/calls?tab=log' },
+    { icon: Headphones, label: 'Contacts to call', value: k?.toCall, sub: `${(k?.contacts ?? 0).toLocaleString()} assigned to you`, to: '/cold-caller/calls?tab=contacts', tone: '#111111' },
     { icon: TrendingUp, label: 'Leads this month', value: k?.leadsMonth, sub: `Today ${k?.leadsToday ?? 0} · Week ${k?.leadsWeek ?? 0}`, to: '/cold-caller/leads', tone: '#8B5CF6' },
     { icon: Flame, label: 'Hot leads', value: k?.hot, sub: `${k?.closed ?? 0} of yours closed`, to: '/cold-caller/leads?status=hot', tone: '#EF4444' },
     { icon: CalendarClock, label: 'Follow-ups due', value: k?.followUpsDue, sub: `Today ${k?.followUpsToday ?? 0} · Overdue ${k?.followUpsOverdue ?? 0}`, to: '/cold-caller/leads?focus=overdue', tone: '#F59E0B' },
-    { icon: Target, label: 'Call → lead rate', value: k?.conversionMonth, suffix: '%', sub: `${k?.interestedMonth ?? 0} interested this month`, to: '/cold-caller/call-logs', tone: '#10B981' },
+    { icon: Target, label: 'Call → lead rate', value: k?.conversionMonth, suffix: '%', sub: `${k?.interestedMonth ?? 0} interested this month`, to: '/cold-caller/calls?tab=log', tone: '#10B981' },
   ], [k])
 
   const stageTo = {
-    contacts: '/cold-caller/contacts',
-    called: '/cold-caller/call-logs',
+    contacts: '/cold-caller/calls?tab=contacts',
+    called: '/cold-caller/calls?tab=log',
     leads: '/cold-caller/leads',
     warm: '/cold-caller/leads?status=warm',
     hot: '/cold-caller/leads?status=hot',
@@ -168,15 +168,36 @@ export default function ColdCallerDashboard() {
     navigate(key === 'closed' ? '/cold-caller/leads?focus=closed_month' : `/cold-caller/leads?status=${key}`)
   }
 
+  const due = cbs?.counts?.dueSoon ?? 0
+  const actions = [
+    { key: 'call', label: 'Start calling', icon: PhoneOutgoing, sub: `${(k?.toCall ?? 0).toLocaleString()} still to call`, go: () => navigate('/cold-caller/calls') },
+    { key: 'callbacks', label: 'Callbacks', icon: AlarmClock, hot: due > 0, sub: due ? `${due} due now` : 'None due', go: () => navigate('/cold-caller/calls?tab=callbacks') },
+    { key: 'lead', label: 'Log a new lead', icon: Plus, sub: 'An owner who wants to sell or rent', go: () => navigate('/cold-caller/leads?new=1') },
+    { key: 'leads', label: 'My leads', icon: TrendingUp, sub: k ? `${k.hot ?? 0} hot · ${k.leadsMonth ?? 0} this month` : 'Every lead you found', go: () => navigate('/cold-caller/leads') },
+    { key: 'diary', label: 'My diary', icon: CalendarCheck, sub: k?.apptsUpcoming ? `${k.apptsUpcoming} viewing${k.apptsUpcoming === 1 ? '' : 's'} coming up` : 'Follow-ups and reminders', go: () => navigate('/cold-caller/diary') },
+    { key: 'progress', label: 'My progress', icon: Award, sub: dayRank?.rank ? `#${dayRank.rank} today` : 'Points and rank', go: () => navigate('/cold-caller/progress') },
+  ]
+
   return (
     <div className="p-4 sm:p-6 xl:p-8 space-y-6">
-      {/* ── Live board ─────────────────────────────────────────────────── */}
+      {/* How today is going */}
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6 items-stretch">
         <CallerHero user={user} board={board} />
         <CallsRing callsToday={k?.callsToday ?? 0} toCall={k?.toCall ?? 0} loading={!o} />
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
-        <HappeningFeed board={board} loading={boardLoading} />
+
+      {/* The next owner — call them from here */}
+      <CallNowCard />
+
+      {/* Everyday jobs — one button each */}
+      <ActionTiles items={actions} />
+
+      {/* What's happening to the leads they found */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6">
+        {/* Wide screens: as tall as the column beside it, its list scrolling inside */}
+        <div className="relative xl:min-h-[420px]">
+          <div className="xl:absolute xl:inset-0"><HappeningFeed board={board} loading={boardLoading} fill /></div>
+        </div>
         <div className="space-y-6">
           <DealsStarted deals={board?.deals} />
           <MonthCard milestone={o?.milestone} rank={board?.rank} hotLeadPoints={board?.hotLeadPoints} conversion={k?.conversionMonth} />
@@ -185,6 +206,15 @@ export default function ColdCallerDashboard() {
       <LeadsOnTheMove moving={board?.moving} />
       <TodaysList today={board?.today} overview={o} />
 
+      <div className="flex justify-center">
+        <button type="button" onClick={toggleMore} aria-expanded={more}
+          className="mac-press flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] text-[#111111] dark:text-white hover:border-[#F95C4B]/40 hover:text-[#F95C4B]">
+          <BarChart3 className="w-4 h-4" /> {more ? 'Hide the numbers' : 'Show all the numbers'}
+          <ChevronDown className={`w-4 h-4 transition-transform ${more ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {more && (
       <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
         {/* ── Main column ─────────────────────────────────────────────── */}
         <div className="space-y-6 min-w-0">
@@ -209,7 +239,7 @@ export default function ColdCallerDashboard() {
                 {!o ? <Skeleton className="h-[170px]" /> : <TemperatureDonut temperature={o.temperature} total={k.totalLeads} isDark={isDark} onPick={pickTemperature} />}
               </Card>
               <Card delay={240} className="p-5">
-                <CardTitle title="How your calls end" subtitle={o ? `${o.callOutcomes.total.toLocaleString()} calls in the last 30 days` : 'Last 30 days'} action={<LinkButton to="/cold-caller/call-logs">Call logs</LinkButton>} />
+                <CardTitle title="How your calls end" subtitle={o ? `${o.callOutcomes.total.toLocaleString()} calls in the last 30 days` : 'Last 30 days'} action={<LinkButton to="/cold-caller/calls?tab=log">Call logs</LinkButton>} />
                 {!o ? <Skeleton className="h-[220px]" /> : <CallOutcomes outcomes={o.callOutcomes} />}
               </Card>
             </div>
@@ -226,7 +256,7 @@ export default function ColdCallerDashboard() {
 
           <div className="grid grid-cols-1 2xl:grid-cols-[1.4fr_1fr] gap-6">
             <Card delay={260} className="p-5">
-              <CardTitle title="Your last 30 days" subtitle="Calls (left axis) against leads created and interested answers (right axis)" action={<LinkButton to="/cold-caller/call-logs">Call logs</LinkButton>} />
+              <CardTitle title="Your last 30 days" subtitle="Calls (left axis) against leads created and interested answers (right axis)" action={<LinkButton to="/cold-caller/calls?tab=log">Call logs</LinkButton>} />
               {!o ? <Skeleton className="h-[250px]" /> : (
                 <>
                   <TrendChart data={o.charts.daily} xKey="date" series={DAILY_SERIES} rightAxis isDark={isDark}
@@ -244,7 +274,7 @@ export default function ColdCallerDashboard() {
           <CompanySnapshot company={o?.company} isDark={isDark} delay={320} />
 
           <Card delay={340} className="p-5">
-            <CardTitle title="Your recent calls" subtitle="Tap a call to open its lead, or the call log" action={<LinkButton to="/cold-caller/call-logs">All calls</LinkButton>} />
+            <CardTitle title="Your recent calls" subtitle="Tap a call to open its lead, or the call log" action={<LinkButton to="/cold-caller/calls?tab=log">All calls</LinkButton>} />
             {!o ? <Skeleton className="h-[260px]" /> : <RecentCalls calls={o.recentCalls} />}
           </Card>
 
@@ -264,24 +294,12 @@ export default function ColdCallerDashboard() {
           </div>
           <RankCard day={dayRank} month={monthRank} />
           <Card delay={200} className="p-5">
-            <CardTitle title="Upcoming visits" subtitle={`${(k?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/cold-caller/appointments">All</LinkButton>} />
-            {!o ? <Skeleton className="h-[200px]" /> : <UpcomingVisits visits={o.upcomingVisits} leadPath={(id) => `/cold-caller/leads/${id}`} allTo="/cold-caller/appointments" />}
+            <CardTitle title="Upcoming visits" subtitle={`${(k?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/cold-caller/leads?tab=viewings">All</LinkButton>} />
+            {!o ? <Skeleton className="h-[200px]" /> : <UpcomingVisits visits={o.upcomingVisits} leadPath={(id) => `/cold-caller/leads/${id}`} allTo="/cold-caller/leads?tab=viewings" />}
           </Card>
-          <PhotoCard
-            eyebrow="Keep dialling"
-            title="Your next lead is one call away"
-            text={<><b className="text-white">{(k?.toCall ?? 0).toLocaleString()}</b> contacts are waiting in your list{k?.callbacks ? <> and <b className="text-white">{k.callbacks}</b> asked you to call back</> : ''}.</>}
-            to="/cold-caller/contacts"
-            buttonLabel="Start calling"
-            icon={PhoneCall}
-          />
-          <button type="button" onClick={() => navigate('/cold-caller/leads?new=1')}
-            className="mac-in mac-press w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-semibold text-[#F95C4B] border border-[#F95C4B]/30 hover:bg-[#F95C4B]/5 transition-colors"
-            style={{ '--d': '400ms' }}>
-            <FileText className="w-4 h-4" /> Log a new lead
-          </button>
         </aside>
       </div>
+      )}
     </div>
   )
 }

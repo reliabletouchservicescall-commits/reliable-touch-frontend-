@@ -3,14 +3,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Handshake, Loader2, Lock, Percent } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
+import { agenciesApi } from '../../services/agenciesApi'
 import { getApiErrorMessage } from './leadShared'
 import { DateField } from '../common/DateTimeFields'
 import DealDocuments from '../deals/DealDocuments'
 import { useAuthStore } from '../../store/authStore'
 
 // The lead's deal, as the Deal Tracker shows it: tenant, rent and fees, payments, occupation,
-// desk fees. The company's manager / the agent fill it in; how the commission is split
-// varies per deal and only Reliable Touch admin records it (read-only for everyone else).
+// desk fees and how the commission is split. Reliable Touch admin and follow-up managers and
+// the company's managers fill in the money; the agent records the tenant and notes (the rest
+// is read-only for them — leads.service updateDeal agrees).
 
 const PAYMENTS = [
   ['', '—'], ['not_started', 'Not started'], ['awaiting_balance', 'Awaiting balance'], ['tpn_in_progress', 'TPN in progress'],
@@ -43,30 +45,38 @@ function formOf(d = {}) {
 
 export default function LeadDealCard({ lead, isAdmin, onSaved }) {
   const qc = useQueryClient()
-  const me = useAuthStore((s) => s.user?._id)
+  const user = useAuthStore((s) => s.user)
+  const me = user?._id
+  const canMoney = ['admin', 'follow_up_manager'].includes(user?.role) || Boolean(user?.role === 'agency' && user.isAgencyManager)
   const [f, setF] = useState(() => formOf(lead.deal))
   const [dirty, setDirty] = useState(false)
   useEffect(() => { if (!dirty) setF(formOf(lead.deal)) }, [lead.deal]) // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k, v) => { setDirty(true); setF((x) => ({ ...x, [k]: v })) }
   const setSplit = (k, v) => { setDirty(true); setF((x) => ({ ...x, split: { ...x.split, [k]: v } })) }
 
-  const { data: assignees } = useQuery({
-    queryKey: ['lead-assignees'],
-    queryFn: () => leadsApi.assignees().then((r) => r.data.data),
+  // Who the commission can be shared with: Reliable Touch picks from every agent, a company
+  // manager from their own team
+  const companyUser = user?.role === 'agency'
+  const { data: shareWith } = useQuery({
+    queryKey: companyUser ? ['agency-team', user?.agencyId] : ['lead-assignees'],
+    queryFn: () => (companyUser
+      ? agenciesApi.myTeam().then((r) => r.data.data.team)
+      : leadsApi.assignees().then((r) => r.data.data.agents ?? [])),
     staleTime: 60_000,
-    enabled: isAdmin,
+    enabled: canMoney,
+    select: (list) => (list ?? []).filter((a) => a.isActive !== false),
   })
 
   const splitTotal = ['agentPct', 'agencyPct', 'reliablePct', 'sharedAgentPct'].reduce((s, k) => s + (Number(f.split[k]) || 0), 0)
   const yn = (v) => (v === '' ? null : v === 'yes')
   const mut = useMutation({
-    mutationFn: () => leadsApi.updateDeal(lead._id, {
+    mutationFn: () => leadsApi.updateDeal(lead._id, !canMoney ? { tenantName: f.tenantName, tenantPhone: f.tenantPhone, notes: f.notes } : {
       tenantName: f.tenantName, tenantPhone: f.tenantPhone,
       ...Object.fromEntries(MONEY.map(([k]) => [k, f[k] === '' ? null : f[k]])),
       clientPayment: f.clientPayment || null, landlordPayment: f.landlordPayment || null,
       occupationDate: f.occupationDate || null, managed: yn(f.managed), deskFee: f.deskFee || null,
       agentCommissionPaid: yn(f.agentCommissionPaid), notes: f.notes,
-      ...(isAdmin ? { split: { ...f.split, sharedAgentId: f.split.sharedAgentId || null } } : {}),
+      split: { ...f.split, sharedAgentId: f.split.sharedAgentId || null },
     }),
     onSuccess: (res) => {
       toast.success('Deal saved')
@@ -96,6 +106,8 @@ export default function LeadDealCard({ lead, isAdmin, onSaved }) {
           <div><label className={label}>Tenant / buyer</label><input value={f.tenantName} onChange={(e) => set('tenantName', e.target.value)} className={input} /></div>
           <div><label className={label}>Tenant phone</label><input value={f.tenantPhone} onChange={(e) => set('tenantPhone', e.target.value)} className={input} /></div>
         </div>
+        {!canMoney && <p className="flex items-center gap-1.5 text-[11px] text-[#9CA3AF]"><Lock className="w-3 h-3" /> The money, payments and dates are filled in by your manager or Reliable Touch.</p>}
+        <fieldset disabled={!canMoney} className="space-y-4 min-w-0">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {MONEY.map(([k, l]) => (
             <div key={k}><label className={label}>{l} (R)</label><input type="number" min="0" step="0.01" value={f[k]} onChange={(e) => set(k, e.target.value)} className={input} /></div>
@@ -117,15 +129,16 @@ export default function LeadDealCard({ lead, isAdmin, onSaved }) {
           <div><label className={label}>Agent commission paid</label>
             <select value={f.agentCommissionPaid} onChange={(e) => set('agentCommissionPaid', e.target.value)} className={input}><option value="">—</option><option value="yes">Paid</option><option value="no">Pending</option></select></div>
         </div>
+        </fieldset>
         <div><label className={label}>Deal notes</label><textarea rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} className={`${input} resize-none`} /></div>
 
-        {/* Split — admin only */}
+        {/* Split — Reliable Touch and the company's managers */}
         <div className="rounded-xl border border-dashed border-[#E5E7EB] dark:border-[#2A2A2A] p-3">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-[#111111] dark:text-white mb-2">
             <Percent className="w-3.5 h-3.5 text-[#F95C4B]" /> Commission split
-            {!isAdmin && <span className="ml-auto flex items-center gap-1 text-[10px] font-normal text-[#9CA3AF]"><Lock className="w-3 h-3" /> Set by Reliable Touch admin</span>}
+            {!canMoney && <span className="ml-auto flex items-center gap-1 text-[10px] font-normal text-[#9CA3AF]"><Lock className="w-3 h-3" /> Set by your manager or Reliable Touch</span>}
           </p>
-          {isAdmin ? (
+          {canMoney ? (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="col-span-2 sm:col-span-4"><label className={label}>Name (optional)</label><input value={f.split.label} onChange={(e) => setSplit('label', e.target.value)} placeholder="e.g. Standard 80/20, Shared 50/50" className={input} /></div>
@@ -136,7 +149,7 @@ export default function LeadDealCard({ lead, isAdmin, onSaved }) {
                 <div className="col-span-2 sm:col-span-4"><label className={label}>Shared with agent</label>
                   <select value={f.split.sharedAgentId} onChange={(e) => setSplit('sharedAgentId', e.target.value)} className={input}>
                     <option value="">Nobody</option>
-                    {(assignees?.agents ?? []).map((a) => <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>)}
+                    {(shareWith ?? []).map((a) => <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>)}
                   </select>
                 </div>
               </div>

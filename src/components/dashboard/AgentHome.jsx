@@ -18,7 +18,7 @@ import { DiaryRow } from '../../pages/agency/DiaryPage'
 // An agent's home: where they stand, today's goal, a button for each everyday job (each opens
 // right here), the next three things worth doing, today's diary and the landlord promise —
 // then the pipeline, map, temperature and last 30 days from the company overview. What's new
-// lives on the bell; tenants on Leads › Tenants; visits in the Diary. Colours follow the
+// lives on the bell; tenants on Leads › Applications; visits in the Diary. Colours follow the
 // company's brand (CSS brand variables).
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' }

@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Sparkles, PhoneOutgoing, AlarmClock, FileText, Handshake, Award, Trophy, MessageSquare, TrendingUp,
   CalendarCheck, LayoutDashboard, Users, Gauge, Building2, Rocket, Flame, Megaphone, HelpCircle, KeyRound,
-  Home, Phone, CalendarDays, Target, Search, Plus, Bell,
+  Home, Phone, CalendarDays, Target, Search, Plus, Bell, BookUser,
   ArrowLeft, ArrowRight, X, Check, ChevronRight,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
@@ -17,7 +17,7 @@ import { useAgencyBrand } from '../../lib/useAgencyBrand'
 const ICONS = {
   Sparkles, PhoneOutgoing, AlarmClock, FileText, Handshake, Award, Trophy, MessageSquare, TrendingUp,
   CalendarCheck, LayoutDashboard, Users, Gauge, Building2, Rocket, Flame, Megaphone, KeyRound,
-  Home, Phone, CalendarDays, Target, Search, Plus, Bell,
+  Home, Phone, CalendarDays, Target, Search, Plus, Bell, BookUser,
 }
 
 const OPEN_EVENT = 'rt:open-tour'

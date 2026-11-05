@@ -655,7 +655,8 @@ export default function UsersPage() {
   const [search,          setSearch]          = useState('')
   const [roleFilter,      setRole]            = useState('')
   const [sort,            setSort]            = useState('-createdAt')
-  const [drawer,          setDrawer]          = useState(null)
+  // ?new=1 (Home's "Add a person") opens the new-user form straight away
+  const [drawer,          setDrawer]          = useState(() => (new URLSearchParams(window.location.search).get('new') === '1' ? { mode: 'create' } : null))
   const [toDelete,        setToDelete]        = useState(null)
   const [toResetPassword, setToResetPassword] = useState(null)
   const qc = useQueryClient()

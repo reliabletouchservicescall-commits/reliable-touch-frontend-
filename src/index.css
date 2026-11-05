@@ -350,3 +350,24 @@ button[data-lead-selected], div[role="button"][data-lead-selected] { border-colo
 
 /* The floating chat button steps aside while a side panel is open (it would cover its Save button) */
 body:has([data-lead-dialog]) .chat-fab { display: none; }
+
+/* ─── The browser's own controls follow the theme ─────────────────────────
+   Date / month / time boxes, their calendar icon and pop-up, the open list of a <select>,
+   checkboxes and radios are drawn by the browser. color-scheme tells it which theme is on,
+   so in dark mode the icon turns light and the lists turn dark instead of vanishing.
+   accent-color is the brand coral, which postcss-brand-vars turns into the company's colour. */
+:root { color-scheme: light; accent-color: #F95C4B; }
+.dark { color-scheme: dark; }
+
+input[type="date"], input[type="month"], input[type="time"], input[type="week"], input[type="datetime-local"] {
+  min-height: 2.25rem;
+}
+input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.75; }
+input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+/* An empty date box: the dd/mm/yyyy hint is readable but quieter than a real date */
+input[type="date"]:invalid::-webkit-datetime-edit, input[type="month"]:invalid::-webkit-datetime-edit { color: #9CA3AF; }
+
+/* The open list of a dropdown: readable in both themes, the picked one in the brand colour */
+select option { background-color: #FFFFFF; color: #111111; }
+.dark select option { background-color: #181818; color: #F5F5F4; }
+select option:checked { background-color: #F95C4B; color: #FFFFFF; }

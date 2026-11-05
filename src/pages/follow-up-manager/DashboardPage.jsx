@@ -4,15 +4,17 @@ import { useQuery } from '@tanstack/react-query'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
   Flame, AlertTriangle, Clock, Building2, MessageSquareText, CalendarCheck, RefreshCw, Trophy, Crown,
-  ArrowRight, Hourglass,
+  ArrowRight, Hourglass, AlarmClock, CalendarClock, BellRing, BarChart3, ChevronDown,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
+import { ActionTiles } from '../../components/dashboard/AgentHome'
+import { useAgentActions } from '../../components/agent/AgentActions'
 import { useTheme } from '../../context/ThemeContext'
 import AnimatedNumber from '../../components/dashboard/AnimatedNumber'
 import {
   Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Hero, Milestone, Kpi, Pipeline, Donut, TrendChart,
-  ChartLegend, ScopedProvinceCard, TodaysTasks, PhotoCard, UpcomingVisits, CompanySnapshot, CORAL, CORAL_3,
+  ChartLegend, ScopedProvinceCard, TodaysTasks, UpcomingVisits, CompanySnapshot, CORAL, CORAL_3,
 } from '../../components/dashboard/DashboardKit'
 import { CORAL_DEEP } from '../../lib/brand'
 
@@ -194,6 +196,9 @@ export default function FollowUpManagerDashboard() {
   const navigate = useNavigate()
   const [now, setNow] = useState(() => new Date())
   const freshRef = useRef(false)
+  const actions = useAgentActions()
+  const [more, setMore] = useState(() => { try { return localStorage.getItem('rt-fum-more') === '1' } catch { return false } })
+  const toggleMore = () => setMore((v) => { try { localStorage.setItem('rt-fum-more', v ? '0' : '1') } catch { /* private mode */ } return !v })
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000)
@@ -219,7 +224,7 @@ export default function FollowUpManagerDashboard() {
     { icon: Clock, label: 'Never followed up', value: k?.neverFollowed, sub: 'No note logged yet', to: '/follow-up-manager/leads?focus=never_followed_up', tone: '#111111' },
     { icon: Building2, label: 'Need an agency', value: k?.noAgency, sub: `${k?.withAgency ?? 0} already with one`, to: '/follow-up-manager/leads?focus=no_agent', tone: '#F59E0B' },
     { icon: MessageSquareText, label: 'Your follow-ups', value: k?.mineWeek, sub: `This week · today ${k?.mineToday ?? 0}`, to: '/follow-up-manager/leads' },
-    { icon: CalendarCheck, label: 'Visits booked', value: k?.apptsUpcoming, sub: `Today ${k?.apptsToday ?? 0}`, to: '/follow-up-manager/appointments', tone: '#10B981' },
+    { icon: CalendarCheck, label: 'Visits booked', value: k?.apptsUpcoming, sub: `Today ${k?.apptsToday ?? 0}`, to: '/follow-up-manager/diary?tab=appointments', tone: '#10B981' },
   ], [k])
 
   const stageTo = {
@@ -227,33 +232,62 @@ export default function FollowUpManagerDashboard() {
     touched: '/follow-up-manager/leads?focus=never_followed_up',
     dated: '/follow-up-manager/leads?focus=no_followup_date',
     agency: '/follow-up-manager/leads?focus=no_agent',
-    visits: '/follow-up-manager/appointments',
+    visits: '/follow-up-manager/diary?tab=appointments',
   }
   const recencyColor = (key) => (key === 'never' && isDark ? '#F5F5F4' : RECENCY_COLORS[key])
   const pickRecency = (key) => { if (key === 'never') navigate('/follow-up-manager/leads?focus=never_followed_up') }
 
+  // The jobs a follow-up manager does all day — one button each, lit up when something waits
+  const jobs = [
+    { key: 'overdue', label: 'Overdue follow-ups', icon: AlarmClock, hot: (k?.overdue ?? 0) > 0, sub: k ? `${(k.overdue ?? 0).toLocaleString()} late — oldest first` : 'Hot leads past their date', go: () => navigate('/follow-up-manager/leads?focus=overdue') },
+    { key: 'today', label: 'Due today', icon: CalendarClock, sub: k ? `${(k.dueToday ?? 0).toLocaleString()} to follow up today` : 'Today’s follow-ups', go: () => navigate('/follow-up-manager/leads?focus=due_today') },
+    { key: 'never', label: 'Never followed up', icon: Clock, sub: k ? `${(k.neverFollowed ?? 0).toLocaleString()} with no note yet` : 'New hot leads', go: () => navigate('/follow-up-manager/leads?focus=never_followed_up') },
+    { key: 'agency', label: 'Hand to an agency', icon: Building2, sub: k ? `${(k.noAgency ?? 0).toLocaleString()} ready leads with no agency` : 'Give ready leads to an agent', go: () => navigate('/follow-up-manager/leads?focus=no_agent') },
+    { key: 'viewings', label: 'Viewings', icon: CalendarCheck, sub: k?.apptsToday ? `${k.apptsToday} today · ${k.apptsUpcoming ?? 0} coming up` : `${k?.apptsUpcoming ?? 0} coming up`, go: () => navigate('/follow-up-manager/diary?tab=appointments') },
+    { key: 'reminder', label: 'Add a reminder', icon: BellRing, sub: 'Call a landlord at 10:00…', go: () => actions?.open('reminder') },
+  ]
+
   return (
-    <div className="p-4 sm:p-6 xl:p-8">
+    <div className="p-4 sm:p-6 xl:p-8 space-y-6">
+      {/* Hello, today's numbers, the goal */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+        <Hero
+          user={user}
+          now={now}
+          eyebrow="Follow-up"
+          subtitle="Call the landlord, find out if they're ready, hand ready leads to an agency."
+          stats={[
+            { icon: Flame, label: 'hot leads', value: k?.hot, to: '/follow-up-manager/leads' },
+            { icon: AlertTriangle, label: 'overdue', value: k?.overdue, to: '/follow-up-manager/leads?focus=overdue' },
+            { icon: CalendarCheck, label: 'visits today', value: k?.apptsToday, to: '/follow-up-manager/diary?tab=appointments' },
+          ]}
+        />
+        {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o.milestone} to="/follow-up-manager/leads?focus=never_followed_up" />}
+      </div>
+
+      {isError && !o && <ErrorBanner onRetry={() => refetch()} />}
+
+      {/* Everyday jobs — one button each */}
+      <ActionTiles items={jobs} />
+
+      {/* Your queue — most urgent first */}
+      <Card delay={140} className="p-5">
+        <CardTitle title="Your queue" subtitle="Overdue first (oldest first), then hot leads nobody has followed up — tap one to work it" action={<LinkButton to="/follow-up-manager/leads?focus=overdue">All overdue</LinkButton>} />
+        {!o ? <Skeleton className="h-[300px]" /> : <PriorityQueue queue={o.queue} />}
+      </Card>
+
+      <div className="flex justify-center">
+        <button type="button" onClick={toggleMore} aria-expanded={more}
+          className="mac-press flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] text-[#111111] dark:text-white hover:border-[#F95C4B]/40 hover:text-[#F95C4B]">
+          <BarChart3 className="w-4 h-4" /> {more ? 'Hide the numbers' : 'Show all the numbers'}
+          <ChevronDown className={`w-4 h-4 transition-transform ${more ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {more && (
       <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] xl:grid-cols-[1fr_320px] gap-6">
         {/* ── Main column ─────────────────────────────────────────────── */}
         <div className="space-y-6 min-w-0">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-            <Hero
-              user={user}
-              now={now}
-              eyebrow="Follow-up"
-              subtitle="The fortune is in the follow-up. Here's your hot-lead queue today."
-              stats={[
-                { icon: Flame, label: 'hot leads', value: k?.hot, to: '/follow-up-manager/leads' },
-                { icon: AlertTriangle, label: 'overdue', value: k?.overdue, to: '/follow-up-manager/leads?focus=overdue' },
-                { icon: CalendarCheck, label: 'visits today', value: k?.apptsToday, to: '/follow-up-manager/appointments' },
-              ]}
-            />
-            {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o.milestone} to="/follow-up-manager/leads?focus=never_followed_up" />}
-          </div>
-
-          {isError && !o && <ErrorBanner onRetry={() => refetch()} />}
-
           <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4">
             {!o
               ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[140px]" />)
@@ -309,11 +343,6 @@ export default function FollowUpManagerDashboard() {
             </Card>
           </div>
 
-          <Card delay={320} className="p-5">
-            <CardTitle title="Priority queue" subtitle="Overdue first (oldest date first), then hot leads nobody has followed up — tap one to work it" action={<LinkButton to="/follow-up-manager/leads?focus=overdue">All overdue</LinkButton>} />
-            {!o ? <Skeleton className="h-[300px]" /> : <PriorityQueue queue={o.queue} />}
-          </Card>
-
           <CompanySnapshot company={o?.company} isDark={isDark} delay={340} />
         </div>
 
@@ -334,19 +363,12 @@ export default function FollowUpManagerDashboard() {
           </Card>
           <StandingCard standing={o?.standing} kpis={k} />
           <Card delay={200} className="p-5">
-            <CardTitle title="Upcoming visits" subtitle={`${(k?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/follow-up-manager/appointments">All</LinkButton>} />
-            {!o ? <Skeleton className="h-[200px]" /> : <UpcomingVisits visits={o.upcomingVisits} showAgent leadPath={(id) => `/follow-up-manager/leads/${id}`} allTo="/follow-up-manager/appointments" />}
+            <CardTitle title="Upcoming visits" subtitle={`${(k?.apptsUpcoming ?? 0).toLocaleString()} booked from today`} action={<LinkButton to="/follow-up-manager/diary?tab=appointments">All</LinkButton>} />
+            {!o ? <Skeleton className="h-[200px]" /> : <UpcomingVisits visits={o.upcomingVisits} showAgent leadPath={(id) => `/follow-up-manager/leads/${id}`} allTo="/follow-up-manager/diary?tab=appointments" />}
           </Card>
-          <PhotoCard
-            eyebrow="Hot leads are waiting"
-            title="A quick follow-up keeps a deal warm"
-            text={<><b className="text-white">{(k?.overdue ?? 0).toLocaleString()}</b> hot leads are past their follow-up date and <b className="text-white">{(k?.neverFollowed ?? 0).toLocaleString()}</b> have never had a note.</>}
-            to="/follow-up-manager/leads?focus=overdue"
-            buttonLabel="Work the overdue list"
-            icon={AlertTriangle}
-          />
         </aside>
       </div>
+      )}
     </div>
   )
 }

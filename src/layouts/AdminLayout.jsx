@@ -1,96 +1,36 @@
 import { useState, useEffect } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import logo from '../assets/logo-reliable-touch.png'
-import {
-  Building2,
-  LayoutDashboard,
-  Users,
-  BookUser,
-  TrendingUp,
-  Megaphone,
-  PhoneCall,
-  PhoneOff,
-  CalendarCheck,
-  UserCheck,
-  DollarSign,
-  RotateCcw,
-  MapPin,
-  Bell,
-  MessageSquare,
-  LogOut,
-  Sun,
-  Moon,
-  Menu,
-  X,
-  ChevronRight,
-  Shield,
-  Briefcase,
-  Trophy,
-  Handshake,
-  BarChart2,
-  ShieldCheck,
-  Trash2,
-  KeyRound,
-} from 'lucide-react'
-import { useTheme } from '../context/ThemeContext'
+import { Home, TrendingUp, CalendarCheck, BookUser, Users, Building2, BarChart2, Menu, X, ChevronRight } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import { authApi } from '../services/authApi'
 import NotificationBell from '../components/notifications/NotificationBell'
 import OnboardingTour, { TourButton } from '../components/onboarding/OnboardingTour'
+import PageErrorBoundary from '../components/common/PageErrorBoundary'
+import { GlobalSearch, AvatarMenu, MessagesButton } from '../components/agent/TopBar'
 import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
+import { AgentActionsProvider } from '../components/agent/AgentActions'
 import { useSocket } from '../context/SocketContext'
 
+// Admin's whole portal: seven places. Everything else lives inside them as tabs — Leads has the
+// Deal Tracker, applications and lease renewals; Contacts has who calls what, the call log,
+// campaigns, areas and do-not-call; Team has performance, people and sign-ins; Agencies has the
+// agents and commissions — or on the top bar (search, messages, the bell, the avatar menu with
+// the Bin).
 const NAV = [
-  {
-    group: 'Overview',
-    items: [
-      { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
-      { label: 'Leads', icon: TrendingUp, to: '/admin/leads' },
-      { label: 'Appointments', icon: CalendarCheck, to: '/admin/appointments' },
-      { label: 'Performance', icon: Trophy, to: '/admin/performance' },
-      { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
-      { label: 'Reports', icon: BarChart2, to: '/admin/reports' },
-      { label: 'Deal Tracker', icon: Handshake, to: '/admin/deal-tracker' },
-      { label: 'Tenants', icon: KeyRound, to: '/admin/tenants' },
-    ],
-  },
-  {
-    group: 'CRM',
-    items: [
-      { label: 'Campaigns', icon: Megaphone, to: '/admin/campaigns' },
-      { label: 'Call Logs', icon: PhoneCall, to: '/admin/call-logs' },
-      { label: 'Caller Workload', icon: Users, to: '/admin/caller-workload' },
-      { label: 'Do Not Call', icon: PhoneOff, to: '/admin/dnc' },
-    ],
-  },
-  {
-    group: 'Operations',
-    items: [
-      { label: 'Agents', icon: Briefcase, to: '/admin/agents' },
-      { label: 'Commissions', icon: DollarSign, to: '/admin/commissions' },
-      { label: 'Lease Renewals', icon: RotateCcw, to: '/admin/lease-renewals' },
-    ],
-  },
-  {
-    group: 'Management',
-    items: [
-      { label: 'Users', icon: Users, to: '/admin/users' },
-      { label: 'Login Activity', icon: ShieldCheck, to: '/admin/login-activity' },
-      { label: 'Agencies', icon: Building2, to: '/admin/agencies' },
-      { label: 'Areas', icon: MapPin, to: '/admin/areas' },
-      { label: 'Notifications', icon: Bell, to: '/admin/notifications' },
-      { label: 'Messages', icon: MessageSquare, to: '/admin/chat', hasBadge: true },
-      { label: 'Bin', icon: Trash2, to: '/admin/bin' },
-    ],
-  },
+  { label: 'Home', icon: Home, to: '/admin', end: true },
+  { label: 'Leads', icon: TrendingUp, to: '/admin/leads' },
+  { label: 'Calendar', icon: CalendarCheck, to: '/admin/appointments' },
+  { label: 'Contacts', icon: BookUser, to: '/admin/contacts' },
+  { label: 'Team', icon: Users, to: '/admin/team' },
+  { label: 'Agencies', icon: Building2, to: '/admin/agencies' },
+  { label: 'Reports', icon: BarChart2, to: '/admin/reports' },
 ]
 
-function NavItem({ icon: Icon, label, to, collapsed, onClick, hasBadge }) {
-  const { chatUnread } = useSocket()
+function NavItem({ icon: Icon, label, to, end, collapsed, onClick }) {
   return (
     <NavLink
       to={to}
-      end={to === '/admin'}
+      end={end}
       onClick={onClick}
       className={({ isActive }) =>
         `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -100,46 +40,13 @@ function NavItem({ icon: Icon, label, to, collapsed, onClick, hasBadge }) {
         }`
       }
     >
-      <div className="relative flex-shrink-0">
-        <Icon
-          className={`w-[18px] h-[18px] ${collapsed ? 'mx-auto' : ''}`}
-          strokeWidth={1.75}
-        />
-        {hasBadge && chatUnread > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">
-            {chatUnread > 99 ? '99+' : chatUnread}
-          </span>
-        )}
-      </div>
-      {!collapsed && (
-        <span className="flex-1 truncate flex items-center gap-2">
-          {label}
-          {hasBadge && chatUnread > 0 && (
-            <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#F95C4B] text-white text-[9px] font-bold flex items-center justify-center">
-              {chatUnread > 99 ? '99+' : chatUnread}
-            </span>
-          )}
-        </span>
-      )}
+      <Icon className={`flex-shrink-0 w-[18px] h-[18px] ${collapsed ? 'mx-auto' : ''}`} strokeWidth={1.75} />
+      {!collapsed && <span className="truncate">{label}</span>}
     </NavLink>
   )
 }
 
 function Sidebar({ collapsed, onClose, isMobile }) {
-  const { user, clearAuth } = useAuthStore()
-  const { theme, toggle } = useTheme()
-  const navigate = useNavigate()
-
-  async function handleLogout() {
-    try { await authApi.logout() } catch { /* ignore */ }
-    clearAuth()
-    navigate('/select-role', { replace: true })
-  }
-
-  const initials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
-    : 'A'
-
   return (
     <aside
       className={`flex flex-col h-full bg-white dark:bg-[#181818] border-r border-[#E5E7EB] dark:border-[#2A2A2A] transition-all duration-300 ${
@@ -148,109 +55,37 @@ function Sidebar({ collapsed, onClose, isMobile }) {
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <img
-          src={logo}
-          alt="Reliable Touch"
-          className="flex-shrink-0 w-8 h-8 rounded-lg object-contain"
-        />
+        <img src={logo} alt="Reliable Touch" className="flex-shrink-0 w-8 h-8 rounded-lg object-contain" />
         {(!collapsed || isMobile) && (
           <div className="min-w-0">
-            <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm">
-              Reliable Touch
-            </p>
-            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#F95C4B]">
-              Admin Portal
-            </p>
+            <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm">Reliable Touch</p>
+            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#F95C4B]">Admin</p>
           </div>
         )}
         {isMobile && (
-          <button
-            onClick={onClose}
-            className="ml-auto text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white"
-          >
+          <button onClick={onClose} aria-label="Close menu" className="ml-auto text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white">
             <X className="w-5 h-5" />
           </button>
         )}
       </div>
 
       {/* Nav */}
-      <nav className="thin-scroll flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {NAV.map(({ group, items }) => (
-          <div key={group}>
-            {(!collapsed || isMobile) && (
-              <p className="text-[9px] font-semibold tracking-widest text-[#6B7280]/60 dark:text-[#A1A1AA]/50 uppercase px-3 mb-1.5">
-                {group}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {items.map((item) => (
-                <li key={item.to}>
-                  <NavItem
-                    {...item}
-                    collapsed={collapsed && !isMobile}
-                    onClick={isMobile ? onClose : undefined}
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+      <nav className="thin-scroll flex-1 overflow-y-auto px-3 py-4">
+        <ul className="space-y-1">
+          {NAV.map((item) => (
+            <li key={item.to}>
+              <NavItem {...item} collapsed={collapsed && !isMobile} onClick={isMobile ? onClose : undefined} />
+            </li>
+          ))}
+        </ul>
       </nav>
-
-      {/* Footer */}
-      <div className="px-3 pb-4 pt-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A] space-y-1">
-        <button
-          onClick={toggle}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white"
-        >
-          {theme === 'dark' ? (
-            <Sun className="flex-shrink-0 w-[18px] h-[18px]" strokeWidth={1.75} />
-          ) : (
-            <Moon className="flex-shrink-0 w-[18px] h-[18px]" strokeWidth={1.75} />
-          )}
-          {(!collapsed || isMobile) && <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
-        </button>
-
-        {(!collapsed || isMobile) && (
-          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#F95C4B]/15 flex items-center justify-center">
-              <span className="text-[10px] font-bold text-[#F95C4B]">{initials}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-[#111111] dark:text-white truncate">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <div className="flex items-center gap-1">
-                <Shield className="w-2.5 h-2.5 text-[#F95C4B]" />
-                <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate">Admin</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Logout"
-              className="flex-shrink-0 text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B] dark:hover:text-[#F95C4B]"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {collapsed && !isMobile && (
-          <button
-            onClick={handleLogout}
-            title="Logout"
-            className="w-full flex items-center justify-center py-2.5 rounded-xl text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#F95C4B] dark:hover:text-[#F95C4B]"
-          >
-            <LogOut className="w-[18px] h-[18px]" strokeWidth={1.75} />
-          </button>
-        )}
-      </div>
     </aside>
   )
 }
 
 export default function AdminLayout() {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { onlineUsers } = useSocket()
   const me = useAuthStore((st) => st.user?._id)
   const othersOnline = [...(onlineUsers ?? [])].filter((id) => id !== me).length
@@ -268,6 +103,8 @@ export default function AdminLayout() {
   }, [])
 
   return (
+    // The reminder form (Calendar › Add a reminder) opens through the same provider as agents'
+    <AgentActionsProvider>
     <div className="flex h-screen bg-[#FAFAF9] dark:bg-[#0B0B0B] overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden lg:flex flex-col flex-shrink-0">
@@ -276,20 +113,9 @@ export default function AdminLayout() {
         </div>
       </div>
 
-      {/* Mobile drawer overlay */}
-      {mobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
       {/* Mobile drawer */}
-      <div
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 flex flex-col transition-transform duration-300 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
+      {mobileOpen && <div className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />}
+      <div className={`lg:hidden fixed inset-y-0 left-0 z-50 flex flex-col transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar isMobile onClose={() => setMobileOpen(false)} />
       </div>
 
@@ -297,45 +123,41 @@ export default function AdminLayout() {
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Top bar */}
         <header className="flex-shrink-0 flex items-center gap-3 px-4 sm:px-6 py-4 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-          {/* Desktop collapse toggle */}
           <button
             onClick={() => setCollapsed((v) => !v)}
             className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white"
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
-
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]"
-          >
+          <button onClick={() => setMobileOpen(true)} aria-label="Menu"
+            className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
             <Menu className="w-4 h-4" />
           </button>
 
-          <div className="flex-1" />
+          <div className="flex-1 min-w-0 flex justify-end sm:justify-start"><GlobalSearch /></div>
 
-          {/* Who else is in the system right now — the dashboard's floor has the detail */}
-          <button type="button" onClick={() => navigate('/admin')} title="People online now — see the dashboard's floor"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#10B981]/10 text-[#059669] dark:text-[#34D399] border border-[#10B981]/20 hover:bg-[#10B981]/15 transition-colors">
+          {/* Who else is in the system right now — the Home floor has the detail */}
+          <button type="button" onClick={() => navigate('/admin')} title="People online now"
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#10B981]/10 text-[#059669] dark:text-[#34D399] border border-[#10B981]/20 hover:bg-[#10B981]/15 transition-colors">
             <span className="relative flex w-2 h-2"><span className="absolute inset-0 rounded-full bg-current animate-ping opacity-50" /><span className="relative w-2 h-2 rounded-full bg-current" /></span>
             {othersOnline} online
           </button>
 
-          <span className="hidden sm:block text-[10px] uppercase tracking-widest font-medium text-[#6B7280] dark:text-[#A1A1AA]">
-            Admin Portal
-          </span>
-
           <TourButton />
-          <NotificationBell />
+          <MessagesButton to="/admin/chat" />
+          <NotificationBell seeAllTo="/admin/notifications" />
+          <AvatarMenu />
         </header>
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
-          <Outlet />
+          <PageErrorBoundary key={pathname}>
+            <Outlet />
+          </PageErrorBoundary>
         </main>
       </div>
       <OnboardingTour />
     </div>
+    </AgentActionsProvider>
   )
 }

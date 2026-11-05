@@ -7,7 +7,7 @@
 //            control; spotlighted when it's on screen
 //   to/cta  — a button that opens that page (closes the tour first)
 //   checklist — the closing "get set up" list: [{ label, sub, to, done? }]
-export const TOUR_VERSION = 5
+export const TOUR_VERSION = 11
 
 const welcome = (who, what) => ({
   icon: 'Sparkles',
@@ -17,25 +17,23 @@ const welcome = (who, what) => ({
 })
 
 const COLD_CALLER = [
-  welcome('Reliable Touch', 'You find landlords and sellers, turn them into leads and earn points when they sign. Here is where everything lives.'),
-  { icon: 'PhoneOutgoing', target: '/cold-caller/call-mode', title: 'Call mode', body: 'Your calling session: the next contact, one tap to call, and how many calls you still need today to reach #1.' },
-  { icon: 'AlarmClock', target: '/cold-caller/callbacks', title: 'Callbacks', body: 'Everyone who said "call me back", sorted by the time they asked for. Overdue ones float to the top.' },
-  { icon: 'FileText', target: '/cold-caller/leads', title: 'My leads', body: 'Every lead you created. Open one to see the full story, chat to the team in Follow-up chat and add appointments.', to: '/cold-caller/leads?new=1', cta: 'Create a lead' },
-  { icon: 'Handshake', target: '/cold-caller/deal-tracker', title: 'Deal Tracker', body: 'Follow your leads from viewing to signed lease or sale. A deal that closes earns you points.' },
-  { icon: 'KeyRound', target: '/cold-caller/tenants', title: 'Tenants', body: 'Someone wants to rent a listed property? Add them by name and send their private link — they apply, upload documents and sign on their phone, and you see every step.' },
-  { icon: 'Award', target: '/cold-caller/progress', title: 'My progress', body: 'Your points, what each listed lead can still earn you, and who is working it right now.' },
-  { icon: 'Trophy', target: '/cold-caller/leaderboard', title: 'Leaderboard', body: 'See where you rank today, this week and this month.' },
-  { icon: 'MessageSquare', target: '/cold-caller/chat', title: 'Messages & notifications', body: 'Chat with the team, and the bell tells you the moment something happens on your leads.' },
+  welcome('Reliable Touch', 'You find landlords and sellers, turn them into leads and earn points when they sign. Everything lives in five places. Here is the quick tour.'),
+  { icon: 'Home', target: '/cold-caller', title: 'Home', body: 'Your day: how many calls you have made, the next owner with one big Call button, and a button for each job — callbacks, a new lead, your leads, viewings and your progress.' },
+  { icon: 'Phone', target: '/cold-caller/calls', title: 'Calls', body: 'Call next, the callbacks owners asked for, all your contacts, the calls you made and the do-not-call list — in tabs. Today’s campaign shows on top.' },
+  { icon: 'TrendingUp', target: '/cold-caller/leads', title: 'My leads', body: 'Every lead you found, how each deal is going (Deal Tracker), the tenants applying and the viewings booked.', to: '/cold-caller/leads?new=1', cta: 'Create a lead' },
+  { icon: 'CalendarDays', target: '/cold-caller/diary', title: 'Diary', body: 'A calendar of your callbacks, the follow-ups and viewings on leads you found, those leads moving forward, and your own reminders — like “call the tenant at 10:00”.' },
+  { icon: 'Award', target: '/cold-caller/progress', title: 'My progress', body: 'Your points, what your leads can still earn you, and where you rank on the leaderboard.' },
+  { icon: 'MessageSquare', target: '[data-tour="messages"]', title: 'Messages and the bell', body: 'The speech bubble opens your chats. The bell tells you the moment something happens on your leads. Dark mode and sign out are under your initials.' },
 ]
 
 const AGENT = (company) => [
-  welcome(company, 'You work the leads your company gets — call, book viewings and close deals. Everything lives in six places. Here is the quick tour.'),
+  welcome(company, 'You work the leads your company gets — call, book viewings and close deals. Everything lives in five places. Here is the quick tour.'),
   { icon: 'Home', target: '/agency', title: 'Home', body: 'Your day: a button for each everyday job — update landlords, start calling, callbacks, add a lead, book a viewing, send a tenant link — and what is due today.' },
+  { icon: 'TrendingUp', target: '/agency/leads', title: 'Leads', body: 'Your leads in three tabs: List, Deal Tracker (each deal stage by stage) and Applications (tenants applying for your listed rentals).' },
   { icon: 'Phone', target: '/agency/calls', title: 'Calls', body: 'Who to call next, the callbacks owners asked for, all your contacts and the do-not-call list — in tabs. Today’s campaign shows on top.' },
-  { icon: 'TrendingUp', target: '/agency/leads', title: 'Leads', body: 'Your leads as a list, as a board stage by stage (the Deal Tracker), and the tenants applying for your listed rentals.' },
-  { icon: 'CalendarDays', target: '/agency/diary', title: 'Diary', body: 'Viewings, callbacks, follow-ups and landlord updates due — by day, week or month. Overdue things sit on today.' },
+  { icon: 'CalendarDays', target: '/agency/diary', title: 'Diary', body: 'A calendar of your viewings, callbacks, follow-ups and landlord updates. Add your own reminders too — like “call the tenant at 10:00” — and the bell rings when it’s time.' },
   { icon: 'Target', target: '/agency/progress', title: 'My progress', body: 'Your points, your rank, your calls against your own daily goal and the milestones you are close to. Reach #1 for the day and you get fireworks.' },
-  { icon: 'MessageSquare', target: '/agency/chat', title: 'Messages', body: 'Chat with your manager and the Reliable Touch team.' },
+  { icon: 'MessageSquare', target: '[data-tour="messages"]', title: 'Messages', body: 'The speech bubble at the top: chat with your manager and the Reliable Touch team.' },
   { icon: 'Plus', target: '[data-tour="new"]', title: 'New, from anywhere', body: 'Add a lead, book a viewing or send a tenant link without leaving the page you are on. Search (Ctrl K) finds any lead or contact.' },
   { icon: 'Bell', target: 'button[aria-label="Notifications"]', title: 'Notifications', body: 'The bell tells you the moment something happens on your leads. Your profile, dark mode and sign out are under your initials.' },
 ]
@@ -43,17 +41,17 @@ const AGENT = (company) => [
 const MANAGER = (company) => [
   welcome(company, 'You run your company on Reliable Touch: your team, every lead and every deal. Here is the quick tour.'),
   { icon: 'Home', target: '/agency', title: 'Home', body: 'Big buttons for the jobs you do every day, what needs you now and who is working. Tap “Show all the numbers” for the charts.' },
-  { icon: 'TrendingUp', target: '/agency/leads', title: 'Leads', body: "Every lead in your company. Use List to find one, Board to see each deal step by step, and Tenants for people renting a listed home.", to: '/agency/leads?new=1', cta: 'Create a lead' },
+  { icon: 'TrendingUp', target: '/agency/leads', title: 'Leads', body: "Every lead in your company. Use List to find one, Deal Tracker to see each deal step by step, and Applications for people renting a listed home.", to: '/agency/leads?new=1', cta: 'Create a lead' },
   { icon: 'CalendarDays', target: '/agency/diary', title: 'Diary', body: "Your team's viewings and meetings in one calendar." },
   { icon: 'Users', target: '/agency/team', title: 'Team', body: 'Add agents, reset passwords and see who is leading this month.', to: '/agency/team', cta: 'Open Team' },
   { icon: 'Phone', target: '/agency/calls', title: 'Calls', body: 'See how much each agent has to call, give out Excel files, then phone owners and do callbacks. Areas and campaigns are here too.' },
-  { icon: 'Bell', target: '[data-tour="new"]', title: '+ New and the bell', body: 'Add a lead, book a viewing or send a tenant link from any page with + New. The bell tells you when something happens.' },
+  { icon: 'Bell', target: '[data-tour="new"]', title: '+ New, messages and the bell', body: 'Add a lead, book a viewing or send a tenant link from any page with + New. The speech bubble opens your messages, and the bell tells you when something happens.' },
 ]
 const AGENCY_ADMIN = (company) => [
   welcome(company, 'As Agency Admin you set up your company: its look, its people and its first leads. Let’s get you going.'),
   { icon: 'Building2', target: '/agency/company-profile', title: 'Make it yours', body: 'Upload your logo and pick your colour — everyone in your company sees your brand instead of ours. Add your registration details while you are there.', to: '/agency/company-profile', cta: 'Set up company profile' },
   { icon: 'Users', target: '/agency/team', title: 'Add your people', body: 'Create a login for each agent or manager. You get their password once to hand over.', to: '/agency/team', cta: 'Add a person' },
-  { icon: 'TrendingUp', target: '/agency/leads', title: 'Create and assign leads', body: 'Add a lead in seconds and give it to an agent. Board shows each deal step by step; Tenants is for people renting a listed home.', to: '/agency/leads?new=1', cta: 'Create a lead' },
+  { icon: 'TrendingUp', target: '/agency/leads', title: 'Create and assign leads', body: 'Add a lead in seconds and give it to an agent. Deal Tracker shows each deal step by step; Applications is for people renting a listed home.', to: '/agency/leads?new=1', cta: 'Create a lead' },
   { icon: 'Phone', target: '/agency/calls', title: 'Calls', body: 'Upload Excel files of owners and give them to your agents to phone. Areas and campaigns live here too.' },
   { icon: 'Home', target: '/agency', title: 'Home', body: 'Big buttons for the jobs you do every day, what needs you now and who is working.' },
   {
@@ -69,22 +67,21 @@ const AGENCY_ADMIN = (company) => [
 ]
 
 const FOLLOW_UP = [
-  welcome('Reliable Touch', 'You keep hot leads moving — follow up, book appointments and hand them to the right company.'),
-  { icon: 'Flame', target: '/follow-up-manager/leads', title: 'Hot leads', body: 'The leads that need a follow-up. Open one to call, comment, assign or book an appointment.' },
-  { icon: 'KeyRound', target: '/follow-up-manager/tenants', title: 'Tenants', body: 'Someone wants to rent a listed property? Add them by name and send their private link — they apply, upload documents and sign on their phone, and you see every step.' },
-  { icon: 'CalendarCheck', target: '/follow-up-manager/appointments', title: 'Appointments', body: 'Every appointment you are managing.' },
-  { icon: 'Megaphone', target: '/follow-up-manager/campaigns', title: 'Campaigns', body: 'The campaigns that leads come from.' },
-  { icon: 'MessageSquare', target: '/follow-up-manager/chat', title: 'Messages', body: 'Chat with cold callers, agents and admin.' },
+  welcome('Reliable Touch', 'You keep hot leads moving — follow up, book viewings and hand them to the right company. Everything lives in three places.'),
+  { icon: 'Home', target: '/follow-up-manager', title: 'Home', body: 'A button for each job — overdue follow-ups, due today, never followed up, hand to an agency, viewings, a reminder — then your queue, most urgent first.' },
+  { icon: 'Flame', target: '/follow-up-manager/leads', title: 'Hot leads', body: 'The leads that need a follow-up. Open one to call, comment, give it to an agency or book a viewing. The Deal Tracker, tenant applications and campaigns are in tabs here.' },
+  { icon: 'CalendarDays', target: '/follow-up-manager/diary', title: 'Diary', body: 'A calendar of follow-ups and viewings on your hot leads, those leads moving on, and your own reminders. The appointments list is the second tab.' },
+  { icon: 'MessageSquare', target: '[data-tour="messages"]', title: 'Messages and the bell', body: 'The speech bubble opens your chats with cold callers, agents and admin. The bell tells you when a lead turns hot or moves.' },
 ]
 
 const ADMIN = [
-  welcome('Reliable Touch admin', 'You see and run everything: leads, people, companies and money.'),
-  { icon: 'TrendingUp', target: '/admin/leads', title: 'Leads', body: 'Every lead in the system — assign, follow and change them.', to: '/admin/leads?new=1', cta: 'Create a lead' },
-  { icon: 'Building2', target: '/admin/agencies', title: 'Agencies', body: 'Create a company and its Agency Admin login. The Agency Admin then brands it and adds their own team.', to: '/admin/agencies', cta: 'Open Agencies' },
-  { icon: 'Users', target: '/admin/users', title: 'Users', body: 'Cold callers, follow-up managers and admins — logins, roles and access.' },
-  { icon: 'KeyRound', target: '/admin/tenants', title: 'Tenants', body: 'Someone wants to rent a listed property? Add them by name and send their private link — they apply, upload documents and sign on their phone, and you see every step.' },
-  { icon: 'Handshake', target: '/admin/deal-tracker', title: 'Deal Tracker', body: 'Every deal across all companies, with documents and points.' },
-  { icon: 'Trophy', target: '/admin/performance', title: 'Performance & reports', body: 'Who is calling, converting and closing.' },
+  welcome('Reliable Touch admin', 'You see and run everything: leads, people, companies and money — from seven places.'),
+  { icon: 'Home', target: '/admin', title: 'Home', body: 'A button for each job you do most — hand out hot leads, contact requests, late follow-ups, upload contacts, add a person, commissions — then what needs you today.' },
+  { icon: 'TrendingUp', target: '/admin/leads', title: 'Leads', body: 'Every lead in the system, the Deal Tracker, tenant applications and lease renewals — in tabs.', to: '/admin/leads?new=1', cta: 'Create a lead' },
+  { icon: 'BookUser', target: '/admin/contacts', title: 'Contacts', body: 'Upload contacts and hand them out, see who calls what and every call made. Campaigns, areas and do-not-call are here too.' },
+  { icon: 'Users', target: '/admin/team', title: 'Team', body: 'How everyone is doing, the people and their logins, and when they signed in.' },
+  { icon: 'Building2', target: '/admin/agencies', title: 'Agencies', body: 'Create a company and its Agency Admin login, see their agents and the commissions.', to: '/admin/agencies', cta: 'Open Agencies' },
+  { icon: 'MessageSquare', target: '[data-tour="messages"]', title: 'Messages, the bell and the Bin', body: 'The speech bubble opens your chats and the bell your notifications. The Bin (deleted items) is under your initials.' },
 ]
 
 // `company` — the company's name, for its own people's welcome

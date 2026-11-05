@@ -4,7 +4,6 @@ import {
   CalendarDays,
   Home,
   Phone,
-  MessageSquare,
   Menu,
   ChevronRight,
   Target,
@@ -16,36 +15,33 @@ import logo from '../assets/logo-reliable-touch.png'
 import { useAuthStore } from '../store/authStore'
 import NotificationBell from '../components/notifications/NotificationBell'
 import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
-import { useSocket } from '../context/SocketContext'
 import { useAgencyBrand } from '../lib/useAgencyBrand'
 import PageErrorBoundary from '../components/common/PageErrorBoundary'
 import OnboardingTour, { TourButton } from '../components/onboarding/OnboardingTour'
 import { AgentActionsProvider } from '../components/agent/AgentActions'
-import { GlobalSearch, NewMenu, AvatarMenu } from '../components/agent/TopBar'
+import { GlobalSearch, NewMenu, AvatarMenu, MessagesButton } from '../components/agent/TopBar'
 import { useAgentHome } from '../components/agent/useAgentHome'
 
-// An agent's whole portal: six places. Everything else lives inside them (Calls has Call
+// An agent's whole portal: five places. Everything else lives inside them (Calls has Call
 // mode, Callbacks, Contacts and Do not call; Leads has the board and tenants; Diary has the
-// appointments) or on the top bar (search, + New, the bell, the avatar menu).
+// appointments) or on the top bar (search, + New, messages, the bell, the avatar menu).
 const AGENT_NAV = [
   { label: 'Home', icon: Home, to: '/agency', end: true },
-  { label: 'Calls', icon: Phone, to: '/agency/calls', badge: 'calls' },
   { label: 'Leads', icon: TrendingUp, to: '/agency/leads' },
+  { label: 'Calls', icon: Phone, to: '/agency/calls', badge: 'calls' },
   { label: 'Diary', icon: CalendarDays, to: '/agency/diary', badge: 'diary' },
   { label: 'My progress', icon: Target, to: '/agency/progress' },
-  { label: 'Messages', icon: MessageSquare, to: '/agency/chat', hasBadge: true },
 ]
 
-// A company manager's portal: the same six places, with Team in place of My progress. Calls
-// also holds the calling workload, Excel files, areas and campaigns; Team holds the people
-// and the leaderboard. The Agency Admin gets a seventh — the company profile (name, logo, colour).
+// A company manager's portal: five places, with Team in place of My progress. Calls also
+// holds the calling workload, Excel files, areas and campaigns; Team holds the people and the
+// leaderboard. The Agency Admin gets a sixth — the company profile (name, logo, colour).
 const MANAGER_NAV = [
   { label: 'Home', icon: Home, to: '/agency', end: true },
   { label: 'Leads', icon: TrendingUp, to: '/agency/leads' },
   { label: 'Diary', icon: CalendarDays, to: '/agency/diary' },
   { label: 'Team', icon: Users, to: '/agency/team' },
   { label: 'Calls', icon: Phone, to: '/agency/calls' },
-  { label: 'Messages', icon: MessageSquare, to: '/agency/chat', hasBadge: true },
   { label: 'Company', icon: Building2, to: '/agency/company-profile', adminOnly: true },
 ]
 
@@ -58,8 +54,7 @@ function useAgentBadges() {
   return { calls: data?.actions?.callbacksDue ?? 0, diary: overdue + (data?.actions?.viewingsToday ?? 0) }
 }
 
-function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge, count = 0 }) {
-  const { chatUnread } = useSocket()
+function NavItem({ icon: Icon, label, to, end, collapsed, onClick, count = 0 }) {
   return (
     <NavLink
       to={to}
@@ -78,22 +73,12 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge, cou
         {count > 0 && collapsed && (
           <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">{count > 9 ? '9+' : count}</span>
         )}
-        {hasBadge && chatUnread > 0 && collapsed && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">
-            {chatUnread > 9 ? '9+' : chatUnread}
-          </span>
-        )}
       </div>
       {!collapsed && (
         <span className="flex-1 truncate flex items-center gap-2">
           {label}
           {count > 0 && (
             <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#F95C4B] text-white text-[9px] font-bold flex items-center justify-center">{count > 99 ? '99+' : count}</span>
-          )}
-          {hasBadge && chatUnread > 0 && (
-            <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#F95C4B] text-white text-[9px] font-bold flex items-center justify-center">
-              {chatUnread > 99 ? '99+' : chatUnread}
-            </span>
           )}
         </span>
       )}
@@ -162,15 +147,14 @@ function Sidebar({ collapsed, agency }) {
   )
 }
 
-// Phones: the six places along the bottom (the company profile is in the avatar menu)
+// Phones: the five places along the bottom (the company profile is in the avatar menu)
 function TabBar() {
   const user = useAuthStore((s) => s.user)
   const badges = useAgentBadges()
-  const { chatUnread } = useSocket()
   return (
-    <nav data-tabbar className="lg:hidden flex-shrink-0 grid grid-cols-6 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] pb-[env(safe-area-inset-bottom)]">
+    <nav data-tabbar className="lg:hidden flex-shrink-0 grid grid-cols-5 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] pb-[env(safe-area-inset-bottom)]">
       {navFor(user).filter((i) => !i.adminOnly).map((item) => {
-        const n = item.hasBadge ? chatUnread : item.badge ? badges[item.badge] : 0
+        const n = item.badge ? badges[item.badge] : 0
         return (
           <NavLink key={item.to} to={item.to} end={item.end}
             className={({ isActive }) => `relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors ${isActive ? 'text-[#F95C4B]' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
@@ -229,6 +213,7 @@ export default function AgencyLayout() {
 
           <NewMenu />
           <TourButton />
+          <MessagesButton to="/agency/chat" />
           <NotificationBell seeAllTo="/agency/notifications" />
           <AvatarMenu />
         </header>

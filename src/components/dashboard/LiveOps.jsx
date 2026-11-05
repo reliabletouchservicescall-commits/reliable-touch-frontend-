@@ -24,7 +24,7 @@ import { CORAL, CORAL_2 } from '../../lib/brand'
 
 // Where things link to on each board
 export const SCOPES = {
-  admin: { leads: '/admin/leads', person: (id) => `/admin/users/${id}`, team: '/admin/performance', ranking: '/admin/performance', newLead: '/admin/leads?new=1' },
+  admin: { leads: '/admin/leads', person: (id) => `/admin/users/${id}`, team: '/admin/team?tab=performance', ranking: '/admin/team?tab=performance', newLead: '/admin/leads?new=1' },
   agency: { leads: '/agency/leads', person: (id) => `/agency/agents/${id}`, team: '/agency/team', ranking: '/agency/team?tab=leaderboard', newLead: '/agency/leads?new=1' },
 }
 
@@ -245,8 +245,7 @@ const TONE = {
 // hasn't done any work today
 export function useAttentionItems(overview, floor, now, scope = 'admin') {
   return useMemo(() => {
-    // A company's Deal Tracker is the Board tab of Leads
-    const items = (overview?.attention ?? []).map((i) => (scope === 'agency' && i.action?.label === 'Deal Tracker' ? { ...i, action: { ...i.action, label: 'Open the board' } } : i))
+    const items = [...(overview?.attention ?? [])]
     const team = (floor?.people ?? []).filter((p) => scope === 'agency' || p.role !== 'agency')
     const idle = team.map((p) => ({ p, s: presenceOf(p, now) })).filter(({ s }) => s.rank === 3 && s.idle >= 30)
       .sort((a, b) => b.s.idle - a.s.idle).slice(0, 2)

@@ -14,35 +14,14 @@ import FollowUpManagerLayout from '../layouts/FollowUpManagerLayout'
 
 // Admin pages
 import AdminDashboard from '../pages/admin/DashboardPage'
-import ContactsPage from '../pages/admin/ContactsPage'
-import DealTrackerPage from '../pages/shared/DealTrackerPage'
-import CallModePage from '../pages/shared/CallModePage'
-import CallerWorkloadPage from '../pages/admin/CallerWorkloadPage'
-import UsersPage from '../pages/admin/UsersPage'
 import UserDetailPage from '../pages/admin/UserDetailPage'
-import LeadsPage from '../pages/admin/LeadsPage'
 import AdminLeadDetailPage from '../pages/admin/LeadDetailPage'
-import CampaignsPage from '../pages/admin/CampaignsPage'
-import DncPage from '../pages/admin/DncPage'
-import AppointmentsPage from '../pages/admin/AppointmentsPage'
-import AgentsPage from '../pages/admin/AgentsPage'
-import CommissionsPage from '../pages/admin/CommissionsPage'
-import LeaseRenewalsPage from '../pages/admin/LeaseRenewalsPage'
-import AgenciesPage from '../pages/admin/AgenciesPage'
-import AreasPage from '../pages/admin/AreasPage'
 
 // Cold Caller pages
 import ColdCallerDashboard from '../pages/cold-caller/DashboardPage'
-import MyContactsPage from '../pages/cold-caller/MyContactsPage'
-import ColdCallerCallLogsPage from '../pages/cold-caller/CallLogsPage'
 import ColdCallerLeadsPage from '../pages/cold-caller/LeadsPage'
 import ColdCallerLeadDetailPage from '../pages/cold-caller/LeadDetailPage'
-import ColdCallerAppointmentsPage from '../pages/cold-caller/AppointmentsPage'
-import ColdCallerDncPage from '../pages/cold-caller/DncPage'
-import ColdCallerCampaignsPage from '../pages/cold-caller/CampaignsPage'
 import ColdCallerNotificationsPage from '../pages/cold-caller/NotificationsPage'
-import LeaderboardPage from '../pages/cold-caller/LeaderboardPage'
-import MyProgressPage from '../pages/cold-caller/MyProgressPage'
 
 // Agency pages
 import AgencyDashboard from '../pages/agency/DashboardPage'
@@ -53,10 +32,14 @@ import CallsHubPage from '../pages/agency/CallsHubPage'
 import LeadsHubPage from '../pages/agency/LeadsHubPage'
 import DiaryPage from '../pages/agency/DiaryPage'
 import TeamHubPage from '../pages/agency/TeamHubPage'
+import { CallerCallsHub, CallerLeadsHub, CallerProgressHub } from '../pages/cold-caller/CallerHubs'
+import { FumLeadsHub, FumDiaryHub } from '../pages/follow-up-manager/FumHubs'
+import { AdminLeadsHub, AdminContactsHub, AdminTeamHub, AdminAgenciesHub, AdminCalendarHub } from '../pages/admin/AdminHubs'
 
-// Everyone in a company works from six places (AgencyLayout's AGENT_NAV / MANAGER_NAV).
-// The old addresses still work — bookmarks, notification links, emails — and land on the
-// right tab: `agent` / `manager` name where each goes; leave one out to keep the page there.
+// Company people and cold callers work from a few places (AgencyLayout's / ColdCallerLayout's
+// NAV). The old addresses still work — bookmarks, notification links, emails — and land on
+// the right tab: `agent` (also a cold caller) / `manager` name where each goes; leave one out
+// to keep the page there.
 function Goes({ agent, manager, children }) {
   const user = useAuthStore((s) => s.user)
   const { search } = useLocation()
@@ -81,20 +64,15 @@ import AgentDetailPage from '../pages/agency/AgentDetailPage'
 
 // Follow Up Manager pages
 import FollowUpManagerDashboard from '../pages/follow-up-manager/DashboardPage'
-import FollowUpManagerLeadsPage from '../pages/follow-up-manager/LeadsPage'
 import FollowUpManagerLeadDetailPage from '../pages/follow-up-manager/LeadDetailPage'
-import FollowUpManagerAppointmentsPage from '../pages/follow-up-manager/AppointmentsPage'
 import FollowUpManagerNotificationsPage from '../pages/follow-up-manager/NotificationsPage'
 // Campaigns is a purely read-only, role-agnostic list (no cold-caller-specific logic or
 // copy) — reused as-is (see ColdCallerCampaignsPage import above) rather than cloning
 // a near-duplicate file.
 
 // Admin (additional)
-import AdminCallLogsPage from '../pages/admin/CallLogsPage'
 import AdminChatPage from '../pages/admin/ChatPage'
-import PerformancePage from '../pages/admin/PerformancePage'
 import ReportsPage from '../pages/admin/ReportsPage'
-import LoginActivityPage from '../pages/admin/LoginActivityPage'
 import AdminNotificationsPage from '../pages/admin/NotificationsPage'
 import BinPage from '../pages/admin/BinPage'
 
@@ -102,8 +80,8 @@ import ColdCallerChatPage from '../pages/cold-caller/ChatPage'
 import AgencyChatPage from '../pages/agency/ChatPage'
 import AgencyTeamPage from '../pages/agency/TeamPage'
 import CompanyProfilePage from '../pages/agency/CompanyProfilePage'
-import TenantApplicationsPage from '../pages/shared/TenantApplicationsPage'
 import ApplyPage from '../pages/public/ApplyPage'
+import LandlordPage from '../pages/public/LandlordPage'
 import AgencyDetailPage from '../pages/admin/AgencyDetailPage'
 import FollowUpManagerChatPage from '../pages/follow-up-manager/ChatPage'
 import ProtectedRoute from './ProtectedRoute'
@@ -135,6 +113,7 @@ export default function AppRouter() {
 
         {/* A tenant's application — the private link they're sent; no sign-in */}
         <Route path="/apply/:token" element={<ApplyPage />} />
+        <Route path="/landlord/:token" element={<LandlordPage />} />
 
         {/* ── Admin ────────────────────────────────────────────────── */}
         <Route
@@ -146,32 +125,34 @@ export default function AppRouter() {
           }
         >
           <Route index element={<AdminDashboard />} />
-          <Route path="users" element={<UsersPage />} />
-          <Route path="users/:id" element={<UserDetailPage />} />
-          <Route path="contacts" element={<ContactsPage />} />
-          <Route path="caller-workload" element={<CallerWorkloadPage />} />
-          <Route path="leads" element={<LeadsPage />} />
+          <Route path="leads" element={<AdminLeadsHub />} />
           <Route path="leads/:id" element={<AdminLeadDetailPage />} />
-          <Route path="deal-tracker" element={<DealTrackerPage role="admin" />} />
-          <Route path="tenants" element={<TenantApplicationsPage />} />
-          <Route path="campaigns" element={<CampaignsPage />} />
-          <Route path="call-logs" element={<AdminCallLogsPage />} />
-          <Route path="dnc" element={<DncPage />} />
-          <Route path="appointments" element={<AppointmentsPage />} />
-          <Route path="agents" element={<AgentsPage />} />
-          <Route path="commissions" element={<CommissionsPage />} />
-          <Route path="lease-renewals" element={<LeaseRenewalsPage />} />
-          <Route path="agencies" element={<AgenciesPage />} />
+          <Route path="appointments" element={<AdminCalendarHub />} />
+          <Route path="contacts" element={<AdminContactsHub />} />
+          <Route path="team" element={<AdminTeamHub />} />
+          <Route path="users/:id" element={<UserDetailPage />} />
+          <Route path="agencies" element={<AdminAgenciesHub />} />
           <Route path="agencies/:id" element={<AgencyDetailPage />} />
-          <Route path="areas" element={<AreasPage />} />
-          <Route path="excel-files" element={<Navigate to="/admin/contacts?view=files" replace />} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="performance" element={<PerformancePage />} />
-          <Route path="agents-performance" element={<Navigate to="/admin/performance?view=agents" replace />} />
-          <Route path="login-activity" element={<LoginActivityPage />} />
           <Route path="notifications" element={<AdminNotificationsPage />} />
           <Route path="chat" element={<AdminChatPage />} />
           <Route path="bin" element={<BinPage />} />
+          {/* The old pages now live in tabs — their addresses still work */}
+          <Route path="deal-tracker" element={<Goes agent="/admin/leads?tab=deals" />} />
+          <Route path="tenants" element={<Goes agent="/admin/leads?tab=applications" />} />
+          <Route path="lease-renewals" element={<Goes agent="/admin/leads?tab=renewals" />} />
+          <Route path="caller-workload" element={<Goes agent="/admin/contacts?tab=workload" />} />
+          <Route path="call-logs" element={<Goes agent="/admin/contacts?tab=log" />} />
+          <Route path="campaigns" element={<Goes agent="/admin/contacts?tab=campaigns" />} />
+          <Route path="areas" element={<Goes agent="/admin/contacts?tab=areas" />} />
+          <Route path="dnc" element={<Goes agent="/admin/contacts?tab=dnc" />} />
+          <Route path="excel-files" element={<Navigate to="/admin/contacts?view=files" replace />} />
+          <Route path="performance" element={<Goes agent="/admin/team?tab=performance" />} />
+          <Route path="agents-performance" element={<Navigate to="/admin/team?tab=performance&view=agents" replace />} />
+          <Route path="users" element={<Goes agent="/admin/team?tab=users" />} />
+          <Route path="login-activity" element={<Goes agent="/admin/team?tab=logins" />} />
+          <Route path="agents" element={<Goes agent="/admin/agencies?tab=agents" />} />
+          <Route path="commissions" element={<Goes agent="/admin/agencies?tab=commissions" />} />
         </Route>
 
         {/* ── Cold Caller ──────────────────────────────────────────── */}
@@ -184,22 +165,25 @@ export default function AppRouter() {
           }
         >
           <Route index element={<ColdCallerDashboard />} />
-          <Route path="contacts" element={<MyContactsPage />} />
-          <Route path="call-mode" element={<CallModePage />} />
-          <Route path="callbacks" element={<CallModePage mode="callbacks" key="callbacks" />} />
-          <Route path="deal-tracker" element={<DealTrackerPage role="cold_caller" />} />
-          <Route path="tenants" element={<TenantApplicationsPage />} />
-          <Route path="leads" element={<ColdCallerLeadsPage />} />
+          <Route path="calls" element={<CallerCallsHub />} />
+          <Route path="leads" element={<CallerLeadsHub />} />
           <Route path="leads/new/:contactId" element={<ColdCallerLeadsPage />} />
           <Route path="leads/:id" element={<ColdCallerLeadDetailPage />} />
-          <Route path="call-logs" element={<ColdCallerCallLogsPage />} />
-          <Route path="appointments" element={<ColdCallerAppointmentsPage />} />
-          <Route path="dnc" element={<ColdCallerDncPage />} />
-          <Route path="campaigns" element={<ColdCallerCampaignsPage />} />
-          <Route path="leaderboard" element={<LeaderboardPage />} />
-          <Route path="progress" element={<MyProgressPage />} />
+          <Route path="progress" element={<CallerProgressHub />} />
+          <Route path="diary" element={<DiaryPage scope="caller" />} />
           <Route path="notifications" element={<ColdCallerNotificationsPage />} />
           <Route path="chat" element={<ColdCallerChatPage />} />
+          {/* The old pages now live in tabs — their addresses still work */}
+          <Route path="contacts" element={<Goes agent="/cold-caller/calls?tab=contacts" />} />
+          <Route path="call-mode" element={<Goes agent="/cold-caller/calls" />} />
+          <Route path="callbacks" element={<Goes agent="/cold-caller/calls?tab=callbacks" />} />
+          <Route path="call-logs" element={<Goes agent="/cold-caller/calls?tab=log" />} />
+          <Route path="dnc" element={<Goes agent="/cold-caller/calls?tab=dnc" />} />
+          <Route path="campaigns" element={<Goes agent="/cold-caller/calls" />} />
+          <Route path="deal-tracker" element={<Goes agent="/cold-caller/leads?tab=deals" />} />
+          <Route path="tenants" element={<Goes agent="/cold-caller/leads?tab=applications" />} />
+          <Route path="appointments" element={<Goes agent="/cold-caller/leads?tab=viewings" />} />
+          <Route path="leaderboard" element={<Goes agent="/cold-caller/progress?tab=board" />} />
         </Route>
 
         {/* ── Agency ───────────────────────────────────────────────── */}
@@ -247,13 +231,16 @@ export default function AppRouter() {
           }
         >
           <Route index element={<FollowUpManagerDashboard />} />
-          <Route path="leads" element={<FollowUpManagerLeadsPage />} />
+          <Route path="leads" element={<FumLeadsHub />} />
           <Route path="leads/:id" element={<FollowUpManagerLeadDetailPage />} />
-          <Route path="tenants" element={<TenantApplicationsPage />} />
-          <Route path="appointments" element={<FollowUpManagerAppointmentsPage />} />
-          <Route path="campaigns" element={<ColdCallerCampaignsPage />} />
+          <Route path="diary" element={<FumDiaryHub />} />
           <Route path="notifications" element={<FollowUpManagerNotificationsPage />} />
           <Route path="chat" element={<FollowUpManagerChatPage />} />
+          {/* The old pages now live in tabs — their addresses still work */}
+          <Route path="deal-tracker" element={<Goes agent="/follow-up-manager/leads?tab=deals" />} />
+          <Route path="tenants" element={<Goes agent="/follow-up-manager/leads?tab=applications" />} />
+          <Route path="campaigns" element={<Goes agent="/follow-up-manager/leads?tab=campaigns" />} />
+          <Route path="appointments" element={<Goes agent="/follow-up-manager/diary?tab=appointments" />} />
         </Route>
 
         {/* Catch-all */}

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search, X, Plus, ChevronDown, TrendingUp, CalendarPlus, KeyRound, BookUser, Loader2, Sun, Moon, LogOut, Compass, Building2 } from 'lucide-react'
+import { Search, X, Plus, ChevronDown, TrendingUp, CalendarPlus, KeyRound, BookUser, Loader2, Sun, Moon, LogOut, Compass, Building2, BellRing, MessageSquare, Trash2 } from 'lucide-react'
 import { leadsApi } from '../../services/leadsApi'
 import { contactsApi } from '../../services/contactsApi'
 import { authApi } from '../../services/authApi'
 import { useAuthStore } from '../../store/authStore'
+import { useSocket } from '../../context/SocketContext'
 import { useTheme } from '../../context/ThemeContext'
 import { openTour } from '../onboarding/OnboardingTour'
 import { LeadStatusBadge } from '../leads/leadShared'
@@ -33,6 +34,10 @@ function useDebounced(v, ms = 250) {
 
 export function GlobalSearch() {
   const navigate = useNavigate()
+  // Leads and contacts live under each role's own pages
+  const role = useAuthStore((s) => s.user?.role)
+  const base = { cold_caller: '/cold-caller', admin: '/admin', follow_up_manager: '/follow-up-manager' }[role] ?? '/agency'
+  const contactTo = (c) => (role === 'admin' ? `/admin/contacts?q=${encodeURIComponent(c.name)}` : `${base}/calls?tab=contacts&q=${encodeURIComponent(c.name)}`)
   const ref = useRef(null)
   const input = useRef(null)
   const [q, setQ] = useState('')
@@ -52,7 +57,8 @@ export function GlobalSearch() {
 
   const enabled = term.length >= 2
   const leads = useQuery({ queryKey: ['search', 'leads', term], queryFn: () => leadsApi.list({ search: term, limit: 5 }).then((r) => r.data.data.leads), enabled, staleTime: 20_000 })
-  const contacts = useQuery({ queryKey: ['search', 'contacts', term], queryFn: () => contactsApi.list({ search: term, limit: 5 }).then((r) => r.data.data.contacts), enabled, staleTime: 20_000 })
+  // Follow-up managers work leads, not the contact list
+  const contacts = useQuery({ queryKey: ['search', 'contacts', term], queryFn: () => contactsApi.list({ search: term, limit: 5 }).then((r) => r.data.data.contacts), enabled: enabled && role !== 'follow_up_manager', staleTime: 20_000 })
   const go = (to) => { navigate(to); setOpen(false); setMobile(false); setQ('') }
   const busy = leads.isFetching || contacts.isFetching
   const none = enabled && !busy && !leads.data?.length && !contacts.data?.length
@@ -83,7 +89,7 @@ export function GlobalSearch() {
             <div className="max-h-[60vh] overflow-y-auto py-1">
               {leads.data?.length > 0 && <p className="px-4 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-[#9CA3AF]">Leads</p>}
               {leads.data?.map((l) => (
-                <button key={l._id} type="button" onClick={() => go(`/agency/leads/${l._id}`)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+                <button key={l._id} type="button" onClick={() => go(`${base}/leads/${l._id}`)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
                   <TrendingUp className="h-4 w-4 flex-none text-[#F95C4B]" />
                   <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#111111] dark:text-white">{l.landlordName}</span><span className="block truncate text-xs text-[#6B7280] dark:text-[#A1A1AA]">{l.propertyAddress}</span></span>
                   <LeadStatusBadge status={l.status} />
@@ -91,7 +97,7 @@ export function GlobalSearch() {
               ))}
               {contacts.data?.length > 0 && <p className="px-4 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-[#9CA3AF]">Contacts</p>}
               {contacts.data?.map((c) => (
-                <button key={c._id} type="button" onClick={() => go(`/agency/calls?tab=contacts&q=${encodeURIComponent(c.name)}`)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
+                <button key={c._id} type="button" onClick={() => go(contactTo(c))} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-[#F5F5F4] dark:hover:bg-[#202020]">
                   <BookUser className="h-4 w-4 flex-none text-[#6B7280]" />
                   <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#111111] dark:text-white">{c.name}</span><span className="block truncate text-xs text-[#6B7280] dark:text-[#A1A1AA]">{[c.phone, c.address].filter(Boolean).join(' · ')}</span></span>
                 </button>
@@ -116,6 +122,7 @@ export function NewMenu() {
     ['lead', 'Lead', 'From a call or a walk-in', TrendingUp],
     ['viewing', 'Viewing', 'Book a time with a landlord', CalendarPlus],
     ['tenant', 'Tenant link', 'For a listed rental', KeyRound],
+    ['reminder', 'Reminder', 'Call a tenant at 10:00, and so on', BellRing],
   ]
   return (
     <div ref={ref} className="relative">
@@ -137,6 +144,22 @@ export function NewMenu() {
   )
 }
 
+/* ─── Messages ─────────────────────────────────────────────────────────── */
+
+// Messages: an icon in the top bar corner, with the unread count
+export function MessagesButton({ to }) {
+  const { chatUnread } = useSocket()
+  return (
+    <NavLink to={to} aria-label="Messages" title="Messages" data-tour="messages"
+      className={({ isActive }) => `relative grid h-9 w-9 place-items-center rounded-lg transition-colors ${isActive ? 'bg-[#F95C4B]/10 text-[#F95C4B]' : 'text-[#6B7280] hover:bg-[#F5F5F4] dark:text-[#A1A1AA] dark:hover:bg-[#202020]'}`}>
+      <MessageSquare className="h-[18px] w-[18px]" strokeWidth={1.75} />
+      {chatUnread > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F95C4B] text-white text-[9px] font-bold flex items-center justify-center">{chatUnread > 99 ? '99+' : chatUnread}</span>
+      )}
+    </NavLink>
+  )
+}
+
 /* ─── Avatar menu ───────────────────────────────────────────────────────── */
 
 export function AvatarMenu() {
@@ -147,7 +170,7 @@ export function AvatarMenu() {
   const [open, setOpen] = useState(false)
   useOutside(ref, open, () => setOpen(false))
   const initials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase() || 'ME'
-  const role = user?.isAgencyAdmin ? 'Agency Admin' : user?.isAgencyManager ? 'Company manager' : 'Agent'
+  const role = user?.role === 'admin' ? 'Admin' : user?.role === 'follow_up_manager' ? 'Follow-up manager' : user?.role === 'cold_caller' ? 'Cold caller' : user?.isAgencyAdmin ? 'Agency Admin' : user?.isAgencyManager ? 'Company manager' : 'Agent'
   async function signOut() {
     try { await authApi.logout() } catch { /* ignore */ }
     clearAuth()
@@ -167,6 +190,7 @@ export function AvatarMenu() {
             <p className="truncate text-xs text-[#6B7280] dark:text-[#A1A1AA]">{role}{user?.email ? ` · ${user.email}` : ''}</p>
           </div>
           <div className="py-1">
+            {user?.role === 'admin' && <button type="button" onClick={() => { setOpen(false); navigate('/admin/bin') }} className={row}><Trash2 className="h-4 w-4 text-[#6B7280]" /> Bin <span className="text-xs text-[#9CA3AF]">· deleted items</span></button>}
             {user?.isAgencyAdmin && <button type="button" onClick={() => { setOpen(false); navigate('/agency/company-profile') }} className={row}><Building2 className="h-4 w-4 text-[#6B7280]" /> Company profile</button>}
             <button type="button" onClick={toggle} className={row}>{theme === 'dark' ? <Sun className="h-4 w-4 text-[#6B7280]" /> : <Moon className="h-4 w-4 text-[#6B7280]" />} {theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
             <button type="button" onClick={() => { setOpen(false); openTour() }} className={row}><Compass className="h-4 w-4 text-[#6B7280]" /> Take the tour</button>

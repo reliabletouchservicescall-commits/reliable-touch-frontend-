@@ -365,7 +365,7 @@ export default function AgencyDashboard() {
 
       {/* What needs me · who is working · the goal */}
       <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6">
-        <div className="flex flex-col gap-6 min-w-0 xl:min-h-[640px]">
+        <div className="flex flex-col gap-6 min-w-0 xl:min-h-[460px]">
           <NeedsAttention items={attention} loading={liveLoading} />
           <Card delay={140} className="p-5">
             <CardTitle title="Where your leads are" subtitle="From a contact to a closed deal — tap a step to open it" action={<LinkButton to="/agency/leads">All leads</LinkButton>} />

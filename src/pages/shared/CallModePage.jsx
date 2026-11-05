@@ -13,6 +13,7 @@ import { useCallFlow, telHref } from '../../lib/useCallFlow'
 import { useCallMode } from '../../lib/useCallMode'
 import { useAuthStore } from '../../store/authStore'
 import CallOutcomeSheet from '../../components/contacts/CallOutcomeSheet'
+import { callerGoal } from '../../components/dashboard/CallerBoard'
 import CreateLeadDrawer from '../../components/leads/CreateLeadDrawer'
 import { getApiErrorMessage } from '../../components/leads/leadShared'
 
@@ -212,7 +213,7 @@ export default function CallModePage({ mode = 'all' }) {
   const user = useAuthStore((s) => s.user)
   const base = user?.role === 'agency' ? '/agency' : '/cold-caller'
   const [session, bump] = useSession()
-  const goal = (() => { try { return Number(localStorage.getItem('rt-call-goal')) || 60 } catch { return 60 } })()
+  const goal = callerGoal()
   const { data, isLoading, refetch } = useCallMode({ mode })
   const now = useNow()
   const [moving, setMoving] = useState(false) // "Change time" panel open

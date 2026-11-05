@@ -169,7 +169,7 @@ export default function MyProgressPage() {
         <div className={`${box} p-5`}>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[15px] font-bold text-[#111111] dark:text-white">My calls, last 14 days</p>
-            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Dashed line = your own daily goal ({data?.goal ?? 40})</p>
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Dashed line = your own daily goal ({data?.goal ?? 60})</p>
           </div>
           {!data ? <Skeleton className="h-[240px]" /> : (
             <>

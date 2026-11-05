@@ -9,6 +9,7 @@ import { NewLeadFlow } from '../../pages/agency/LeadsPage'
 import { leadsApi } from '../../services/leadsApi'
 import { useAuthStore } from '../../store/authStore'
 import { LeadStatusBadge, inputCls } from '../leads/leadShared'
+import ReminderDialog from './ReminderDialog'
 import LeadUpdateDialog from './LeadUpdateDialog'
 
 // The agent's everyday actions, opened in place from anywhere — the top bar's "+ New",
@@ -87,6 +88,8 @@ export function AgentActionsProvider({ children }) {
   } else if (cur?.kind === 'tenant') {
     const l = cur.lead
     el = <NewApplicationModal initialLead={l ? { id: l._id ?? l.id, propertyAddress: l.propertyAddress, landlordName: l.landlordName } : null} onClose={close} onCreated={refresh} />
+  } else if (cur?.kind === 'reminder') {
+    el = <ReminderDialog reminder={cur.reminder} lead={cur.lead} date={cur.date} onClose={close} />
   } else if (cur?.kind === 'update') {
     el = cur.leadId || cur.lead
       ? <LeadUpdateDialog leadId={cur.leadId ?? cur.lead?._id} lead={cur.lead} onClose={close}

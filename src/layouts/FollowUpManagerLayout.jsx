@@ -1,62 +1,44 @@
 import { useState, useEffect } from 'react'
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Flame,
-  CalendarCheck,
-  Megaphone,
-  Bell,
-  MessageSquare,
-  LogOut,
-  Sun,
-  Moon,
-  Menu,
-  X,
-  ChevronRight,
-  KeyRound,
-} from 'lucide-react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Home, Flame, CalendarDays, Menu, ChevronRight } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import logo from '../assets/logo-reliable-touch.png'
-import { useTheme } from '../context/ThemeContext'
+import axiosClient from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
-import { authApi } from '../services/authApi'
 import NotificationBell from '../components/notifications/NotificationBell'
 import OnboardingTour, { TourButton } from '../components/onboarding/OnboardingTour'
+import PageErrorBoundary from '../components/common/PageErrorBoundary'
+import { GlobalSearch, AvatarMenu, MessagesButton } from '../components/agent/TopBar'
+import { AgentActionsProvider } from '../components/agent/AgentActions'
 import { initFCM, subscribeForegroundMessages } from '../lib/fcm'
-import ChatWidget from '../components/chat/ChatWidget'
-import { useSocket } from '../context/SocketContext'
 
+// A follow-up manager's whole portal: three places. Everything else lives inside them — Hot
+// leads has the Deal Tracker, tenant applications and campaigns; Diary has the calendar and the
+// appointments list — or on the top bar (search, messages, the bell, the avatar menu).
 const NAV = [
-  {
-    group: 'Overview',
-    items: [
-      { label: 'Dashboard', icon: LayoutDashboard, to: '/follow-up-manager', end: true },
-      { label: 'Hot Leads',     icon: Flame,         to: '/follow-up-manager/leads' },
-      { label: 'Tenants', icon: KeyRound, to: '/follow-up-manager/tenants' },
-    ],
-  },
-  {
-    group: 'My Work',
-    items: [
-      { label: 'Appointments',  icon: CalendarCheck, to: '/follow-up-manager/appointments' },
-      { label: 'Campaigns',     icon: Megaphone,     to: '/follow-up-manager/campaigns' },
-    ],
-  },
-  {
-    group: 'Account',
-    items: [
-      { label: 'Messages', icon: MessageSquare, to: '/follow-up-manager/chat', hasBadge: true },
-      { label: 'Notifications', icon: Bell, to: '/follow-up-manager/notifications' },
-    ],
-  },
+  { label: 'Home', icon: Home, to: '/follow-up-manager', end: true },
+  { label: 'Hot leads', icon: Flame, to: '/follow-up-manager/leads', badge: true },
+  { label: 'Diary', icon: CalendarDays, to: '/follow-up-manager/diary' },
 ]
 
-function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge }) {
-  const { chatUnread } = useSocket()
+// Overdue hot leads — the one number worth a badge (same overview Home loads)
+function useOverdue() {
+  const userId = useAuthStore((s) => s.user?._id)
+  const { data } = useQuery({
+    queryKey: ['my-overview', userId],
+    queryFn: () => axiosClient.get('/reports/my-overview').then((r) => r.data.data),
+    staleTime: 55_000,
+    refetchInterval: 60_000,
+    enabled: Boolean(userId),
+  })
+  return data?.kpis?.overdue ?? 0
+}
+
+function NavItem({ icon: Icon, label, to, end, collapsed, count = 0 }) {
   return (
     <NavLink
       to={to}
       end={end}
-      onClick={onClick}
       className={({ isActive }) =>
         `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
           isActive
@@ -67,19 +49,15 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge }) {
     >
       <div className="relative flex-shrink-0">
         <Icon className={`w-[18px] h-[18px] ${collapsed ? 'mx-auto' : ''}`} strokeWidth={1.75} />
-        {hasBadge && chatUnread > 0 && collapsed && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">
-            {chatUnread > 9 ? '9+' : chatUnread}
-          </span>
+        {count > 0 && collapsed && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">{count > 9 ? '9+' : count}</span>
         )}
       </div>
       {!collapsed && (
         <span className="flex-1 truncate flex items-center gap-2">
           {label}
-          {hasBadge && chatUnread > 0 && (
-            <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#F95C4B] text-white text-[9px] font-bold flex items-center justify-center">
-              {chatUnread > 99 ? '99+' : chatUnread}
-            </span>
+          {count > 0 && (
+            <span className="ml-auto min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#F95C4B]/12 text-[#F95C4B] text-[10px] font-bold flex items-center justify-center" title="Overdue follow-ups">{count > 999 ? '999+' : count}</span>
           )}
         </span>
       )}
@@ -87,135 +65,61 @@ function NavItem({ icon: Icon, label, to, end, collapsed, onClick, hasBadge }) {
   )
 }
 
-function Sidebar({ collapsed, onClose, isMobile }) {
-  const { user, clearAuth } = useAuthStore()
-  const { theme, toggle } = useTheme()
-  const navigate = useNavigate()
-
-  async function handleLogout() {
-    try { await authApi.logout() } catch { /* ignore */ }
-    clearAuth()
-    navigate('/select-role', { replace: true })
-  }
-
-  const initials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
-    : 'FM'
-
+function Sidebar({ collapsed }) {
+  const overdue = useOverdue()
   return (
     <aside
       className={`flex flex-col h-full bg-white dark:bg-[#181818] border-r border-[#E5E7EB] dark:border-[#2A2A2A] transition-all duration-300 ${
-        collapsed && !isMobile ? 'w-[68px]' : 'w-[240px]'
+        collapsed ? 'w-[68px]' : 'w-[240px]'
       }`}
     >
-      {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
-        <img
-          src={logo}
-          alt="Reliable Touch"
-          className="flex-shrink-0 w-8 h-8 rounded-lg object-contain"
-        />
-        {(!collapsed || isMobile) && (
+        <img src={logo} alt="Reliable Touch" className="flex-shrink-0 w-8 h-8 rounded-lg object-contain" />
+        {!collapsed && (
           <div className="min-w-0">
-            <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm">
-              Reliable Touch
-            </p>
-            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#F95C4B]">
-              Follow-Up Portal
-            </p>
+            <p className="font-bold text-[#111111] dark:text-white tracking-tight truncate text-sm">Reliable Touch</p>
+            <p className="text-[9px] uppercase tracking-widest font-semibold text-[#F95C4B]">Follow-up manager</p>
           </div>
-        )}
-        {isMobile && (
-          <button
-            onClick={onClose}
-            className="ml-auto text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
         )}
       </div>
-
-      {/* Nav */}
-      <nav className="thin-scroll flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {NAV.map(({ group, items }) => (
-          <div key={group}>
-            {(!collapsed || isMobile) && (
-              <p className="text-[9px] font-semibold tracking-widest text-[#6B7280]/60 dark:text-[#A1A1AA]/50 uppercase px-3 mb-1.5">
-                {group}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {items.map((item) => (
-                <li key={item.to}>
-                  <NavItem
-                    {...item}
-                    collapsed={collapsed && !isMobile}
-                    onClick={isMobile ? onClose : undefined}
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+      <nav className="thin-scroll flex-1 overflow-y-auto px-3 py-4">
+        <ul className="space-y-1">
+          {NAV.map((item) => (
+            <li key={item.to}>
+              <NavItem {...item} count={item.badge ? overdue : 0} collapsed={collapsed} />
+            </li>
+          ))}
+        </ul>
       </nav>
-
-      {/* Footer */}
-      <div className="px-3 pb-4 pt-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A] space-y-1">
-        <button
-          onClick={toggle}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white"
-        >
-          {theme === 'dark'
-            ? <Sun className="flex-shrink-0 w-[18px] h-[18px]" strokeWidth={1.75} />
-            : <Moon className="flex-shrink-0 w-[18px] h-[18px]" strokeWidth={1.75} />}
-          {(!collapsed || isMobile) && <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
-        </button>
-
-        {(!collapsed || isMobile) && (
-          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#F5F5F4] dark:bg-[#202020]">
-            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[#F95C4B]/15 flex items-center justify-center">
-              <span className="text-[10px] font-bold text-[#F95C4B]">{initials}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-[#111111] dark:text-white truncate">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <p className="text-[10px] text-[#6B7280] dark:text-[#A1A1AA] truncate">Follow Up Manager</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Sign out"
-              className="flex-shrink-0 text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#F95C4B] dark:hover:text-[#F95C4B]"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {collapsed && !isMobile && (
-          <button
-            onClick={handleLogout}
-            title="Sign out"
-            className="w-full flex items-center justify-center py-2.5 rounded-xl text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#F95C4B]"
-          >
-            <LogOut className="w-[18px] h-[18px]" strokeWidth={1.75} />
-          </button>
-        )}
-      </div>
     </aside>
+  )
+}
+
+// Phones: the three places along the bottom
+function TabBar() {
+  const overdue = useOverdue()
+  return (
+    <nav data-tabbar className="lg:hidden flex-shrink-0 grid grid-cols-3 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] pb-[env(safe-area-inset-bottom)]">
+      {NAV.map((item) => {
+        const n = item.badge ? overdue : 0
+        return (
+          <NavLink key={item.to} to={item.to} end={item.end}
+            className={({ isActive }) => `relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors ${isActive ? 'text-[#F95C4B]' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
+            <span className="relative">
+              <item.icon className="w-5 h-5" strokeWidth={1.75} />
+              {n > 0 && <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-[3px] rounded-full bg-[#F95C4B] text-white text-[8px] font-bold flex items-center justify-center">{n > 9 ? '9+' : n}</span>}
+            </span>
+            <span className="truncate max-w-full px-0.5">{item.label}</span>
+          </NavLink>
+        )
+      })}
+    </nav>
   )
 }
 
 export default function FollowUpManagerLayout() {
   const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const { clearAuth } = useAuthStore()
-  const navigate = useNavigate()
-  const location = useLocation()
-  // The full "Messages" inbox page already covers everything this floating quick-chat
-  // widget does (and more) — showing both stacks the widget's FAB on top of the inbox's
-  // own send button.
-  const onMessagesPage = location.pathname.startsWith('/follow-up-manager/chat')
+  const { pathname } = useLocation()
 
   useEffect(() => {
     let unsub = () => {}
@@ -224,41 +128,17 @@ export default function FollowUpManagerLayout() {
     return () => unsub()
   }, [])
 
-  async function handleLogout() {
-    try { await authApi.logout() } catch { /* ignore */ }
-    clearAuth()
-    navigate('/select-role', { replace: true })
-  }
-
   return (
+    // The reminder form (Home, Diary › Add a reminder) opens through the same provider as agents'
+    <AgentActionsProvider>
     <div className="flex h-screen bg-[#FAFAF9] dark:bg-[#0B0B0B] overflow-hidden">
-      {/* Desktop sidebar */}
       <div className="hidden lg:flex flex-col flex-shrink-0">
         <div className="h-full">
-          <Sidebar collapsed={collapsed} isMobile={false} />
+          <Sidebar collapsed={collapsed} />
         </div>
       </div>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Mobile drawer */}
-      <div
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 flex flex-col transition-transform duration-300 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <Sidebar isMobile onClose={() => setMobileOpen(false)} />
-      </div>
-
-      {/* Main */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        {/* Top bar */}
         <header className="flex-shrink-0 flex items-center gap-3 px-4 sm:px-6 py-4 bg-white dark:bg-[#181818] border-b border-[#E5E7EB] dark:border-[#2A2A2A]">
           <button
             onClick={() => setCollapsed((v) => !v)}
@@ -266,41 +146,27 @@ export default function FollowUpManagerLayout() {
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
+          {/* Phones: the bottom bar is the menu */}
+          <img src={logo} alt="Reliable Touch" className="lg:hidden w-8 h-8 rounded-lg object-contain" />
 
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020]"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-
-          <div className="flex-1" />
-
-          <span className="hidden sm:block text-[10px] uppercase tracking-widest font-medium text-[#6B7280] dark:text-[#A1A1AA]">
-            Follow-Up Portal
-          </span>
+          <div className="flex-1 min-w-0 flex justify-end sm:justify-start"><GlobalSearch /></div>
 
           <TourButton />
-          <NotificationBell />
-
-          <button
-            onClick={handleLogout}
-            title="Sign out"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#F95C4B] dark:hover:text-[#F95C4B] border border-[#E5E7EB] dark:border-[#2A2A2A] transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
+          <MessagesButton to="/follow-up-manager/chat" />
+          <NotificationBell seeAllTo="/follow-up-manager/notifications" />
+          <AvatarMenu />
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto">
-          <Outlet />
+          <PageErrorBoundary key={pathname}>
+            <Outlet />
+          </PageErrorBoundary>
         </main>
+        <TabBar />
       </div>
 
-      {!onMessagesPage && <ChatWidget />}
       <OnboardingTour />
     </div>
+    </AgentActionsProvider>
   )
 }

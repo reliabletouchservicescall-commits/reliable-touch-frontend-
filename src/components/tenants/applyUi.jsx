@@ -181,7 +181,7 @@ export function PropertyCard({ prop, compact, share }) {
       <div className={`relative flex flex-col justify-end overflow-hidden text-white ${compact ? 'h-24 p-3.5' : 'h-36 p-5'}`}
         style={{ background: 'linear-gradient(135deg, rgb(var(--brand-hover-rgb)), rgb(var(--brand-light-rgb)))' }}>
         <div className="absolute -right-6 top-3 h-24 w-40 -skew-y-6 rounded-md opacity-50" style={{ background: 'repeating-linear-gradient(90deg, rgba(255,255,255,.28) 0 16px, transparent 16px 24px)' }} />
-        <p className="relative text-[11px] font-medium uppercase tracking-wider opacity-90">To rent</p>
+        <p className="relative text-[11px] font-medium uppercase tracking-wider opacity-90">{prop.kindLabel ?? 'To rent'}</p>
         <p className={`relative font-semibold leading-snug ${compact ? 'text-sm' : 'text-lg'}`}>{prop.address}</p>
       </div>
       <div className="grid grid-cols-2 divide-x divide-[#EFEFEA]">
@@ -270,7 +270,7 @@ function SaveState({ state, small }) {
 // the step card; on a phone one column with the actions pinned to the bottom.
 export function ApplyLayout({
   brand, prop, contact, share, labels, step, furthest, onGo, finished, closed, saveState, showSave, onAbout,
-  banner, notice, title, sub, body, actions, footNote,
+  banner, notice, title, sub, body, actions, footNote, stepsTitle = 'Your application', subtitle = 'Tenant application',
 }) {
   const total = labels.length
   const pct = finished ? 100 : Math.round((Math.min(step, total) / (total + 1)) * 100)
@@ -285,7 +285,7 @@ export function ApplyLayout({
                 {brand.name}
                 {brand.verified && <span className="inline-flex flex-none items-center gap-0.5 rounded-full bg-[#15803D]/10 px-1.5 py-px text-[10px] font-semibold text-[#15803D]"><ShieldCheck className="h-3 w-3" /> Verified</span>}
               </span>
-              <span className="block truncate text-xs text-[#8A8A93]">{brand.profile?.ffcNumber ? `PPRA FFC ${brand.profile.ffcNumber}` : 'Tenant application'}</span>
+              <span className="block truncate text-xs text-[#8A8A93]">{brand.profile?.ffcNumber ? `PPRA FFC ${brand.profile.ffcNumber}` : subtitle}</span>
             </span>
           </button>
           <span className="flex-1" />
@@ -310,7 +310,7 @@ export function ApplyLayout({
             <PropertyCard prop={prop} share={share} />
             {!closed && (
               <Panel className="p-3">
-                <p className="px-2.5 pb-2 pt-1 text-xs font-medium uppercase tracking-wider text-[#8A8A93]">Your application</p>
+                <p className="px-2.5 pb-2 pt-1 text-xs font-medium uppercase tracking-wider text-[#8A8A93]">{stepsTitle}</p>
                 <Stepper labels={labels} current={step} furthest={furthest} onGo={onGo} done={finished} />
               </Panel>
             )}

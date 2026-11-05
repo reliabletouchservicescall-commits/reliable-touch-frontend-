@@ -11,6 +11,7 @@ import { tenantsApi } from '../../services/tenantsApi'
 import { APP_STATUS, STEPS, allFields, typeOf, R } from '../../lib/tenantForm'
 import { getApiErrorMessage, inputCls } from '../leads/leadShared'
 import SidePanel from '../common/SidePanel'
+import { useAuthStore } from '../../store/authStore'
 
 // Tenant applications on a listed rental: add a tenant by name → share their private link →
 // watch them open it, fill it in and upload → review, ask for fixes, approve or decline.
@@ -19,6 +20,10 @@ import SidePanel from '../common/SidePanel'
 export const appsKey = (leadId) => ['tenant-apps', 'lead', leadId]
 const ago = (d) => (d ? formatDistanceToNow(new Date(d), { addSuffix: true }) : null)
 const whenFull = (d) => (d ? format(new Date(d), 'd MMM yyyy, HH:mm') : '—')
+// Who deletes an application outright (the server checks it is their company's lead); the
+// rest — agents and cold callers — ask them to
+export const canDeleteApps = (user) => ['admin', 'follow_up_manager'].includes(user?.role) || Boolean(user?.role === 'agency' && user.isAgencyManager)
+
 // The tenant's link on the site the team is using (live site in production, localhost when testing)
 export const linkOf = (app) => (app.token ? `${window.location.origin}/apply/${app.token}` : app.link)
 
@@ -212,6 +217,9 @@ export function ApplicationRow({ app, onOpen, showProperty }) {
           <StatusPill status={app.status} small />
           {app.joint && <span className="inline-flex items-center gap-1 rounded-full bg-[#6366F1]/10 px-2 py-0.5 text-[10px] font-bold text-[#6366F1]"><UsersPair className="h-3 w-3" /> Joint · {app.coApplicants.length + 1}</span>}
           {app.openIssues > 0 && <span className="rounded-full bg-[#EF4444]/10 px-2 py-0.5 text-[10px] font-bold text-[#EF4444]">{app.openIssues} to fix</span>}
+          {app.landlordDecision?.decision === 'approved' && <span className="inline-flex items-center gap-1 rounded-full bg-[#10B981]/12 px-2 py-0.5 text-[10px] font-bold text-[#059669]"><CircleCheck className="h-3 w-3" /> Landlord approved</span>}
+          {app.landlordDecision?.decision === 'declined' && <span className="rounded-full bg-[#EF4444]/10 px-2 py-0.5 text-[10px] font-bold text-[#EF4444]">Landlord declined</span>}
+          {app.deleteRequest && <span className="inline-flex items-center gap-1 rounded-full bg-[#EF4444]/10 px-2 py-0.5 text-[10px] font-bold text-[#EF4444]"><Trash2 className="h-3 w-3" /> Delete asked</span>}
         </span>
         {showProperty && app.lead && <span className="block truncate text-xs text-[#6B7280] dark:text-[#A1A1AA]">{app.lead.propertyAddress}{app.lead.agencyName ? ` · ${app.lead.agencyName}` : ''}</span>}
         <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
@@ -308,6 +316,80 @@ const EVENT_LABEL = {
   changes_requested: 'Fixes asked', issue_cleared: 'Fix cleared', approved: 'Approved', declined: 'Declined', reopened: 'Reopened', withdrawn: 'Link switched off',
   co_added: 'Co-applicant added', co_removed: 'Co-applicant removed', co_opened: 'Co-applicant opened their link', co_signed: 'Co-applicant signed',
   assisted: 'Team filling in', to_deal: 'Documents added to the deal',
+  delete_requested: 'Asked to delete', delete_declined: 'Delete request declined',
+  landlord_approved: 'Landlord approved', landlord_declined: 'Landlord declined',
+}
+
+/* ─── Delete, or ask a manager to ───────────────────────────────────────── */
+
+const DELETE_REASONS = ['Added by mistake', 'A duplicate', 'The tenant changed their mind', 'Wrong property']
+
+// The banner on top when someone asked for it to be deleted
+function DeleteRequestBanner({ app, canDelete, onDelete, onKeep, busy }) {
+  const r = app.deleteRequest
+  if (!r) return null
+  return (
+    <div className="mx-5 mt-5 rounded-2xl border border-[#EF4444]/25 bg-[#EF4444]/[0.06] p-4">
+      <p className="flex items-center gap-2 text-sm font-bold text-[#111111] dark:text-white"><Trash2 className="h-4 w-4 text-[#EF4444]" /> {r.byName ?? 'Someone'} asked to delete this</p>
+      <p className="mt-1 text-xs text-[#3F3F46] dark:text-[#D4D4D8]">“{r.reason}” · {ago(r.at)}</p>
+      {canDelete ? (
+        <div className="mt-3 flex gap-2">
+          <button type="button" onClick={onKeep} disabled={busy} className="flex-1 rounded-xl border border-[#E5E7EB] bg-white py-2 text-sm font-semibold text-[#111111] hover:bg-[#F5F5F4] dark:border-[#2A2A2A] dark:bg-[#181818] dark:text-white">Keep it</button>
+          <button type="button" onClick={onDelete} disabled={busy} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#EF4444] py-2 text-sm font-semibold text-white hover:bg-[#DC2626]"><Trash2 className="h-4 w-4" /> Delete it</button>
+        </div>
+      ) : <p className="mt-2 text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">Waiting for a manager to decide. You’ll get a notification.</p>}
+    </div>
+  )
+}
+
+// At the bottom of the drawer: delete (two taps), or ask with a reason
+function DeleteSection({ app, canDelete, onDelete, onAsk, busy }) {
+  const [step, setStep] = useState(null) // 'confirm' | 'ask'
+  const [why, setWhy] = useState('')
+  if (!canDelete && app.deleteRequest) return null
+  return (
+    <Section title={canDelete ? 'Delete this application' : 'Should this be deleted?'} icon={Trash2}>
+      {step === null && (
+        <div className="flex items-center gap-3">
+          <p className="flex-1 text-xs text-[#6B7280] dark:text-[#A1A1AA]">{canDelete ? 'Removes it with its documents and signature. This can’t be undone.' : 'Only a manager can delete it. Tell them why and they decide.'}</p>
+          <button type="button" onClick={() => setStep(canDelete ? 'confirm' : 'ask')}
+            className="flex flex-none items-center gap-1.5 rounded-xl border border-[#EF4444]/40 px-3.5 py-2 text-sm font-semibold text-[#EF4444] hover:bg-[#EF4444]/10">
+            <Trash2 className="h-4 w-4" /> {canDelete ? 'Delete' : 'Ask to delete'}
+          </button>
+        </div>
+      )}
+      {step === 'confirm' && (
+        <div className="rounded-xl border border-[#EF4444]/30 bg-[#EF4444]/[0.06] p-3">
+          <p className="text-sm font-semibold text-[#111111] dark:text-white">Delete {app.name}&apos;s application for good?</p>
+          <p className="mt-0.5 text-xs text-[#6B7280] dark:text-[#A1A1AA]">Their link stops working and their documents are removed.{app.status === 'approved' ? ' Documents already added to the deal stay there.' : ''}</p>
+          <div className="mt-3 flex gap-2">
+            <button type="button" onClick={() => setStep(null)} className="flex-1 rounded-xl border border-[#E5E7EB] bg-white py-2 text-sm font-semibold text-[#111111] dark:border-[#2A2A2A] dark:bg-[#181818] dark:text-white">Cancel</button>
+            <button type="button" onClick={onDelete} disabled={busy} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#EF4444] py-2 text-sm font-semibold text-white hover:bg-[#DC2626] disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Yes, delete
+            </button>
+          </div>
+        </div>
+      )}
+      {step === 'ask' && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {DELETE_REASONS.map((r) => (
+              <button key={r} type="button" onClick={() => setWhy(r)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${why === r ? 'bg-[#EF4444] text-white' : 'bg-white text-[#111111] ring-1 ring-[#E5E7EB] hover:ring-[#EF4444]/50 dark:bg-[#202020] dark:text-white dark:ring-[#2A2A2A]'}`}>{r}</button>
+            ))}
+          </div>
+          <textarea rows={2} value={why} onChange={(e) => setWhy(e.target.value)} maxLength={500} placeholder="Why should it be deleted?" className={inputCls(false)} />
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { setStep(null); setWhy('') }} className="flex-1 rounded-xl border border-[#E5E7EB] py-2 text-sm font-semibold text-[#6B7280] dark:border-[#2A2A2A]">Cancel</button>
+            <button type="button" onClick={() => onAsk(why.trim())} disabled={busy || why.trim().length < 3}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#EF4444] py-2 text-sm font-semibold text-white hover:bg-[#DC2626] disabled:opacity-50">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send to a manager
+            </button>
+          </div>
+        </div>
+      )}
+    </Section>
+  )
 }
 
 const CO_STATUS = { invited: ['Not opened', '#9CA3AF'], opened: ['Opened', '#3B82F6'], in_progress: ['Filling in', '#F59E0B'], done: ['Done & signed', '#10B981'] }
@@ -366,6 +448,19 @@ export function TenantReviewDrawer({ id, onClose }) {
   const reopenMut = useMutation({ mutationFn: () => tenantsApi.reopen(id), onSuccess: done(), onError: fail('Could not reopen') })
   const withdrawMut = useMutation({ mutationFn: () => tenantsApi.withdraw(id), onSuccess: done(), onError: fail('Could not switch the link off') })
   const clearMut = useMutation({ mutationFn: (issueId) => tenantsApi.resolveIssue(id, issueId), onSuccess: done('Cleared'), onError: fail('Could not clear it') })
+  const canDelete = canDeleteApps(useAuthStore((s) => s.user))
+  const deleteMut = useMutation({
+    mutationFn: () => tenantsApi.remove(id),
+    onSuccess: () => {
+      ;['tenant-apps', 'deal-tracker'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }))
+      qc.removeQueries({ queryKey: ['tenant-apps', 'one', id] })
+      toast.success('Application deleted')
+      onClose()
+    },
+    onError: fail('Could not delete it'),
+  })
+  const askMut = useMutation({ mutationFn: (why) => tenantsApi.requestDelete(id, why), onSuccess: done('Sent — a manager will decide'), onError: fail('Could not send the request') })
+  const keepMut = useMutation({ mutationFn: () => tenantsApi.declineDelete(id), onSuccess: done('Kept — they were told'), onError: fail('Could not decline the request') })
 
   const type = typeOf(app?.applicantType)
   const closed = ['approved', 'declined', 'withdrawn'].includes(app?.status)
@@ -431,6 +526,8 @@ export function TenantReviewDrawer({ id, onClose }) {
         <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-[#F95C4B]" /></div>
       ) : (
         <div className="divide-y divide-[#E5E7EB] dark:divide-[#2A2A2A]">
+          <DeleteRequestBanner app={app} canDelete={canDelete} busy={deleteMut.isPending || keepMut.isPending}
+            onDelete={() => { if (window.confirm(`Delete ${app.name}'s application for good?`)) deleteMut.mutate() }} onKeep={() => keepMut.mutate()} />
           {/* Status + tracking */}
           <Section title="Where it is" icon={Activity} right={<StatusPill status={app.status} />}>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -672,6 +769,9 @@ export function TenantReviewDrawer({ id, onClose }) {
               ))}
             </ol>
           </Section>
+
+          <DeleteSection app={app} canDelete={canDelete} busy={deleteMut.isPending || askMut.isPending}
+            onDelete={() => deleteMut.mutate()} onAsk={(why) => askMut.mutate(why)} />
         </div>
       )}
     </SidePanel>

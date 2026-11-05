@@ -622,7 +622,8 @@ function EmptySearch() {
 /* ─── Main Page ─────────────────────────────────────────────────────────── */
 
 export default function MyContactsPage() {
-  const [search, setSearch]             = useState('')
+  // ?q= from the top bar's search opens straight onto that person
+  const [search, setSearch]             = useState(() => new URLSearchParams(window.location.search).get('q') ?? '')
   const [statusFilter, setStatusFilter] = useState('')
   const [viewMode, setViewMode]         = useState('todo') // 'todo' | 'today'
   const [unreachableOnly, setUnreachableOnly] = useState(false)

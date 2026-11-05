@@ -14,6 +14,10 @@ export const tenantsApi = {
   decide:        (id, decision, reason) => axiosClient.post(`/tenant-applications/${id}/decision`, { decision, reason }),
   reopen:        (id)              => axiosClient.post(`/tenant-applications/${id}/reopen`),
   withdraw:      (id)              => axiosClient.post(`/tenant-applications/${id}/withdraw`),
+  // Managers and Reliable Touch delete; everyone else asks them to
+  remove:        (id)              => axiosClient.delete(`/tenant-applications/${id}`),
+  requestDelete: (id, reason)      => axiosClient.post(`/tenant-applications/${id}/delete-request`, { reason }),
+  declineDelete: (id)              => axiosClient.post(`/tenant-applications/${id}/delete-request/decline`),
 }
 
 // Tenant side — the private link, no sign-in. A team member opening it with ?assist (to fill it

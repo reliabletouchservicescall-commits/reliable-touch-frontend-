@@ -5,15 +5,15 @@ import DealTrackerPage from '../shared/DealTrackerPage'
 import TenantApplicationsPage from '../shared/TenantApplicationsPage'
 import { useAgentHome } from '../../components/agent/useAgentHome'
 
-// Leads — one lead's whole journey in one place: the list, the board (the Deal Tracker,
-// stage by stage) and the tenants applying for listed rentals.
+// Leads — one lead's whole journey in one place: the list, the Deal Tracker (stage by
+// stage) and the applications from tenants for listed rentals.
 export default function LeadsHubPage() {
   const { data: home } = useAgentHome()
   const review = home?.tenants?.counts?.review ?? 0
   const tabs = [
     { key: 'list', label: 'List', icon: List },
-    { key: 'board', label: 'Board', icon: Columns3 },
-    { key: 'tenants', label: 'Tenants', icon: KeyRound, count: review },
+    { key: 'board', label: 'Deal Tracker', icon: Columns3 },
+    { key: 'tenants', label: 'Applications', icon: KeyRound, count: review },
   ]
   const [tab, pick] = useHubTab(tabs)
   return (

@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
-  Users, Phone, CalendarClock, Flame, Home, RefreshCw, PhoneCall, Building2, Clock, TrendingUp, Bell, X, Trophy, CalendarCheck, MapPin,
+  Users, Phone, CalendarClock, Flame, Home, RefreshCw, Building2, Clock, Bell, X, Trophy, UserPlus, Upload, Inbox, AlarmClock, BadgeDollarSign, BarChart3, ChevronDown,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { useAuthStore } from '../../store/authStore'
+import { ActionTiles } from '../../components/dashboard/AgentHome'
 import { useTheme } from '../../context/ThemeContext'
 import { contactRequestsApi } from '../../services/contactRequestsApi'
 import FinancePanel from '../../components/dashboard/FinancePanel'
@@ -16,7 +17,7 @@ import {
 } from '../../components/dashboard/LiveOps'
 import {
   Card, CardTitle, LinkButton, Skeleton, ErrorBanner, Milestone, Kpi, Pipeline, TemperatureDonut, IntentBars,
-  TrendChart, CallsByHourChart, ProvincePanel, TodaysTasks, RecentActivity, PhotoCard, STATUS_COLORS, STATUS_LABEL,
+  TrendChart, CallsByHourChart, ProvincePanel, TodaysTasks, RecentActivity, STATUS_COLORS, STATUS_LABEL,
 } from '../../components/dashboard/DashboardKit'
 import { CORAL } from '../../lib/brand'
 
@@ -190,18 +191,24 @@ function ContactRequests() {
 
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 
+// How many cold callers are asking for contacts (same query as the card)
+function usePendingRequests() {
+  const { data } = useQuery({
+    queryKey: ['contact-requests-pending'],
+    queryFn: () => contactRequestsApi.list({ status: 'pending', limit: 10 }),
+    staleTime: 30_000,
+  })
+  return (data?.requests ?? []).length
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore()
   const { theme } = useTheme() ?? {}
   const isDark = theme === 'dark'
   const navigate = useNavigate()
-  const [now, setNow] = useState(() => new Date())
   const freshRef = useRef(false) // set by the refresh button to bypass the server's 60s cache
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60_000)
-    return () => clearInterval(t)
-  }, [])
+  const [more, setMore] = useState(() => { try { return localStorage.getItem('rt-admin-more') === '1' } catch { return false } })
+  const toggleMore = () => setMore((v) => { try { localStorage.setItem('rt-admin-more', v ? '0' : '1') } catch { /* private mode */ } return !v })
 
   const { data: o, isError, isFetching, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['admin-overview'],
@@ -234,6 +241,7 @@ export default function DashboardPage() {
   const { data: live, isLoading: liveLoading } = useLiveOverview()
   const attention = useAttentionItems(live, floor, tick)
 
+  const requests = usePendingRequests()
   const k = o?.kpis
   const kpiCards = useMemo(() => [
     { icon: Users, label: 'Total leads', value: k?.totalLeads, sub: `${(k?.leadsThisWeek ?? 0).toLocaleString()} this week`, trend: k?.leadsWeekChangePct, to: '/admin/leads' },
@@ -242,6 +250,16 @@ export default function DashboardPage() {
     { icon: Flame, label: 'Qualified (hot)', value: k?.qualified, sub: 'Ready for an agent', to: '/admin/leads', tone: '#EF4444' },
     { icon: Home, label: 'Listed / rented / sold', value: k?.closedThisMonth, sub: 'Closed this month', to: '/admin/leads', tone: '#10B981' },
   ], [k])
+
+  // The jobs admin does most — one button each, lit up when something is waiting
+  const actions = [
+    { key: 'hot', label: 'Hand out hot leads', icon: Flame, hot: (k?.qualified ?? 0) > 0, sub: k ? `${(k.qualified ?? 0).toLocaleString()} hot leads · give them to agencies` : 'Give leads to agencies', go: () => navigate('/admin/leads?focus=no_agent') },
+    { key: 'requests', label: 'Contact requests', icon: Inbox, hot: requests > 0, sub: requests ? `${requests} caller${requests === 1 ? '' : 's'} asking for more` : 'Nobody is waiting', go: () => navigate('/admin/contacts?view=files') },
+    { key: 'late', label: 'Late follow-ups', icon: AlarmClock, sub: k ? `${(k.followUpsOverdue ?? 0).toLocaleString()} overdue` : 'Leads nobody updated', go: () => navigate('/admin/leads?focus=overdue') },
+    { key: 'upload', label: 'Upload contacts', icon: Upload, sub: k ? `${(k.needsCalling ?? 0).toLocaleString()} not called yet` : 'An Excel file of owners', go: () => navigate('/admin/contacts?view=files') },
+    { key: 'person', label: 'Add a person', icon: UserPlus, sub: 'A caller, manager or agent', go: () => navigate('/admin/team?tab=users&new=1') },
+    { key: 'money', label: 'Commissions', icon: BadgeDollarSign, sub: finance.loading ? 'Money owed and paid' : `${finance.commissions.length ? `${finance.commissions.length} recent` : 'None yet'} · ${finance.renewals.length} renewal${finance.renewals.length === 1 ? '' : 's'}`, go: () => navigate('/admin/agencies?tab=commissions') },
+  ]
 
   return (
     <div className="relative p-4 sm:p-6 xl:p-8 space-y-6">
@@ -253,16 +271,44 @@ export default function DashboardPage() {
       </div>
 
       <DashboardHeader user={user} floor={floor} needsCount={liveLoading ? null : attention.length} period={period} onPeriod={choosePeriod} />
-      <div className="relative"><FunnelStrip period={period} /></div>
 
-      {/* Two columns; Live activity stretches to the right column's height — no gaps either side */}
+      {/* The jobs admin does every day */}
+      <div className="relative"><ActionTiles items={actions} /></div>
+
+      {isError && !o && <ErrorBanner onRetry={() => refetch()} />}
+
+      {/* Decisions waiting · the goal · who is working */}
       <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6">
-        <div className="flex flex-col gap-6 min-w-0">
+        <div className="flex flex-col gap-6 min-w-0 xl:min-h-[460px]">
+          <ContactRequests />
           <NeedsAttention items={attention} loading={liveLoading} />
-          <LiveActivity fill />
+          <Card delay={140} className="p-5">
+            <CardTitle title="Where the leads are" subtitle="From a contact to a closed deal — tap a step to open it" action={<LinkButton to="/admin/leads">All leads</LinkButton>} />
+            {!o ? <Skeleton className="h-20" /> : <Pipeline stages={o.pipeline} isDark={isDark} />}
+          </Card>
         </div>
+        {/* On wide screens this column takes the left column's height; the floor list scrolls */}
+        <div className="relative">
+          <div className="flex flex-col gap-6 xl:absolute xl:inset-0">
+            {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o?.milestone} />}
+            <OnTheFloor floor={floor} loading={floorLoading} now={tick} fill />
+          </div>
+        </div>
+      </div>
+
+      <div className="relative flex justify-center">
+        <button type="button" onClick={toggleMore} aria-expanded={more}
+          className="mac-press flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] text-[#111111] dark:text-white hover:border-[#F95C4B]/40 hover:text-[#F95C4B]">
+          <BarChart3 className="w-4 h-4" /> {more ? 'Hide the numbers' : 'Show all the numbers'}
+          <ChevronDown className={`w-4 h-4 transition-transform ${more ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {more && (<>
+      <div className="relative"><FunnelStrip period={period} /></div>
+      <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6">
+        <LiveActivity fill />
         <div className="space-y-6 self-start">
-          <OnTheFloor floor={floor} loading={floorLoading} now={tick} />
           <LeadTemperature temperature={live?.temperature} />
           <LeadingThisMonth leaders={live?.leaders} />
         </div>
@@ -272,20 +318,11 @@ export default function DashboardPage() {
         {/* ── Main column ─────────────────────────────────────────────── */}
         <div className="space-y-6 min-w-0">
 
-          {isError && !o && (
-            <ErrorBanner onRetry={() => refetch()} />
-          )}
-
           <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-5 gap-4">
             {!o
               ? Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-[140px]" />)
               : kpiCards.map((c, i) => <Kpi key={c.label} delay={80 + i * 60} {...c} />)}
           </div>
-
-          <Card delay={140} className="p-5">
-            <CardTitle title="Lead pipeline" subtitle="From first contact to a closed deal — and how many make each step" action={<LinkButton to="/admin/leads">View all leads</LinkButton>} />
-            {!o ? <Skeleton className="h-20" /> : <Pipeline stages={o.pipeline} isDark={isDark} />}
-          </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] gap-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-6 content-start">
@@ -299,18 +336,18 @@ export default function DashboardPage() {
               </Card>
             </div>
             <Card delay={180} className="p-5">
-              <CardTitle title="Leads by province" subtitle="Hover or tap a province · darker = more leads" action={<LinkButton to="/admin/areas">Areas</LinkButton>} />
-              {!o ? <Skeleton className="h-[360px]" /> : <ProvincePanel provinces={o.provinces} isDark={isDark} fixAreasTo="/admin/areas" />}
+              <CardTitle title="Leads by province" subtitle="Hover or tap a province · darker = more leads" action={<LinkButton to="/admin/contacts?tab=areas">Areas</LinkButton>} />
+              {!o ? <Skeleton className="h-[360px]" /> : <ProvincePanel provinces={o.provinces} isDark={isDark} fixAreasTo="/admin/contacts?tab=areas" />}
             </Card>
           </div>
 
           <div className="grid grid-cols-1 2xl:grid-cols-[1.4fr_1fr] gap-6">
             <Card delay={260} className="p-5">
-              <CardTitle title="Daily activity — last 30 days" subtitle="Calls (left axis) against leads created and deals closed (right axis)" action={<LinkButton to="/admin/call-logs">Call logs</LinkButton>} />
+              <CardTitle title="Daily activity — last 30 days" subtitle="Calls (left axis) against leads created and deals closed (right axis)" action={<LinkButton to="/admin/contacts?tab=log">Call logs</LinkButton>} />
               {!o ? <Skeleton className="h-[250px]" /> : <TrendChart data={o.charts.daily} xKey="date" series={DAILY_SERIES} rightAxis isDark={isDark} xFormat={(d) => format(new Date(d), 'd MMM')} labelFormat={(d) => format(new Date(d), 'EEE, d MMM')} />}
             </Card>
             <Card delay={300} className="p-5">
-              <CardTitle title="Weekly trend — 12 weeks" subtitle="New leads vs deals closed each week" action={<LinkButton to="/admin/performance">Performance</LinkButton>} />
+              <CardTitle title="Weekly trend — 12 weeks" subtitle="New leads vs deals closed each week" action={<LinkButton to="/admin/team?tab=performance">Performance</LinkButton>} />
               {!o ? <Skeleton className="h-[250px]" /> : <TrendChart data={o.charts.weekly} xKey="weekStart" series={WEEKLY_SERIES} isDark={isDark} delay={350} xFormat={(d) => format(new Date(d), 'd MMM')} labelFormat={(d) => `Week of ${format(new Date(d), 'd MMM')}`} />}
             </Card>
           </div>
@@ -331,8 +368,6 @@ export default function DashboardPage() {
             {!o ? <Skeleton className="h-[300px]" /> : <RecentLeads leads={o.recentLeads} />}
           </Card>
 
-          <ContactRequests />
-
           <div>
             <h2 className="text-xs font-semibold uppercase tracking-widest text-[#6B7280] dark:text-[#A1A1AA] mb-3 flex items-center gap-2">
               <Building2 className="w-3.5 h-3.5" /> Finance
@@ -343,7 +378,6 @@ export default function DashboardPage() {
 
         {/* ── Right rail ──────────────────────────────────────────────── */}
         <aside className="space-y-6 min-w-0">
-          {!o ? <Skeleton className="min-h-[220px]" /> : <Milestone milestone={o?.milestone} />}
           <Card delay={120} className="p-5">
             <CardTitle
               title="Today's tasks"
@@ -361,19 +395,9 @@ export default function DashboardPage() {
             <CardTitle title="Recent activity" subtitle="Across the whole system" action={<Clock className="w-4 h-4 text-[#9CA3AF]" />} />
             {!o ? <Skeleton className="h-[320px]" /> : <RecentActivity events={o.activity} />}
           </Card>
-          <PhotoCard
-            eyebrow="Next stop"
-            title="The whole of South Africa"
-            text={<>Leads in <b className="text-white">{(o?.provinces?.list ?? []).filter((p) => p.leads > 0).length}</b> of 9 provinces so far. More cities, more agents, more opportunities.</>}
-            to="/admin/areas"
-            buttonLabel="Manage coverage"
-            icon={MapPin}
-          />
-          <p className="text-center text-[10px] text-[#9CA3AF] flex items-center justify-center gap-1.5">
-            <TrendingUp className="w-3 h-3" /> Reliable Touch Services · Lead generation · Cold calling · Follow-up · Distribution
-          </p>
         </aside>
       </div>
+      </>)}
     </div>
   )
 }

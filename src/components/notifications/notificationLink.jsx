@@ -34,6 +34,8 @@ export function notificationTarget(n, user) {
     case 'leaderboard':
       if (role === 'admin') return { to: '/admin/performance', label: 'View performance', icon: Trophy }
       return role === 'follow_up_manager' ? null : { to: `${base}/leaderboard`, label: 'View leaderboard', icon: Trophy }
+    case 'diary':
+      return role === 'agency' ? { to: '/agency/diary', label: 'Open diary', icon: CalendarCheck } : role === 'admin' ? { to: '/admin/appointments', label: 'Open calendar', icon: CalendarCheck } : role === 'cold_caller' ? { to: '/cold-caller/diary', label: 'Open diary', icon: CalendarCheck } : role === 'follow_up_manager' ? { to: '/follow-up-manager/diary', label: 'Open diary', icon: CalendarCheck } : null
     case 'chat':
       return { to: `${base}/chat`, label: 'Open messages', icon: MessageSquare }
     case 'lease_renewals':

@@ -1,11 +1,11 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { format, isToday } from 'date-fns'
 import {
   Handshake, Search, X, ChevronDown, Bell, MessageSquare, MessagesSquare, PhoneCall, Sparkles, Flame, UserCheck,
   CalendarCheck, Home, KeyRound, Wallet, BadgePercent, TrendingUp, Building2, Table2, Workflow,
-  GitBranch, ExternalLink, Info, Loader2, AlertTriangle, Trophy, Paperclip,
+  GitBranch, ExternalLink, Info, Loader2, AlertTriangle, Trophy, Paperclip, ChevronLeft, ChevronRight, Phone, MessageCircle, LayoutList, FileSignature, Check,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import axiosClient from '../../lib/axios'
@@ -14,6 +14,8 @@ import SidePanel from '../../components/common/SidePanel'
 import { LeadStatusBadge } from '../../components/leads/leadShared'
 import DealFlowCanvas from '../../components/deals/DealFlowCanvas'
 import DealDocuments from '../../components/deals/DealDocuments'
+import DealMoneyEditor, { FIELD_OF } from '../../components/deals/DealMoneyEditor'
+import LandlordLinkPanel from '../../components/landlords/LandlordLinkPanel'
 import { TenantApplicationsPanel, TenantProgressChip } from '../../components/tenants/TenantApplications'
 import { DEAL_DOC_STAGES } from '../../lib/dealDocs'
 import { CORAL } from '../../lib/brand'
@@ -22,10 +24,12 @@ import { CORAL } from '../../lib/brand'
 // a table like the team's old deal board (money, payments, splits, sums per group), the
 // same deals as workflows (each step, who did it and when, and every notification and
 // message sent along the way), and the whole pipeline as one flow. Read-only; the deal
-// itself is filled in on the lead (Deal section). Admin sees every company, a company's
-// manager their own, an agent their own deals and a cold caller the deals that grew from the
-// leads they found — with the points each deal is worth to them (the server leaves out the
-// money they shouldn't see: data.viewer.hide).
+// itself is filled in from here: tap a deal's name for everything, or any cell for just that part
+// (its money, documents, applications…). Reliable Touch admin and follow-up managers and a
+// company's managers fill in the money (data.viewer.canEdit); admin and follow-up managers see
+// every company, a company's manager their own, an agent their own deals and a cold caller the
+// deals that grew from the leads they found — with the points each deal is worth to them (the
+// server leaves out the money they shouldn't see: data.viewer.hide).
 
 /* ─── Bits ──────────────────────────────────────────────────────────────── */
 
@@ -43,6 +47,12 @@ const PAY = {
 }
 const DESK = { not_owing: ['Not owing', '#E2445C'], owing: ['Owing', '#FDAB3D'], deducted: ['Deducted', '#00C875'] }
 const COMMISSION = { paid: ['Paid', '#00C875'], pending: ['Pending', '#FDAB3D'], invoiced: ['Invoiced', '#579BFC'], overdue: ['Overdue', '#E2445C'] }
+
+// Sale or rental, at a glance
+const TYPE = {
+  rental: { label: 'Rental', icon: KeyRound, color: '#3B82F6' },
+  sale: { label: 'Sale', icon: Home, color: '#10B981' },
+}
 
 function Pill({ value, map, empty = '' }) {
   if (!value) return <span className="block h-full min-h-[30px] bg-[#F5F5F4] dark:bg-[#202020]">{empty}</span>
@@ -87,18 +97,20 @@ const GROUPS = {
 }
 
 const COLS = [
+  { key: 'type', label: 'Type', w: 100 },
   { key: 'points', label: 'Your points', w: 120, mine: true },
+  { key: 'landlord', label: 'Landlord', w: 160 },
   { key: 'agent', label: 'Agent', w: 150 },
   { key: 'date', label: 'Date', w: 92 },
   { key: 'stage', label: 'Stage', w: 120 },
-  { key: 'tenants', label: 'Tenants', w: 170 },
+  { key: 'consent', label: 'Landlord consent', w: 150 },
+  { key: 'tenants', label: 'Applications', w: 170 },
   { key: 'docs', label: 'Documents', w: 150 },
-  { key: 'client', label: 'Client', w: 130, pill: true },
-  { key: 'landlord', label: 'Landlord', w: 130, pill: true },
+  { key: 'client', label: 'Client paid', w: 130, pill: true },
+  { key: 'landlordPay', label: 'Landlord paid', w: 130, pill: true },
   { key: 'split', label: 'Commission split', w: 130, pill: true },
   { key: 'commission', label: 'Commission paid', w: 120, pill: true },
   { key: 'desk', label: 'Desk fees', w: 110, pill: true },
-  { key: 'tenant', label: 'Tenant', w: 140 },
   { key: 'coldCaller', label: 'Cold caller', w: 130 },
   { key: 'monthlyRental', label: 'Monthly rental', w: 112, money: true },
   { key: 'procurementFee', label: 'Procurement', w: 110, money: true },
@@ -154,12 +166,38 @@ function cell(r, key) {
         </span>
       )
     }
+    case 'consent': {
+      const c = r.consent
+      const [label, color] = !c ? (['hot', 'still_negotiating', 'listed'].includes(r.status) ? ['Send link', '#9CA3AF'] : ['—', null])
+        : c.approved ? ['Tenant approved', '#10B981'] : c.status === 'signed' ? ['Signed', '#10B981']
+          : c.status === 'opened' ? ['Opened', '#F59E0B'] : c.status === 'withdrawn' ? ['Switched off', '#9CA3AF'] : ['Sent', '#3B82F6']
+      if (!color) return <span className="text-[#D4D4D8]">—</span>
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap" style={{ color, backgroundColor: `${color}1F` }}>
+          {c?.status === 'signed' ? <Check className="w-3 h-3" /> : <FileSignature className="w-3 h-3" />} {label}{c?.shared && !c.approved ? ` · ${c.shared} shared` : ''}
+        </span>
+      )
+    }
+    case 'type': {
+      const t = TYPE[r.listingType]
+      return t ? (
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold" style={{ color: t.color, backgroundColor: `${t.color}1F` }}>
+          <t.icon className="w-3.5 h-3.5" /> {t.label}
+        </span>
+      ) : <span className="text-[11px] text-[#9CA3AF]">Not set</span>
+    }
+    case 'landlord': return (
+      <span className="block min-w-0">
+        <span className="block truncate text-[#111111] dark:text-white">{r.landlord?.name ?? r.landlordName}</span>
+        {r.landlord?.phone ? <a href={`tel:${String(r.landlord.phone).replace(/[^\d+]/g, '')}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 text-[10px] font-semibold text-[#10B981] hover:underline"><Phone className="w-3 h-3" />{r.landlord.phone}</a>
+          : <span className="block text-[10px] text-[#9CA3AF]">No number</span>}
+      </span>
+    )
     case 'client': return <Pill value={r.deal.clientPayment} map={PAY} />
-    case 'landlord': return <Pill value={r.deal.landlordPayment} map={PAY} />
+    case 'landlordPay': return <Pill value={r.deal.landlordPayment} map={PAY} />
     case 'split': return <SplitPill split={r.deal.split} />
     case 'commission': return <Pill value={r.commission?.status ?? (r.deal.agentCommissionPaid ? 'paid' : r.deal.agentCommissionPaid === false ? 'pending' : null)} map={COMMISSION} />
     case 'desk': return <Pill value={r.deal.deskFee} map={DESK} />
-    case 'tenant': return r.deal.tenantName ?? <span className="text-[#D4D4D8]">—</span>
     case 'coldCaller': return r.coldCaller ?? '—'
     case 'occupation': return short(r.deal.occupationDate ?? r.lease.start)
     case 'leaseEnd': return short(r.lease.end)
@@ -185,6 +223,57 @@ function cell(r, key) {
   }
 }
 
+// The wide table in its own box: it scrolls inside it, so the column names stay on top, the
+// deal names on the left and the sums at the bottom, and the ‹ › buttons above it (and on its
+// edges) are always in reach. Shift + wheel and swiping work too.
+function SideScroll({ children }) {
+  const ref = useRef(null)
+  const [pos, setPos] = useState({ left: false, right: false, start: 0, size: 1 })
+  const measure = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const max = Math.max(1, el.scrollWidth)
+    setPos({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+      start: el.scrollLeft / max,
+      size: Math.min(1, el.clientWidth / max),
+    })
+  }, [])
+  useEffect(() => {
+    measure()
+    const el = ref.current
+    const ro = new ResizeObserver(measure)
+    if (el) { ro.observe(el); if (el.firstElementChild) ro.observe(el.firstElementChild) }
+    return () => ro.disconnect()
+  }, [measure])
+  const go = (dir) => ref.current?.scrollBy({ left: dir * Math.max(240, (ref.current.clientWidth - 260) * 0.8), behavior: 'smooth' })
+  const wide = pos.left || pos.right
+  const small = 'flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#111111] transition-colors hover:border-[#F95C4B]/50 hover:text-[#F95C4B] disabled:opacity-30 disabled:hover:border-[#E5E7EB] disabled:hover:text-[#111111] dark:border-[#2A2A2A] dark:bg-[#202020] dark:text-white'
+  const edge = 'absolute top-1/2 z-40 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#111111] shadow-lg ring-1 ring-[#E5E7EB] transition-all hover:scale-105 hover:text-[#F95C4B] dark:bg-[#202020]/95 dark:text-white dark:ring-[#2A2A2A]'
+  return (
+    <div>
+      {wide && (
+        <div className="flex items-center gap-3 border-b border-[#F1EFEC] px-3 py-2 dark:border-[#232323]">
+          <span className="hidden text-[11px] text-[#9CA3AF] sm:block">Tap a deal for everything, or any cell for just that part</span>
+          {/* Where you are across the columns */}
+          <span className="ml-auto h-1.5 w-28 overflow-hidden rounded-full bg-[#F1EFEC] dark:bg-[#2A2A2A]" aria-hidden>
+            <span className="block h-full rounded-full bg-[#F95C4B] transition-all" style={{ width: `${pos.size * 100}%`, marginLeft: `${pos.start * 100}%` }} />
+          </span>
+          <button type="button" onClick={() => go(-1)} disabled={!pos.left} aria-label="Scroll left" title="Scroll left" className={small}><ChevronLeft className="w-4 h-4" /></button>
+          <button type="button" onClick={() => go(1)} disabled={!pos.right} aria-label="Scroll right" title="Scroll right" className={small}><ChevronRight className="w-4 h-4" /></button>
+        </div>
+      )}
+      <div className="relative">
+        <div ref={ref} onScroll={measure} className="max-h-[72vh] overflow-auto thin-scroll scroll-smooth overscroll-x-contain">{children}</div>
+        {pos.left && <button type="button" onClick={() => go(-1)} aria-label="Scroll left" title="Scroll left" className={`${edge} left-[268px]`}><ChevronLeft className="w-5 h-5" /></button>}
+        {pos.right && <button type="button" onClick={() => go(1)} aria-label="Scroll right" title="Scroll right" className={`${edge} right-3`}><ChevronRight className="w-5 h-5" /></button>}
+        {pos.right && <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-30 w-12 bg-gradient-to-l from-black/[0.07] to-transparent dark:from-black/50" />}
+      </div>
+    </div>
+  )
+}
+
 function DealTable({ rows, groups, onOpen, cols: COLS }) {
   const [closed, setClosed] = useState(() => new Set())
   const toggle = (k) => setClosed((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
@@ -207,34 +296,35 @@ function DealTable({ rows, groups, onOpen, cols: COLS }) {
               <p className="ml-6 py-6 text-xs text-[#9CA3AF]">{g === 'completed' ? 'Deals land here once the client and landlord are both marked Paid on the lead’s Deal section.' : 'Nothing here.'}</p>
             ) : (
               <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] overflow-hidden" style={{ borderLeft: `4px solid ${meta.color}` }}>
-                <div className="overflow-x-auto thin-scroll">
-                  <table className="text-xs border-collapse" style={{ minWidth: 260 + COLS.reduce((s, c) => s + c.w, 0) }}>
+                <SideScroll>
+                  <table className="text-xs border-separate border-spacing-0" style={{ minWidth: 260 + COLS.reduce((s, c) => s + c.w, 0) }}>
                     <thead>
                       <tr className="bg-[#FAFAF9] dark:bg-[#111111] text-[11px] text-[#6B7280] dark:text-[#A1A1AA]">
-                        <th className="sticky left-0 z-10 bg-[#FAFAF9] dark:bg-[#111111] text-left font-semibold px-3 py-2.5 border-b border-r border-[#E5E7EB] dark:border-[#2A2A2A]" style={{ width: 260, minWidth: 260 }}>Deal</th>
+                        <th className="sticky left-0 top-0 z-30 bg-[#FAFAF9] dark:bg-[#111111] text-left font-semibold px-3 py-2.5 border-b border-r border-[#E5E7EB] dark:border-[#2A2A2A]" style={{ width: 260, minWidth: 260 }}>Deal</th>
                         {COLS.map((c) => (
-                          <th key={c.key} className={`font-semibold px-2 py-2.5 border-b border-r border-[#F1EFEC] dark:border-[#232323] whitespace-nowrap ${c.money ? 'text-right' : c.pill ? 'text-center' : 'text-left'}`} style={{ width: c.w, minWidth: c.w }}>{c.label}</th>
+                          <th key={c.key} className={`sticky top-0 z-20 bg-[#FAFAF9] dark:bg-[#111111] font-semibold px-2 py-2.5 border-b border-r border-[#F1EFEC] dark:border-[#232323] whitespace-nowrap ${c.money ? 'text-right' : c.pill ? 'text-center' : 'text-left'}`} style={{ width: c.w, minWidth: c.w }}>{c.label}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {list.map((r, i) => (
-                        <tr key={r.id} onClick={() => onOpen(r)} className="mac-in group cursor-pointer" style={{ '--d': `${Math.min(i, 15) * 18}ms` }}>
-                          <td className="sticky left-0 z-10 bg-white dark:bg-[#181818] group-hover:bg-[#FAFAF9] dark:group-hover:bg-[#1C1C1C] px-3 py-2 border-b border-r border-[#F1EFEC] dark:border-[#232323]">
+                        <tr key={r.id} onClick={() => onOpen(r, null)} className="mac-in group cursor-pointer" style={{ '--d': `${Math.min(i, 15) * 18}ms` }}>
+                          <td title="Everything about this deal" className="sticky left-0 z-10 bg-white dark:bg-[#181818] group-hover:bg-[#FAFAF9] dark:group-hover:bg-[#1C1C1C] px-3 py-2 border-b border-r border-[#F1EFEC] dark:border-[#232323]">
                             <span className="block font-semibold text-[#111111] dark:text-white truncate uppercase tracking-tight" title={r.landlordName}>{r.landlordName}</span>
                             <span className="block text-[10px] text-[#9CA3AF] truncate">{r.address}</span>
                           </td>
                           {COLS.map((c) => (
-                            <td key={c.key} className={`border-b border-r border-[#F1EFEC] dark:border-[#232323] group-hover:bg-[#FAFAF9] dark:group-hover:bg-[#1C1C1C] ${c.pill ? 'p-0' : 'px-2 py-2'} ${c.money ? 'text-right tabular-nums text-[#111111] dark:text-white' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
+                            <td key={c.key} title={`Open ${c.label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); onOpen(r, c.key) }}
+                              className={`border-b border-r border-[#F1EFEC] dark:border-[#232323] group-hover:bg-[#FAFAF9] dark:group-hover:bg-[#1C1C1C] hover:!bg-[#F95C4B]/[0.06] hover:shadow-[inset_0_0_0_1px_rgb(var(--brand-rgb)/0.35)] ${c.pill ? 'p-0' : 'px-2 py-2'} ${c.money ? 'text-right tabular-nums text-[#111111] dark:text-white' : 'text-[#6B7280] dark:text-[#A1A1AA]'}`}>
                               {cell(r, c.key)}
                             </td>
                           ))}
                         </tr>
                       ))}
-                      <tr className="bg-[#FAFAF9] dark:bg-[#111111] font-semibold">
-                        <td className="sticky left-0 z-10 bg-[#FAFAF9] dark:bg-[#111111] px-3 py-2.5 text-[11px] text-[#9CA3AF] border-r border-[#E5E7EB] dark:border-[#2A2A2A]">Sum · {list.length} deal{list.length === 1 ? '' : 's'}</td>
+                      <tr className="font-semibold">
+                        <td className="sticky left-0 bottom-0 z-30 border-t bg-[#FAFAF9] dark:bg-[#111111] px-3 py-2.5 text-[11px] text-[#9CA3AF] border-r border-[#E5E7EB] dark:border-[#2A2A2A]">Sum · {list.length} deal{list.length === 1 ? '' : 's'}</td>
                         {COLS.map((c) => (
-                          <td key={c.key} className={`px-2 py-2.5 border-r border-[#F1EFEC] dark:border-[#232323] ${c.money ? 'text-right tabular-nums text-[#111111] dark:text-white' : ''}`}>
+                          <td key={c.key} className={`sticky bottom-0 z-20 border-t border-[#E5E7EB] dark:border-[#2A2A2A] bg-[#FAFAF9] dark:bg-[#111111] px-2 py-2.5 border-r border-[#F1EFEC] dark:border-[#232323] ${c.money ? 'text-right tabular-nums text-[#111111] dark:text-white' : ''}`}>
                             {c.money ? <><span className="block">{R(sum(c.key) || totals[c.key] || 0)}</span><span className="block text-[9px] font-normal text-[#9CA3AF]">sum</span></> : null}
                             {c.key === 'notified' && <span className="text-[11px] text-[#F95C4B]">{list.reduce((s, r) => s + r.touchCounts.notifications, 0)} sent</span>}
                             {c.key === 'chance' && g !== 'completed' && <span className="text-[11px] text-[#111111] dark:text-white">{R(list.reduce((s, r) => s + (r.prediction?.weightedValue ?? 0), 0))} <span className="text-[9px] font-normal text-[#9CA3AF]">expected</span></span>}
@@ -243,7 +333,7 @@ function DealTable({ rows, groups, onOpen, cols: COLS }) {
                       </tr>
                     </tbody>
                   </table>
-                </div>
+                </SideScroll>
               </div>
             ))}
           </section>
@@ -433,16 +523,92 @@ function PointsCard({ row }) {
   )
 }
 
-function DealDrawer({ row, onClose, leadBase, hide = [], docs }) {
+// What a tapped column opens on its own
+const FOCUS = {
+  points: { title: 'Your points', part: 'points' },
+  landlord: { title: 'Landlord', part: 'landlord' },
+  agent: { title: 'People on the deal', part: 'people' },
+  coldCaller: { title: 'People on the deal', part: 'people' },
+  date: { title: 'Steps', part: 'journey' },
+  stage: { title: 'Steps', part: 'journey' },
+  chance: { title: 'Will it close?', part: 'journey' },
+  tenants: { title: 'Applications', part: 'tenants' },
+  docs: { title: 'Documents', part: 'docs' },
+  consent: { title: 'Landlord consent', part: 'consent' },
+  notified: { title: 'Notifications', part: 'journey', only: 'notification' },
+  messages: { title: 'Messages', part: 'journey', only: 'comment' },
+  ...Object.fromEntries(Object.keys(FIELD_OF).map((k) => [k, { title: 'Money & payments', part: 'money' }])),
+}
+
+function LandlordCard({ row }) {
+  const phone = row.landlord?.phone
+  const wa = phone ? String(phone).replace(/\D/g, '').replace(/^0/, '27') : ''
+  return (
+    <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF]">Landlord · the owner the cold caller phoned</p>
+      <p className="mt-2 text-lg font-bold text-[#111111] dark:text-white">{row.landlord?.name ?? row.landlordName}</p>
+      <p className="text-sm text-[#6B7280] dark:text-[#A1A1AA]">{row.address ?? '—'}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {phone ? (
+          <>
+            <a href={`tel:${String(phone).replace(/[^\d+]/g, '')}`} className="flex items-center gap-2 rounded-xl bg-[#10B981] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#059669]"><Phone className="w-4 h-4" /> Call {phone}</a>
+            {wa.length >= 10 && <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] px-4 py-2.5 text-sm font-semibold text-[#111111] dark:text-white hover:border-[#25D366]"><MessageCircle className="w-4 h-4 text-[#25D366]" /> WhatsApp</a>}
+          </>
+        ) : <p className="text-xs text-[#9CA3AF]">No number on the lead.</p>}
+      </div>
+      {row.coldCaller && <p className="mt-3 text-xs text-[#6B7280] dark:text-[#A1A1AA]">Found by <b className="text-[#111111] dark:text-white">{row.coldCaller}</b> on a cold call</p>}
+    </div>
+  )
+}
+
+function PeopleCard({ row }) {
+  const people = [
+    ['Agent', row.agent?.name, row.company?.name],
+    ['Shared agent', row.deal.split?.sharedAgent, row.deal.split?.sharedAgentPct != null ? `${row.deal.split.sharedAgentPct}% of the commission` : null],
+    ['Cold caller', row.coldCaller, 'Found the lead'],
+    ['Follow-up', row.followUp, null],
+    ['Tenant', row.deal.tenantName, row.deal.tenantPhone],
+  ].filter(([, n]) => n)
+  return (
+    <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] divide-y divide-[#F1EFEC] dark:divide-[#232323]">
+      {people.map(([role, name, sub]) => (
+        <div key={role} className="flex items-center gap-3 p-3.5">
+          <span className="w-9 h-9 rounded-full bg-[#F95C4B]/10 text-[#F95C4B] flex items-center justify-center text-xs font-bold">{name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-[#111111] dark:text-white truncate">{name}</span>
+            {sub && <span className="block text-xs text-[#9CA3AF] truncate">{sub}</span>}
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">{role}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DealDrawer({ row, focus, onFocus, onClose, leadBase, hide = [], docs, canEdit, agents }) {
+  // The landlord's consent link: Reliable Touch and the company's managers (the same people who edit the money)
+  const canConsent = canEdit
   const [documents, setDocuments] = useState(row.deal.documents ?? [])
   const navigate = useNavigate()
-  const [only, setOnly] = useState('all')
+  const f = focus ? FOCUS[focus] : null
+  const part = f?.part ?? 'all'
+  const show = (p) => part === 'all' || part === p
+  const [only, setOnly] = useState(f?.only ?? 'all')
   const touchesFor = (k) => row.touches.filter((t) => t.step === k && (only === 'all' || t.kind === only))
   return (
     <SidePanel onClose={onClose} icon={Handshake} title={row.landlordName} subtitle={`${row.address ?? ''}${row.company ? ` · ${row.company.name}` : ''}`} widthClass="sm:max-w-2xl">
       <div className="p-5 space-y-5">
-        <div className="flex flex-wrap items-center gap-2">
+        {f && (
+          <div className="flex items-center gap-2 rounded-xl bg-[#F95C4B]/[0.07] px-3 py-2">
+            <span className="flex-1 text-sm font-bold text-[#111111] dark:text-white">{f.title}</span>
+            <button type="button" onClick={() => onFocus(null)} className="flex items-center gap-1.5 text-xs font-semibold text-[#F95C4B] hover:underline"><LayoutList className="w-3.5 h-3.5" /> Show everything</button>
+          </div>
+        )}
+        {show('journey') && <div className="flex flex-wrap items-center gap-2">
           <LeadStatusBadge status={row.status} size="lg" />
+          {TYPE[row.listingType] && (() => { const t = TYPE[row.listingType]; return (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold" style={{ color: t.color, backgroundColor: `${t.color}1F` }}><t.icon className="w-3.5 h-3.5" /> {t.label}</span>
+          ) })()}
           {row.group !== 'completed' && row.prediction && (
             <span className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FAFAF9] dark:bg-[#202020] text-xs">
               <TrendingUp className="w-3.5 h-3.5 text-[#F95C4B]" /> <Chance p={row.prediction} />
@@ -452,20 +618,30 @@ function DealDrawer({ row, onClose, leadBase, hide = [], docs }) {
           <button type="button" onClick={() => navigate(`${leadBase}?lead=${row.id}`)} className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-[#F95C4B] hover:underline">
             Open lead <ExternalLink className="w-3.5 h-3.5" />
           </button>
-        </div>
-        {row.prediction && row.group !== 'completed' && (
+        </div>}
+        {show('journey') && row.prediction && row.group !== 'completed' && (
           <ul className="text-[11px] text-[#6B7280] dark:text-[#A1A1AA] space-y-0.5 -mt-2">
             {row.prediction.reasons.map((x) => <li key={x}>· {x}</li>)}
           </ul>
         )}
 
-        <PointsCard row={row} />
-        {row.listingType === 'rental' && ['listed', 'rented_out'].includes(row.status) && (
+        {show('points') && <PointsCard row={row} />}
+        {part === 'points' && !row.points && <p className="text-sm text-[#9CA3AF]">Points are for the agent and cold caller on the deal.</p>}
+        {show('landlord') && <LandlordCard row={row} />}
+        {show('consent') && canConsent && (
+          <div className="rounded-2xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
+            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF] mb-3"><FileSignature className="w-3.5 h-3.5" /> Landlord consent</p>
+            <LandlordLinkPanel leadId={row.id} />
+          </div>
+        )}
+        {part === 'consent' && !canConsent && <p className="rounded-xl bg-[#FAFAF9] dark:bg-[#141414] p-4 text-sm text-[#6B7280] dark:text-[#A1A1AA]">Your manager or Reliable Touch sends the landlord’s consent link.{row.consent ? ` It is ${row.consent.status === 'signed' ? 'signed' : row.consent.status}.` : ''}</p>}
+        {show('people') && <PeopleCard row={row} />}
+        {show('tenants') && (row.listingType === 'rental' && ['listed', 'rented_out'].includes(row.status) ? (
           <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
             <TenantApplicationsPanel leadId={row.id} embedded />
           </div>
-        )}
-        {docs.show ? (
+        ) : part === 'tenants' && <p className="rounded-xl bg-[#FAFAF9] dark:bg-[#141414] p-4 text-sm text-[#6B7280] dark:text-[#A1A1AA]">Tenants apply once a rental is listed. This one is {row.listingType === 'sale' ? 'a sale' : 'not listed yet'}.</p>)}
+        {!show('docs') ? null : docs.show ? (
           <div className="rounded-xl border border-[#E5E7EB] dark:border-[#2A2A2A] p-4">
             <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF] mb-3"><Paperclip className="w-3.5 h-3.5" /> Documents</p>
             <DealDocuments leadId={row.id} listingType={row.listingType} documents={documents} canUpload={docs.canUpload} isAdmin={docs.isAdmin} currentUserId={docs.userId} onChange={setDocuments} compact />
@@ -473,11 +649,13 @@ function DealDrawer({ row, onClose, leadBase, hide = [], docs }) {
         ) : row.docSummary?.files > 0 && (
           <p className="flex items-center gap-1.5 text-xs text-[#059669] dark:text-[#34D399]"><Paperclip className="w-3.5 h-3.5" /> {row.docSummary.keyDone} of {row.docSummary.key} key documents uploaded</p>
         )}
-        {!hide.includes('split') ? <MoneySplit r={row} hide={hide} /> : row.money.monthlyRental != null && (
-          <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Monthly rental <b className="text-[#111111] dark:text-white">{R(row.money.monthlyRental)}</b></p>
-        )}
+        {show('money') && (canEdit || part === 'money'
+          ? <DealMoneyEditor row={row} canEdit={canEdit} agents={row.company ? agents?.[row.company.id] ?? [] : []} focus={focus} hide={hide} />
+          : !hide.includes('split') ? <MoneySplit r={row} hide={hide} /> : row.money.monthlyRental != null && (
+            <p className="text-xs text-[#6B7280] dark:text-[#A1A1AA]">Monthly rental <b className="text-[#111111] dark:text-white">{R(row.money.monthlyRental)}</b></p>
+          ))}
 
-        <div>
+        {show('journey') && <div>
           <div className="flex items-center gap-2 mb-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9CA3AF] flex-1">Workflow — every step, notification and message</p>
             {[['all', 'All'], ['notification', 'Notifications'], ['comment', 'Follow-ups'], ['chat', 'Chat']].map(([k, l]) => (
@@ -532,7 +710,7 @@ function DealDrawer({ row, onClose, leadBase, hide = [], docs }) {
               )
             })}
           </ol>
-        </div>
+        </div>}
       </div>
     </SidePanel>
   )
@@ -553,7 +731,8 @@ export default function DealTrackerPage({ role = 'admin' }) {
   const [company, setCompany] = useState('')
   const [search, setSearch] = useState('')
   const [group, setGroup] = useState('all')
-  const [open, setOpen] = useState(null)
+  const [type, setType] = useState('all') // all | rental | sale
+  const [open, setOpen] = useState(null) // { id, focus }
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['deal-tracker', userId, company],
@@ -563,7 +742,7 @@ export default function DealTrackerPage({ role = 'admin' }) {
   })
 
   const q = search.trim().toLowerCase()
-  const rows = useMemo(() => (data?.rows ?? []).filter((r) => (group === 'all' || r.group === group) && (!q || [r.landlordName, r.address, r.agent?.name, r.company?.name, r.deal.tenantName, r.coldCaller].some((x) => x?.toLowerCase().includes(q)))), [data, group, q])
+  const rows = useMemo(() => (data?.rows ?? []).filter((r) => (group === 'all' || r.group === group) && (type === 'all' || r.listingType === type) && (!q || [r.landlordName, r.address, r.agent?.name, r.company?.name, r.deal.tenantName, r.coldCaller].some((x) => x?.toLowerCase().includes(q)))), [data, group, type, q])
   const all = data?.rows ?? []
   const sum = (list, k) => list.reduce((s, r) => s + (r.money[k] ?? 0), 0)
   const won = all.filter((r) => ['rented_out', 'sold'].includes(r.status))
@@ -572,7 +751,8 @@ export default function DealTrackerPage({ role = 'admin' }) {
   const cols = useMemo(() => COLS.filter((c) => !hide.includes(c.key) && (!c.mine || mine)), [hide, mine])
   // Documents: admin and the company (managers, agents) see and upload them; cold callers see the count
   const kind = data?.viewer?.kind
-  const docs = { show: ['admin', 'manager', 'agent'].includes(kind), canUpload: ['admin', 'manager', 'agent'].includes(kind), isAdmin: kind === 'admin', userId }
+  const docs = { show: ['admin', 'staff', 'manager', 'agent'].includes(kind), canUpload: ['admin', 'manager', 'agent'].includes(kind), isAdmin: kind === 'admin', userId }
+  const openRow = open ? all.find((r) => r.id === open.id) ?? null : null
   const pts = data?.points
   const kpis = mine ? [
     { label: 'Open deals', value: pts.openDeals, color: '#579BFC' },
@@ -591,7 +771,8 @@ export default function DealTrackerPage({ role = 'admin' }) {
     { label: 'Agent payouts', value: R(sum(all, 'agentShare') + sum(all, 'sharedAgentShare')), color: '#A25DDC' },
     { label: 'Expected from open deals', value: R(all.reduce((s, r) => s + (r.prediction?.weightedValue ?? 0), 0)), color: '#FDAB3D', hint: 'Each open deal’s value × its chance of closing' },
   ] : []
-  const leadBase = role === 'admin' ? '/admin/leads' : role === 'cold_caller' ? '/cold-caller/leads' : '/agency/leads'
+  const leadBase = role === 'admin' ? '/admin/leads' : role === 'cold_caller' ? '/cold-caller/leads' : role === 'follow_up_manager' ? '/follow-up-manager/leads' : '/agency/leads'
+  const openDeal = (r, focus = null) => setOpen({ id: r.id, focus })
 
   return (
     <div className="h-full overflow-y-auto thin-scroll bg-[#FAFAF9] dark:bg-[#0B0B0B]">
@@ -668,6 +849,16 @@ export default function DealTrackerPage({ role = 'admin' }) {
               </button>
             ))}
           </div>
+          {/* Sales and rentals */}
+          <div className="flex rounded-full border border-[#E5E7EB] dark:border-[#2A2A2A] p-0.5">
+            {[['all', 'All types', null], ['rental', 'Rentals', TYPE.rental], ['sale', 'Sales', TYPE.sale]].map(([k, l, t]) => (
+              <button key={k} type="button" onClick={() => setType(k)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${type === k ? 'bg-[#111111] text-white dark:bg-white dark:text-[#111111]' : 'text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111111] dark:hover:text-white'}`}>
+                {t && <t.icon className="w-3.5 h-3.5" style={{ color: type === k ? undefined : t.color }} />}{l}
+                <span className="tabular-nums opacity-60">{k === 'all' ? all.length : all.filter((r) => r.listingType === k).length}</span>
+              </button>
+            ))}
+          </div>
           {data?.model && (
             <span className="ml-auto text-[11px] text-[#9CA3AF] flex items-center gap-1.5" title={Object.entries(data.model.rate).map(([k, v]) => `${k}: ${v}% close (${data.model.sample[k]} leads)`).join('\n')}>
               <TrendingUp className="w-3.5 h-3.5" /> Predictions learn from how {data.model.sample.cold?.toLocaleString()} past leads went
@@ -683,14 +874,17 @@ export default function DealTrackerPage({ role = 'admin' }) {
           <div className="space-y-3">{Array.from({ length: 6 }, (_, i) => <div key={i} className="shimmer h-16 rounded-xl" />)}</div>
         ) : (
           <div key={view} className="relative">
-            {view === 'table' && <DealTable rows={rows} groups={data.groups} onOpen={setOpen} cols={cols} />}
-            {view === 'workflow' && <WorkflowList rows={rows} onOpen={setOpen} docs={docs} />}
+            {view === 'table' && <DealTable rows={rows} groups={data.groups} onOpen={openDeal} cols={cols} />}
+            {view === 'workflow' && <WorkflowList rows={rows} onOpen={(r) => openDeal(r)} docs={docs} />}
             {view === 'map' && <PipelineMap flow={data.flow} rows={rows} />}
           </div>
         )}
       </div>
 
-      {open && <DealDrawer key={open.id} row={open} onClose={() => setOpen(null)} leadBase={leadBase} hide={hide} docs={docs} />}
+      {openRow && (
+        <DealDrawer key={`${open.id}-${open.focus ?? 'all'}`} row={openRow} focus={open.focus} onFocus={(f) => setOpen((o) => ({ ...o, focus: f }))}
+          onClose={() => setOpen(null)} leadBase={leadBase} hide={hide} docs={docs} canEdit={Boolean(data?.viewer?.canEdit)} agents={data?.agents} />
+      )}
     </div>
   )
 }

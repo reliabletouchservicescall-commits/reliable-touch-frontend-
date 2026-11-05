@@ -19,7 +19,7 @@ import { useAuthStore } from '../../store/authStore'
 // manager starts from what feeds the calling — who has how much to call, then the Excel
 // files they hand out — and also gets the areas and campaigns.
 
-function CampaignBanner() {
+export function CampaignBanner() {
   const [open, setOpen] = useState(false)
   const { data } = useQuery({
     queryKey: ['campaigns', 'running'],

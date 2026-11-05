@@ -63,27 +63,22 @@ export function CallerHero({ user, board }) {
     { label: `${board.stats.leadsMonth} lead${board.stats.leadsMonth === 1 ? '' : 's'} this month`, color: '#F87171', to: LEADS },
     { label: `${board.stats.hot} of your leads are hot`, color: '#FB7185', to: `${LEADS}?status=hot` },
     { label: `${board.stats.deals} deal${board.stats.deals === 1 ? '' : 's'} you started`, color: '#34D399', to: `${LEADS}?focus=closed_month` },
-    { label: `${board.stats.callbacks} callback${board.stats.callbacks === 1 ? '' : 's'} waiting`, color: '#FBBF24', to: '/cold-caller/contacts?outcome=callback_requested' },
+    { label: `${board.stats.callbacks} callback${board.stats.callbacks === 1 ? '' : 's'} waiting`, color: '#FBBF24', to: '/cold-caller/calls?tab=callbacks' },
   ] : []
   return (
-    <div className="glass-in relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-[#111111] text-white" style={{ '--d': '0ms' }}>
+    <div className="glass-in relative overflow-hidden rounded-3xl p-5 sm:p-6 bg-[#111111] text-white" style={{ '--d': '0ms' }}>
       <span aria-hidden className="aurora w-[420px] h-[260px] -top-28 -left-10 bg-[#F95C4B]/30" />
       <span aria-hidden className="aurora w-[360px] h-[220px] -bottom-24 right-0 bg-[#8B5CF6]/25" style={{ animationDelay: '-8s' }} />
       <div className="relative">
         <p className="text-sm text-white/60">{format(now, 'EEEE d MMMM')}</p>
-        <h1 className="mt-2 text-2xl sm:text-[34px] leading-tight font-bold tracking-tight">
-          {greeting(now)}, {user?.firstName ?? 'there'}.<br />
-          {board == null ? <span className="inline-block w-72 h-8 rounded-lg bg-white/10 shimmer align-middle" />
+        <h1 className="mt-1 text-xl sm:text-2xl leading-tight font-bold tracking-tight">{greeting(now)}, {user?.firstName ?? 'there'}.</h1>
+        <p className="mt-1 text-sm text-white/75">
+          {board == null ? <span className="inline-block w-56 h-4 rounded bg-white/10 shimmer align-middle" />
             : board.openedWeek > 0
-              ? <>Your leads were opened <span className="text-[#FB7185]">{board.openedWeek} time{board.openedWeek === 1 ? '' : 's'}</span> this week.</>
-              : <>Your leads are <span className="text-[#FB7185]">in good hands</span>.</>}
-        </h1>
-        <p className="mt-3 text-sm sm:text-base text-white/75 max-w-2xl">
-          {board ? (board.peopleOnLeads > 0
-            ? <>{board.peopleOnLeads} {board.peopleOnLeads === 1 ? 'person' : 'people'} — follow-up managers and agents — {board.peopleOnLeads === 1 ? 'is' : 'are'} working on leads you found. Here&apos;s what they did.</>
-            : 'Every lead you find goes to a follow-up manager and an agent — you’ll see everything they do right here.') : ' '}
+              ? <>Your leads were opened <b className="text-[#FB7185]">{board.openedWeek} time{board.openedWeek === 1 ? '' : 's'}</b> this week.</>
+              : <>Your leads are <b className="text-[#FB7185]">in good hands</b>.</>}
         </p>
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {chips.map((c, i) => (
             <button key={c.label} type="button" onClick={() => navigate(c.to)}
               className="mac-pop mac-press px-3.5 py-1.5 rounded-full text-[13px] font-semibold transition-transform hover:-translate-y-0.5"
@@ -99,19 +94,21 @@ export function CallerHero({ user, board }) {
 
 /* ─── Calls ring ────────────────────────────────────────────────────────── */
 
-const GOALS = [40, 60, 100]
+// The cold caller's daily call targets; the one they pick is kept per browser
+export const CALLER_GOALS = [80, 150, 200]
+const GOALS = CALLER_GOALS
+export const callerGoal = () => { try { const g = Number(localStorage.getItem('rt-call-goal')); return GOALS.includes(g) ? g : GOALS[0] } catch { return GOALS[0] } }
 
 export function CallsRing({ callsToday = 0, toCall = 0, loading }) {
   const navigate = useNavigate()
-  const [goal, setGoal] = useState(() => { try { return Number(localStorage.getItem('rt-call-goal')) || 60 } catch { return 60 } })
+  const [goal, setGoal] = useState(callerGoal)
   const pick = (g) => { setGoal(g); try { localStorage.setItem('rt-call-goal', String(g)) } catch { /* private mode */ } }
   const pct = Math.min(1, callsToday / goal)
   const R = 66, C = 2 * Math.PI * R
   const done = callsToday >= goal
   return (
-    <div className="glass-in rounded-3xl p-6 bg-[#111111] text-white flex flex-col items-center" style={{ '--d': '80ms' }}>
-      <p className="text-xs font-semibold uppercase tracking-widest text-white/60">My calls today</p>
-      <div className="relative mt-4 w-[164px] h-[164px]">
+    <div className="glass-in rounded-3xl p-5 bg-[#111111] text-white flex items-center gap-5" style={{ '--d': '80ms' }}>
+      <div className="relative flex-none w-[124px] h-[124px]">
         <svg viewBox="0 0 164 164" className="w-full h-full -rotate-90">
           <circle cx="82" cy="82" r={R} fill="none" stroke="rgb(255 255 255 / 0.1)" strokeWidth="12" />
           <circle cx="82" cy="82" r={R} fill="none" stroke={done ? '#34D399' : '#F43F5E'} strokeWidth="12" strokeLinecap="round"
@@ -120,25 +117,29 @@ export function CallsRing({ callsToday = 0, toCall = 0, loading }) {
         <span className="absolute inset-0 flex flex-col items-center justify-center">
           {loading ? <Loader2 className="w-6 h-6 animate-spin text-white/50" /> : (
             <>
-              <span className="text-4xl font-bold tabular-nums">{callsToday}</span>
+              <span className="text-3xl font-bold tabular-nums">{callsToday}</span>
               <span className="text-xs text-white/60">of {goal}</span>
             </>
           )}
         </span>
       </div>
-      <div className="mt-4 flex gap-2">
+      <div className="min-w-0 flex-1">
+      <p className="text-xs font-semibold uppercase tracking-widest text-white/60">My calls today</p>
+      <p className="mt-0.5 text-[11px] text-white/50">My target</p>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
         {GOALS.map((g) => (
           <button key={g} type="button" onClick={() => pick(g)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${goal === g ? 'bg-white text-[#111111] border-white' : 'border-white/20 text-white/80 hover:border-white/50'}`}>
-            {g} calls
+            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${goal === g ? 'bg-white text-[#111111] border-white' : 'border-white/20 text-white/80 hover:border-white/50'}`}>
+            {g}
           </button>
         ))}
       </div>
-      <button type="button" onClick={() => navigate('/cold-caller/contacts')}
-        className="mac-press mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold bg-[#E11D48] hover:bg-[#BE123C] shadow-[0_12px_30px_-12px_rgba(225,29,72,0.9)] transition-colors">
+      <button type="button" onClick={() => navigate('/cold-caller/calls')}
+        className="mac-press mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold bg-[#E11D48] hover:bg-[#BE123C] shadow-[0_12px_30px_-12px_rgba(225,29,72,0.9)] transition-colors">
         <Phone className="w-4 h-4" /> Start calling{toCall ? ` · ${toCall.toLocaleString()} left` : ''}
       </button>
       {done && <p className="mt-2 text-[11px] text-[#34D399] font-semibold mac-pop">Goal reached — nice work!</p>}
+      </div>
     </div>
   )
 }
@@ -189,7 +190,7 @@ function ThanksButton({ userId, leadId }) {
   )
 }
 
-export function HappeningFeed({ board, loading }) {
+export function HappeningFeed({ board, loading, fill = false }) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
   const fresh = useRef(new Set())
@@ -207,7 +208,7 @@ export function HappeningFeed({ board, loading }) {
   }, [board, filter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="glass-in rounded-3xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] overflow-hidden" style={{ '--d': '120ms' }}>
+    <div className={`glass-in rounded-3xl border border-[#E5E7EB] dark:border-[#2A2A2A] bg-white dark:bg-[#181818] overflow-hidden ${fill ? 'flex flex-col h-full' : ''}`} style={{ '--d': '120ms' }}>
       <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-[#F1EFEC] dark:border-[#232323]">
         <h3 className="flex items-center gap-2.5 text-lg font-bold text-[#111111] dark:text-white">
           Happening to your leads
@@ -224,7 +225,7 @@ export function HappeningFeed({ board, loading }) {
           ))}
         </div>
       </div>
-      <ul className="thin-scroll max-h-[470px] overflow-y-auto divide-y divide-[#F5F5F4] dark:divide-[#202020]">
+      <ul className={`thin-scroll overflow-y-auto ${fill ? 'max-h-[470px] xl:max-h-none xl:flex-1 xl:min-h-0' : 'max-h-[470px]'} divide-y divide-[#F5F5F4] dark:divide-[#202020]`}>
         {loading && Array.from({ length: 5 }, (_, i) => <li key={i} className="px-6 py-4"><Skeleton className="h-12" /></li>)}
         {!loading && items.length === 0 && (
           <li className="py-14 text-center text-sm text-[#9CA3AF]">Nothing yet — when someone opens, calls or moves one of your leads, you&apos;ll see it here first.</li>
@@ -401,7 +402,7 @@ export function TodaysList({ today, overview }) {
   if (!today) return null
   const k = overview?.kpis
   const rows = [
-    today.callbacks.length > 0 && { key: 'callbacks', title: `Call back ${today.callbacks.length} landlord${today.callbacks.length === 1 ? '' : 's'} who asked`, sub: today.callbacks.slice(0, 3).map((c) => c.name).join(' · '), time: '5 min', action: 'Call', to: '/cold-caller/contacts?outcome=callback_requested' },
+    today.callbacks.length > 0 && { key: 'callbacks', title: `Call back ${today.callbacks.length} landlord${today.callbacks.length === 1 ? '' : 's'} who asked`, sub: today.callbacks.slice(0, 3).map((c) => c.name).join(' · '), time: '5 min', action: 'Call', to: '/cold-caller/calls?tab=callbacks' },
     today.followUps.length > 0 && { key: 'followups', title: `${today.followUps.length} lead follow-up${today.followUps.length === 1 ? '' : 's'} due today`, sub: today.followUps.map((f) => f.name).join(' · '), time: '10 min', action: 'Open', to: `${LEADS}?focus=due_today` },
     k?.followUpsOverdue > 0 && { key: 'overdue', title: `${k.followUpsOverdue} overdue follow-up${k.followUpsOverdue === 1 ? '' : 's'}`, sub: 'Set a new callback date so they don’t go cold', time: '10 min', action: 'Open', to: `${LEADS}?focus=overdue` },
     today.noDate > 0 && { key: 'nodate', title: `Give ${today.noDate} lead${today.noDate === 1 ? '' : 's'} a callback date`, sub: 'Leads with a date get followed up — and heat up on their own', time: '15 min', action: 'Fix', to: `${LEADS}?focus=no_followup_date` },

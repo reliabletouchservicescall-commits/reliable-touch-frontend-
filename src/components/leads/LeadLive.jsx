@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { addDays, format, formatDistanceToNowStrict, isToday, isYesterday } from 'date-fns'
 import {
-  Check, Eye, Star, Sparkles, Repeat, CalendarClock, CalendarPlus, UserPlus, Loader2, X, PencilLine, Trash2, Phone, MessageCircle, KeyRound,
+  Check, Eye, Star, Sparkles, Repeat, CalendarClock, CalendarPlus, UserPlus, Loader2, X, PencilLine, Trash2, Phone, MessageCircle, KeyRound, BellRing,
 } from 'lucide-react'
 import axiosClient from '../../lib/axios'
 import { leadsApi } from '../../services/leadsApi'
@@ -206,6 +206,7 @@ export function QuickActions({
         {canChangeStatus && <ActionButton primary icon={PencilLine} label="Update" onClick={() => actions.open('update', { lead })} />}
         {canBook && <ActionButton icon={CalendarPlus} label="Book viewing" tone="#10B981" onClick={() => actions.open('viewing', { lead })} />}
         {rentalListed && <ActionButton icon={KeyRound} label="Tenant link" tone="#F95C4B" onClick={() => actions.open('tenant', { lead })} />}
+        <ActionButton icon={BellRing} label="Remind me" tone="#8B5CF6" onClick={() => actions.open('reminder', { lead })} />
         {canEdit && (
           <button type="button" onClick={onEdit} title="Edit details" className="ml-auto w-10 h-10 rounded-2xl flex items-center justify-center text-[#6B7280] hover:bg-[#F5F5F4] dark:hover:bg-[#202020] hover:text-[#111111] dark:hover:text-white transition-colors">
             <PencilLine className="w-4 h-4" />
